@@ -38,6 +38,8 @@ internal static class Program
 			["gbuffer"] = new(ShaderPath(shaderDir, "gbuffer.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
 			// Deferred lighting: samples albedo (0) + normal (1), writes the lit result.
 			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
+			// Transparent forward: alpha-blends a tint onto the lit target, depth-tested read-only.
+			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: true),
 		};
 
 		var (vertices, indices) = BuildCube();
@@ -65,6 +67,14 @@ internal static class Program
 				.Samples(albedo, normal)
 				.Writes(lit)
 				.Draw(ctx => ctx.FullScreen("lighting", albedo, normal));
+
+			// Transparent forward pass: re-draws the cube as glass, accumulating a tint onto the lit target
+			// (.Blends → LoadOp.Load + alpha blend) while testing against the opaque depth read-only
+			// (.ReadsDepth → DEPTH_READ_ONLY, depth writes off). The engine derives both from these edges.
+			g.Pass("transparent")
+				.Blends(lit)
+				.ReadsDepth(depth)
+				.Draw(ctx => ctx.Draw(cube, "transparent"));
 
 			g.Pass("present")
 				.Samples(lit)
