@@ -1,8 +1,15 @@
 // Geometry technique (Planning.md §12 M5) — the counterpart to the fullscreen techniques: it reads a
 // real vertex buffer instead of fabricating verts from SV_VertexID. The vertex layout mirrors
 // Loom.Core.Vertex (position, normal, uv) and binds by explicit location (0/1/2), matching the backend's
-// VertexInputAttributeDescription. M5.1a draws positions already in clip space (no camera yet); the
-// push-constant MVP arrives in 1b.
+// VertexInputAttributeDescription. Object-space positions are transformed by the MVP push constant
+// (Loom.Core.Camera.ViewProjection × model); the fragment shades by world-ish normal so faces read as 3D.
+
+struct PushConstants
+{
+	float4x4 mvp;
+};
+
+[[vk::push_constant]] PushConstants pc;
 
 struct VsIn
 {
@@ -22,7 +29,7 @@ struct VsOut
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = float4(input.position, 1.0);
+	output.position = mul(pc.mvp, float4(input.position, 1.0));
 	output.normal = input.normal;
 	output.uv = input.uv;
 	return output;
@@ -31,6 +38,7 @@ VsOut vertexMain(VsIn input)
 [shader("fragment")]
 float4 fragmentMain(VsOut input) : SV_Target
 {
-	// Colour by UV so a successful indexed draw is unmistakable (matches the fullscreen gradient look).
-	return float4(input.uv, 0.5, 1.0);
+	// Map the normal into [0,1] so each cube face gets a distinct, recognisable colour.
+	float3 colour = normalize(input.normal) * 0.5 + 0.5;
+	return float4(colour, 1.0);
 }
