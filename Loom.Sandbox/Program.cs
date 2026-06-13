@@ -2,6 +2,7 @@ using System.Numerics;
 
 using Loom.Core;
 using Loom.Vulkan;
+using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
@@ -46,6 +47,12 @@ internal static class Program
 			["bloom.down"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true),
 			["bloom.up"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, Blend: BlendMode.Additive, LinearFilter: true),
 			["bloom.composite"] = new(ShaderPath(shaderDir, "bloom_composite.spv"), "vertexMain", "fragmentMain", SampleCount: 2, LinearFilter: true),
+			// JFA hover-outline (§7.4/§7.5). "id" writes the cube's object id; seed/jfa/resolve grow a glowing
+			// border from the hovered silhouette. seed + jfa take a fragment push (hovered id, step + dims).
+			["id"] = new(ShaderPath(shaderDir, "id.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
+			["outline.seed"] = new(ShaderPath(shaderDir, "outline_seed.spv"), "vertexMain", "fragmentMain", SampleCount: 1, HasFragmentPush: true),
+			["outline.jfa"] = new(ShaderPath(shaderDir, "outline_jfa.spv"), "vertexMain", "fragmentMain", SampleCount: 1, HasFragmentPush: true),
+			["outline.resolve"] = new(ShaderPath(shaderDir, "outline_resolve.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
 		};
 
 		var (vertices, indices) = BuildCube();
@@ -84,10 +91,48 @@ internal static class Program
 				.ReadsDepth(depth)
 				.Draw(ctx => ctx.Draw(cube, "transparent"));
 
-			// Bloom, still in the world domain so the glow stays chunky and pixel-consistent (§7.1/§9). The
-			// sub-graph adds prefilter/downsample/upsample/composite passes and hands back the bloomed result;
-			// the engine derives the mip chain's serialization, barriers, and (M5.5b) aliasing of dead memory.
-			var glow = g.Bloom(lit, threshold: 1.0f, mips: 5);
+			// Hover outline (§7.4 picking + §7.5 JFA). "id" writes the cube's object id; "outline.seed" marks
+			// the hovered object's pixels; a jump-flood ping-pong (step 4→2→1) propagates the nearest seed
+			// coordinate; "outline.resolve" turns nearest-seed distance into an emissive ring composited over
+			// lit. Two physical buffers serve the whole flood — the (read,write) handle swap is the §8 ping-pong,
+			// and the graph derives the strict serialization + a barrier between each level from the edges.
+			var ids = world.Color("object_id", Format.R16F);
+			var seedA = world.Color("outline_a", Format.Rg16F);
+			var seedB = world.Color("outline_b", Format.Rg16F);
+			var outlined = world.Color("lit_outlined", Format.Rgba16F);
+
+			g.Pass("id")
+				.Writes(ids)
+				.Draw(ctx => ctx.Draw(cube, "id"));
+
+			g.Pass("outline.seed")
+				.Samples(ids)
+				.Writes(seedA)
+				.Draw(ctx => ctx.FullScreen("outline.seed", [(float)ctx.HoverId], ids));
+
+			var (read, write) = (seedA, seedB);
+			const int outlineReach = 4; // a 2-3px ring only needs distance out to its own width: steps 4→2→1
+			for (var step = outlineReach; step >= 1; step >>= 1)
+			{
+				var src = read; // capture per-iteration so the closure follows this step's handle (not the loop var)
+				float jump = step;
+				g.Pass($"outline.jfa{step}")
+					.Samples(src)
+					.Writes(write)
+					.Draw(ctx => ctx.FullScreen("outline.jfa", [jump, world.Width, world.Height], src));
+				(read, write) = (write, read); // swap; the graph follows the handles
+			}
+
+			var flood = read; // holds the final flood after the swaps
+			g.Pass("outline.resolve")
+				.Samples(flood, lit)
+				.Writes(outlined)
+				.Draw(ctx => ctx.FullScreen("outline.resolve", flood, lit));
+
+			// Bloom the OUTLINED image, still in the world domain so the glow stays chunky and pixel-consistent
+			// (§7.1/§9). Blooming after the outline is what makes the hover border glow (§7.5). The sub-graph
+			// derives its mip-chain serialization, barriers, and (M5.5b) aliasing of dead memory.
+			var glow = g.Bloom(outlined, threshold: 1.0f, mips: 5);
 
 			// Cross domains: nearest-neighbour upscale from the low-res world to the native screen (§6/§9).
 			g.Pass("upscale")
@@ -101,7 +146,11 @@ internal static class Program
 		using var executor = new GraphExecutor(context, graph, techniques, window.FramebufferSize);
 		cube = executor.CreateMesh(vertices, indices); // upload geometry before the first frame
 
-		Console.WriteLine($"Loom M5 - graph-driven 3D render on {context.DeviceName}. Close the window to exit.");
+		Console.WriteLine($"Loom M5 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; close the window to exit.");
+
+		// Mouse, for the hover test that drives the outline (the cube is object id 1).
+		using var input = window.CreateInput();
+		var mouse = input.Mice.Count > 0 ? input.Mice[0] : null;
 
 		// Headless smoke mode: LOOM_SMOKE_FRAMES=N renders N frames then closes (for automated checks).
 		// Capture mode: LOOM_CAPTURE=path grabs a warmed-up frame to a PNG, then exits.
@@ -124,6 +173,14 @@ internal static class Program
 			projection.M22 *= -1f; // Vulkan clip space has +Y down — flip it
 			executor.Camera = new Camera(view, projection);
 
+			// Hover: in headless capture force the cube hovered (no cursor) so the outline shows; otherwise
+			// test the cursor against the cube's projected screen bounds. Id 1 = the cube, 0 = nothing.
+			var viewProjection = view * projection;
+			var size = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+			executor.HoverId = capturePath is not null
+				? 1u
+				: mouse is not null && CursorOverCube(mouse.Position, viewProjection, size) ? 1u : 0u;
+
 			if (capturePath is not null && frame == 10)
 				executor.RequestCapture(capturePath);
 
@@ -137,6 +194,29 @@ internal static class Program
 
 		window.Run();
 		executor.WaitIdle(); // Drain the GPU before the using-disposals tear down Vulkan objects.
+	}
+
+	// Is the cursor over the cube? Project its eight corners with the same view-projection the GPU uses and
+	// test the cursor against their 2D screen bounding box — a cheap stand-in for true id-buffer readback
+	// (§7.4), which is the M6-faithful way to know what's hovered. The transpose matches the shader's
+	// column-vector mul() against the row-major System.Numerics matrix the renderer uploads.
+	private static bool CursorOverCube(Vector2 cursor, Matrix4x4 viewProjection, Vector2 screen)
+	{
+		var clipFromWorld = Matrix4x4.Transpose(viewProjection);
+		var min = new Vector2(float.MaxValue);
+		var max = new Vector2(float.MinValue);
+		for (var i = 0; i < 8; i++)
+		{
+			var corner = new Vector3((i & 1) == 0 ? -0.5f : 0.5f, (i & 2) == 0 ? -0.5f : 0.5f, (i & 4) == 0 ? -0.5f : 0.5f);
+			var clip = Vector4.Transform(new Vector4(corner, 1f), clipFromWorld);
+			if (clip.W <= 0f)
+				return false; // a corner behind the camera — skip the test this frame
+			var ndc = new Vector2(clip.X, clip.Y) / clip.W;
+			var px = new Vector2((ndc.X * 0.5f + 0.5f) * screen.X, (ndc.Y * 0.5f + 0.5f) * screen.Y);
+			min = Vector2.Min(min, px);
+			max = Vector2.Max(max, px);
+		}
+		return cursor.X >= min.X && cursor.X <= max.X && cursor.Y >= min.Y && cursor.Y <= max.Y;
 	}
 
 	private static string ShaderPath(string dir, string file)
