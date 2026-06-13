@@ -34,30 +34,34 @@ internal static class Program
 			["blit"] = new(ShaderPath(shaderDir, "blit.spv"), "vertexMain", "fragmentMain", SamplesInput: true),
 			// Geometry: reads a Loom.Core.Vertex buffer (position/normal/uv).
 			["mesh"] = new(ShaderPath(shaderDir, "mesh.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
+			// G-buffer geometry: writes albedo + encoded normal (MRT) + depth.
+			["gbuffer"] = new(ShaderPath(shaderDir, "gbuffer.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
 		};
 
 		var (vertices, indices) = BuildCube();
 		Mesh cube = default; // assigned after the executor exists; the scene pass reads it at draw time
 
-		// M5.1b graph: the "scene" pass draws the cube into an offscreen colour target with depth testing;
-		// "present" samples that target (nearest) onto the backbuffer. The engine derives the order, the
-		// COLOR_ATTACHMENT->SHADER_READ flip on the offscreen target, the depth attachment, the load/store
-		// ops, and the present transition.
+		// M5.2 graph: the "gbuffer" pass draws the cube into a low-res WORLD domain, writing albedo + encoded
+		// normal (MRT) + depth; "present" nearest-samples the normal target up to the native backbuffer (the
+		// §9 pixelation step — debug view of the g-buffer until lighting lands). The engine derives the order,
+		// the per-target COLOR_ATTACHMENT->SHADER_READ flips, the depth attachment, load/store, and present.
 		var graph = RenderGraph.Define(g =>
 		{
 			var screen = g.Backbuffer;
-			var offscreen = screen.Domain.Color("offscreen", Format.Rgba16F);
-			var depth = screen.Domain.Depth("depth", Format.Depth32F);
+			var world = g.Domain("world", 480, 270);
+			var albedo = world.Color("albedo", Format.Rgba8Srgb);
+			var normal = world.Color("normal", Format.Rgba16F);
+			var depth = world.Depth("depth", Format.Depth32F);
 
-			g.Pass("scene")
-				.Writes(offscreen)
+			g.Pass("gbuffer")
+				.Writes(albedo, normal)
 				.WritesDepth(depth)
-				.Draw(ctx => ctx.Draw(cube, "mesh"));
+				.Draw(ctx => ctx.Draw(cube, "gbuffer"));
 
 			g.Pass("present")
-				.Samples(offscreen)
+				.Samples(normal)
 				.Writes(screen)
-				.Draw(ctx => ctx.FullScreen("blit", offscreen));
+				.Draw(ctx => ctx.FullScreen("blit", normal));
 
 			g.Present(screen);
 		});
