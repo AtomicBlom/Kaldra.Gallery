@@ -31,11 +31,13 @@ internal static class Program
 			// A gradient written from SV_VertexID (no input).
 			["fullscreen"] = new(ShaderPath(shaderDir, "fullscreen.spv"), "vertexMain", "fragmentMain"),
 			// A fullscreen sample of one input (combined image sampler at set 0/binding 0).
-			["blit"] = new(ShaderPath(shaderDir, "blit.spv"), "vertexMain", "fragmentMain", SamplesInput: true),
+			["blit"] = new(ShaderPath(shaderDir, "blit.spv"), "vertexMain", "fragmentMain", SampleCount: 1),
 			// Geometry: reads a Loom.Core.Vertex buffer (position/normal/uv).
 			["mesh"] = new(ShaderPath(shaderDir, "mesh.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
 			// G-buffer geometry: writes albedo + encoded normal (MRT) + depth.
 			["gbuffer"] = new(ShaderPath(shaderDir, "gbuffer.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
+			// Deferred lighting: samples albedo (0) + normal (1), writes the lit result.
+			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
 		};
 
 		var (vertices, indices) = BuildCube();
@@ -52,16 +54,22 @@ internal static class Program
 			var albedo = world.Color("albedo", Format.Rgba8Srgb);
 			var normal = world.Color("normal", Format.Rgba16F);
 			var depth = world.Depth("depth", Format.Depth32F);
+			var lit = world.Color("lit", Format.Rgba16F);
 
 			g.Pass("gbuffer")
 				.Writes(albedo, normal)
 				.WritesDepth(depth)
 				.Draw(ctx => ctx.Draw(cube, "gbuffer"));
 
+			g.Pass("lighting")
+				.Samples(albedo, normal)
+				.Writes(lit)
+				.Draw(ctx => ctx.FullScreen("lighting", albedo, normal));
+
 			g.Pass("present")
-				.Samples(normal)
+				.Samples(lit)
 				.Writes(screen)
-				.Draw(ctx => ctx.FullScreen("blit", normal));
+				.Draw(ctx => ctx.FullScreen("blit", lit));
 
 			g.Present(screen);
 		});
