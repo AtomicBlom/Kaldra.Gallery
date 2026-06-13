@@ -1,3 +1,5 @@
+using System.Numerics;
+
 using Loom.Core;
 using Loom.Vulkan;
 using Silk.NET.Maths;
@@ -30,7 +32,19 @@ internal static class Program
 			["fullscreen"] = new(ShaderPath(shaderDir, "fullscreen.spv"), "vertexMain", "fragmentMain"),
 			// A fullscreen sample of one input (combined image sampler at set 0/binding 0).
 			["blit"] = new(ShaderPath(shaderDir, "blit.spv"), "vertexMain", "fragmentMain", SamplesInput: true),
+			// Geometry: reads a Loom.Core.Vertex buffer (position/normal/uv).
+			["mesh"] = new(ShaderPath(shaderDir, "mesh.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
 		};
+
+		// A single triangle in clip space (M5.1a — camera arrives in 1b). Constant normal; UVs drive the colour.
+		Vertex[] vertices =
+		[
+			new(new Vector3(-0.6f, -0.6f, 0f), new Vector3(0, 0, 1), new Vector2(0f, 0f)),
+			new(new Vector3(0.6f, -0.6f, 0f), new Vector3(0, 0, 1), new Vector2(1f, 0f)),
+			new(new Vector3(0f, 0.6f, 0f), new Vector3(0, 0, 1), new Vector2(0.5f, 1f)),
+		];
+		uint[] indices = [0, 1, 2];
+		Mesh triangle = default; // assigned after the executor exists; the scene pass reads it at draw time
 
 		// M3d reference graph: pass 1 renders a gradient into an offscreen Rgba16F target; pass 2 samples that
 		// target (nearest) onto the backbuffer. The engine derives the order, the COLOR_ATTACHMENT->SHADER_READ
@@ -42,7 +56,7 @@ internal static class Program
 
 			g.Pass("scene")
 				.Writes(offscreen)
-				.Draw(ctx => ctx.FullScreen("fullscreen"));
+				.Draw(ctx => ctx.Draw(triangle, "mesh"));
 
 			g.Pass("present")
 				.Samples(offscreen)
@@ -53,6 +67,7 @@ internal static class Program
 		});
 
 		using var executor = new GraphExecutor(context, graph, techniques, window.FramebufferSize);
+		triangle = executor.CreateMesh(vertices, indices); // upload geometry before the first frame
 
 		Console.WriteLine($"Loom M3 - graph-driven render on {context.DeviceName}. Close the window to exit.");
 
