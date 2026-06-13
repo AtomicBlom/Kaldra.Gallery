@@ -14,7 +14,7 @@ internal static class Program
 		var options = WindowOptions.DefaultVulkan with
 		{
 			Size = new Vector2D<int>(1280, 720),
-			Title = "Loom - M3: graph-driven (offscreen -> blit)",
+			Title = "Loom - M5: deferred + transparency + bloom + pixelation",
 		};
 
 		using var window = Window.Create(options);
@@ -51,14 +51,16 @@ internal static class Program
 		var (vertices, indices) = BuildCube();
 		Mesh cube = default; // assigned after the executor exists; the scene pass reads it at draw time
 
-		// M5.2 graph: the "gbuffer" pass draws the cube into a low-res WORLD domain, writing albedo + encoded
-		// normal (MRT) + depth; "present" nearest-samples the normal target up to the native backbuffer (the
-		// §9 pixelation step — debug view of the g-buffer until lighting lands). The engine derives the order,
-		// the per-target COLOR_ATTACHMENT->SHADER_READ flips, the depth attachment, load/store, and present.
+		// The reference frame (Planning.md §6). The whole 3D world — geometry, deferred lighting, transparency,
+		// bloom — renders into a small WORLD domain (320×180); the terminal "upscale" pass nearest-samples it
+		// to the native backbuffer. That nearest upscale IS the §9 pixelation: it is not a post filter, it is
+		// the consequence of rendering everything at low resolution and blowing each world texel up to a hard
+		// pixel block, so the pixel grid stays consistent through lighting and bloom. The engine derives pass
+		// order, the COLOR_ATTACHMENT↔SHADER_READ flips, depth states, load/store, transient aliasing, present.
 		var graph = RenderGraph.Define(g =>
 		{
 			var screen = g.Backbuffer;
-			var world = g.Domain("world", 480, 270);
+			var world = g.Domain("world", 320, 180);
 			var albedo = world.Color("albedo", Format.Rgba8Srgb);
 			var normal = world.Color("normal", Format.Rgba16F);
 			var depth = world.Depth("depth", Format.Depth32F);
@@ -87,7 +89,8 @@ internal static class Program
 			// the engine derives the mip chain's serialization, barriers, and (M5.5b) aliasing of dead memory.
 			var glow = g.Bloom(lit, threshold: 1.0f, mips: 5);
 
-			g.Pass("present")
+			// Cross domains: nearest-neighbour upscale from the low-res world to the native screen (§6/§9).
+			g.Pass("upscale")
 				.Samples(glow)
 				.Writes(screen)
 				.Draw(ctx => ctx.FullScreen("blit", glow));
