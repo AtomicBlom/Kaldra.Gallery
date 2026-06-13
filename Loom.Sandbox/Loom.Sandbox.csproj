@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Loom.Vulkan\Loom.Vulkan.csproj" />
+    <!-- Brings the compiled .spv into the app output under shaders\ (no code dependency). -->
+    <ProjectReference Include="..\Loom.Shaders\Loom.Shaders.csproj" />
   </ItemGroup>
 
   <!-- The host owns the window + input and hands the backend the surface. -->
