@@ -1,7 +1,6 @@
+using Loom.Vulkan;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
-
-using Loom.Vulkan;
 
 namespace Loom.Sandbox;
 
