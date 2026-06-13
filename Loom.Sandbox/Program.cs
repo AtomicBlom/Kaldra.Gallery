@@ -39,7 +39,13 @@ internal static class Program
 			// Deferred lighting: samples albedo (0) + normal (1), writes the lit result.
 			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
 			// Transparent forward: alpha-blends a tint onto the lit target, depth-tested read-only.
-			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: true),
+			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: BlendMode.AlphaOver),
+			// Bloom sub-graph (§7.1). All sample with a linear filter (smooth glow); the upsample additively
+			// accumulates. "bloom.down" and "bloom.up" share one shader — only their blend/edge intent differs.
+			["bloom.prefilter"] = new(ShaderPath(shaderDir, "bloom_prefilter.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true),
+			["bloom.down"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true),
+			["bloom.up"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, Blend: BlendMode.Additive, LinearFilter: true),
+			["bloom.composite"] = new(ShaderPath(shaderDir, "bloom_composite.spv"), "vertexMain", "fragmentMain", SampleCount: 2, LinearFilter: true),
 		};
 
 		var (vertices, indices) = BuildCube();
@@ -76,10 +82,15 @@ internal static class Program
 				.ReadsDepth(depth)
 				.Draw(ctx => ctx.Draw(cube, "transparent"));
 
+			// Bloom, still in the world domain so the glow stays chunky and pixel-consistent (§7.1/§9). The
+			// sub-graph adds prefilter/downsample/upsample/composite passes and hands back the bloomed result;
+			// the engine derives the mip chain's serialization, barriers, and (M5.5b) aliasing of dead memory.
+			var glow = g.Bloom(lit, threshold: 1.0f, mips: 5);
+
 			g.Pass("present")
-				.Samples(lit)
+				.Samples(glow)
 				.Writes(screen)
-				.Draw(ctx => ctx.FullScreen("blit", lit));
+				.Draw(ctx => ctx.FullScreen("blit", glow));
 
 			g.Present(screen);
 		});

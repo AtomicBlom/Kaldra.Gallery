@@ -33,5 +33,9 @@ float4 fragmentMain(VsOut input) : SV_Target
 	float ndotl = max(dot(normal, lightDir), 0.0);
 	float ambient = 0.15;
 
-	return float4(albedo * (ambient + ndotl), 1.0);
+	// A key light strong enough to push the most-lit faces into HDR (>1), so the bloom prefilter's threshold
+	// catches them and they glow, while grazing faces stay in LDR and keep their shading (and the M5.4 blue
+	// transparent tint). The lit target is Rgba16F precisely to hold this range.
+	const float keyIntensity = 1.8;
+	return float4(albedo * (ambient + ndotl * keyIntensity), 1.0);
 }
