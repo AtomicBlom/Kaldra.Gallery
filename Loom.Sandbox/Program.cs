@@ -32,14 +32,23 @@ internal static class Program
 		Console.WriteLine($"Loom M1 - fullscreen triangle on {context.DeviceName}. Close the window to exit.");
 
 		// Headless smoke mode: LOOM_SMOKE_FRAMES=N renders N frames then closes (for automated checks).
+		// Capture mode: LOOM_CAPTURE=path grabs a warmed-up frame to a PNG, then exits.
 		var smokeFrames = int.TryParse(Environment.GetEnvironmentVariable("LOOM_SMOKE_FRAMES"), out var n) ? n : 0;
+		var capturePath = Environment.GetEnvironmentVariable("LOOM_CAPTURE");
 		var frame = 0;
 
 		window.FramebufferResize += size => renderer.OnResize(size);
 		window.Render += delta =>
 		{
+			frame++;
+			if (capturePath is not null && frame == 10)
+				renderer.RequestCapture(capturePath);
+
 			renderer.DrawFrame(delta);
-			if (smokeFrames > 0 && ++frame >= smokeFrames)
+
+			if (capturePath is not null && frame >= 12)
+				window.Close();
+			else if (smokeFrames > 0 && frame >= smokeFrames)
 				window.Close();
 		};
 
