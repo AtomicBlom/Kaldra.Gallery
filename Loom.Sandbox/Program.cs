@@ -39,11 +39,18 @@ internal static class Program
 		// §3). VulkanEngineSettings is the one backend type the app names; constructing it also loads Loom.Vulkan,
 		// which self-registers the Vulkan backend into Engine.AvailableEngines. LOOM_BACKEND optionally selects a
 		// backend by name (default: the first available — Vulkan today).
+		// LOOM_HDR=1/true/on/yes requests true HDR display output (Planning.md §3): the engine negotiates an
+		// scRGB/HDR10 swapchain when the display supports it and the tone-map maps to display nits, falling back
+		// to SDR otherwise. Off by default.
+		var hdrEnv = Environment.GetEnvironmentVariable("LOOM_HDR");
+		var hdr = hdrEnv is not null && hdrEnv.ToLowerInvariant() is "1" or "true" or "on" or "yes";
+
 		var settings = new VulkanEngineSettings
 		{
 			EnableValidation = true,
 			VSync = vsync,
 			MaxFramesPerSecond = maxFps,
+			HdrOutput = hdr,
 			PreferredBackend = Environment.GetEnvironmentVariable("LOOM_BACKEND"),
 		};
 
@@ -80,7 +87,7 @@ internal static class Program
 		// Auto-exposure (§12 M5): a compute reduction samples lit + read-writes the 1×1 persistent exposure
 		// storage image; the tonemap samples glow + exposure. slangc names a lone compute entry "main".
 		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
-		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap"));
+		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", HasFragmentPush: true));
 		// Runtime buffer inspector + terminal upscale: samples every inspectable buffer and presents the one
 		// the HUD's View menu selects via a fragment push (mode 0 = final).
 		engine.DefineTechnique("debugview", new TechniqueDescriptor("debugview", HasFragmentPush: true));
@@ -259,7 +266,9 @@ internal static class Program
 			g.Pass("tonemap")
 				.Samples(glow, exposure)
 				.Writes(graded)
-				.Draw(ctx => ctx.FullScreen("tonemap", glow, exposure));
+				// The HDR flag (ctx.HdrOutput) rides the push: SDR compresses to the LDR backbuffer; HDR keeps
+				// the extended range for the negotiated scRGB swapchain (M7-B6).
+				.Draw(ctx => ctx.FullScreen("tonemap", [ctx.HdrOutput ? 1f : 0f], glow, exposure));
 
 			// Terminal pass: nearest-neighbour upscale from the low-res world to the native screen (§6/§9) AND
 			// the runtime buffer inspector (§7.6). It samples EVERY inspectable buffer in viewNames order; the
