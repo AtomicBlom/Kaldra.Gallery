@@ -28,7 +28,7 @@ public static class BloomGraph
 	/// most a 480×270 world supports before mips become noise.</param>
 	/// <param name="intensity">How strongly the glow composites back. Delivered to the composite shader through
 	/// the fragment push channel (M7-A3).</param>
-	public static ResourceHandle Bloom(this GraphBuilder g, ResourceHandle source, float threshold = 1.0f, int mips = 5, float intensity = 0.7f)
+	public static ColorHandle Bloom(this GraphBuilder g, ColorHandle source, float threshold = 1.0f, int mips = 5, float intensity = 0.7f)
 	{
 		ArgumentNullException.ThrowIfNull(g);
 		ArgumentNullException.ThrowIfNull(source);
@@ -36,7 +36,7 @@ public static class BloomGraph
 			throw new ArgumentOutOfRangeException(nameof(mips), "Bloom needs at least 2 mips (one downsample to upsample from).");
 
 		var domain = source.Domain;
-		var chain = new ResourceHandle[mips];
+		var chain = new ColorHandle[mips];
 		for (var i = 0; i < mips; i++)
 			chain[i] = domain.Color($"bloom_mip{i}", Format.Rgba16F, scale: 1f / (1 << (i + 1)));
 
