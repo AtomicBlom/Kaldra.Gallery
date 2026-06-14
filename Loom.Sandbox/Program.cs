@@ -39,9 +39,11 @@ internal static class Program
 			["gbuffer"] = new(ShaderPath(shaderDir, "gbuffer.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
 			// Depth-only shadow caster: drawn from the sun's view into the shadow map (no colour output).
 			["depthonly"] = new(ShaderPath(shaderDir, "depthonly.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			// Deferred lighting: samples albedo (0) + normal (1) + position (2) + shadow map (3); the sun's
-			// view-projection rides the fragment push for the shadow test. Writes the lit result.
-			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 4, HasFragmentPush: true),
+			// SSAO: samples world position (0) + normal (1); the camera view-projection rides the push.
+			["ssao"] = new(ShaderPath(shaderDir, "ssao.spv"), "vertexMain", "fragmentMain", SampleCount: 2, HasFragmentPush: true),
+			// Deferred lighting: samples albedo (0) + normal (1) + position (2) + shadow map (3) + ao (4); the
+			// sun's view-projection rides the fragment push for the shadow test. Writes the lit result.
+			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 5, HasFragmentPush: true),
 			// Transparent forward: alpha-blends a tint onto the lit target, depth-tested read-only.
 			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: BlendMode.AlphaOver),
 			// Bloom sub-graph (§7.1). All sample with a linear filter (smooth glow); the upsample additively
@@ -87,8 +89,9 @@ internal static class Program
 			var world = g.Domain("world", 320, 180);
 			var albedo = world.Color("albedo", Format.Rgba8Srgb);
 			var normal = world.Color("normal", Format.Rgba16F);
-			var position = world.Color("position", Format.Rgba16F); // world position, for the shadow test
+			var position = world.Color("position", Format.Rgba16F); // world position, for the shadow test + SSAO
 			var depth = world.Depth("depth", Format.Depth32F);
+			var ao = world.Color("ao", Format.R16F); // screen-space ambient occlusion
 			var lit = world.Color("lit", Format.Rgba16F);
 
 			// Shadows (§7.2): a depth-only pass renders the casters from the SUN's view (the view: param) into
@@ -114,10 +117,17 @@ internal static class Program
 					ctx.Draw(plane, "gbuffer");
 				});
 
+			// SSAO (§7.6): samples the g-buffer's position + normal, writes a contact-occlusion term. Just
+			// another edge — gbuffer → ssao → lighting; the engine reorders/barriers it in automatically.
+			g.Pass("ssao")
+				.Samples(position, normal)
+				.Writes(ao)
+				.Draw(ctx => ctx.FullScreen("ssao", Mat(ctx.Camera.ViewProjection), position, normal));
+
 			g.Pass("lighting")
-				.Samples(albedo, normal, position, shadowMap)
+				.Samples(albedo, normal, position, shadowMap, ao)
 				.Writes(lit)
-				.Draw(ctx => ctx.FullScreen("lighting", Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap));
+				.Draw(ctx => ctx.FullScreen("lighting", Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap, ao));
 
 			// Transparent forward pass: re-draws the cube as glass, accumulating a tint onto the lit target
 			// (.Blends → LoadOp.Load + alpha blend) while testing against the opaque depth read-only
@@ -204,6 +214,7 @@ internal static class Program
 					["normal"] = normal,
 					["position"] = position,
 					["depth"] = depth,
+					["ao"] = ao,
 					["lit"] = lit,
 					["outlined"] = outlined,
 					["glow"] = glow,

@@ -9,6 +9,7 @@
 [[vk::binding(1, 0)]] Sampler2D normalTex;
 [[vk::binding(2, 0)]] Sampler2D positionTex;
 [[vk::binding(3, 0)]] Sampler2D shadowMap;
+[[vk::binding(4, 0)]] Sampler2D aoTex; // screen-space ambient occlusion (§7.6)
 
 struct PushConstants
 {
@@ -64,5 +65,6 @@ float4 fragmentMain(VsOut input) : SV_Target
 	// removes the key light (but not ambient) where the sun is occluded. lit target is Rgba16F to hold it.
 	const float keyIntensity = 1.8;
 	float shadow = sunVisibility(worldPos);
-	return float4(albedo * (ambient + ndotl * keyIntensity * shadow), 1.0);
+	float ao = aoTex.Sample(input.uv).r; // occludes only the ambient/indirect term
+	return float4(albedo * (ambient * ao + ndotl * keyIntensity * shadow), 1.0);
 }

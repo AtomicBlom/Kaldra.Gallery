@@ -1,0 +1,97 @@
+// Screen-space ambient occlusion (Planning.md §7.6). A pass that samples the G-buffer's world position (0)
+// and normal (1) and writes a per-pixel occlusion term; deferred lighting then samples it and darkens the
+// ambient term, giving contact shadows (e.g. where the cube meets the floor). Inserting this effect is just
+// adding edges — gbuffer → ssao → lighting — and the engine re-derives ordering and barriers (§7.6).
+//
+// Hemisphere SSAO entirely in world space: for each pixel, jitter a kernel of directions into the normal-
+// oriented hemisphere, reproject each sample with the camera's view-projection (the fragment push), and read
+// the surface position there; if that surface sits in front of the sample point (and within range), the
+// sample is occluded. Single-pass, no blur — a per-pixel rotation trades banding for noise (a blur pass is
+// the usual next edge). Position's .a flags geometry vs background.
+
+[[vk::binding(0, 0)]] Sampler2D positionTex;
+[[vk::binding(1, 0)]] Sampler2D normalTex;
+
+struct PushConstants
+{
+	float4x4 viewProj; // world → clip, to reproject sample points to screen
+};
+
+[[vk::push_constant]] PushConstants pc;
+
+struct VsOut
+{
+	float4 position : SV_Position;
+	float2 uv : TEXCOORD0;
+};
+
+[shader("vertex")]
+VsOut vertexMain(uint vertexId : SV_VertexID)
+{
+	float2 uv = float2((vertexId << 1) & 2, vertexId & 2);
+
+	VsOut output;
+	output.uv = uv;
+	output.position = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+	return output;
+}
+
+static const int kKernel = 16;
+// Tangent-space hemisphere directions (z = along the normal), weighted toward the centre.
+static const float3 kSamples[16] = {
+	float3(0.04, 0.02, 0.05), float3(-0.06, 0.05, 0.08), float3(0.09, -0.07, 0.06), float3(-0.03, -0.09, 0.10),
+	float3(0.12, 0.10, 0.14), float3(-0.14, 0.08, 0.12), float3(0.10, -0.15, 0.16), float3(-0.11, -0.12, 0.20),
+	float3(0.22, 0.05, 0.18), float3(-0.05, 0.24, 0.22), float3(0.18, -0.20, 0.26), float3(-0.24, -0.10, 0.30),
+	float3(0.30, 0.22, 0.34), float3(-0.28, 0.26, 0.40), float3(0.20, -0.34, 0.44), float3(-0.36, -0.30, 0.50),
+};
+
+float hash(float2 p)
+{
+	return frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+[shader("fragment")]
+float fragmentMain(VsOut input) : SV_Target
+{
+	static const float radius = 0.6;
+	static const float intensity = 1.4;
+	static const float bias = 0.0025;
+
+	float4 origin = positionTex.Sample(input.uv);
+	if (origin.a < 0.5)
+		return 1.0; // background — fully unoccluded
+
+	float3 p = origin.xyz;
+	float3 n = normalize(normalTex.Sample(input.uv).rgb * 2.0 - 1.0);
+
+	// Per-pixel rotated tangent basis (Gram-Schmidt) so the fixed kernel varies across the image.
+	float angle = hash(input.uv) * 6.2831853;
+	float3 randVec = float3(cos(angle), sin(angle), 0.0);
+	float3 t = normalize(randVec - n * dot(randVec, n));
+	float3 b = cross(n, t);
+	float3x3 tbn = float3x3(t, b, n);
+
+	float occlusion = 0.0;
+	for (int i = 0; i < kKernel; i++)
+	{
+		float3 dir = mul(kSamples[i], tbn);           // tangent → world
+		float3 q = p + dir * radius;                  // a point in the hemisphere
+
+		float4 clip = mul(pc.viewProj, float4(q, 1.0));
+		float3 ndc = clip.xyz / clip.w;
+		float2 uv = ndc.xy * 0.5 + 0.5;
+		if (any(uv < 0.0) || any(uv > 1.0))
+			continue;
+
+		float4 surf = positionTex.Sample(uv);
+		if (surf.a < 0.5)
+			continue;                                 // sample landed on background
+
+		float surfDepth = mul(pc.viewProj, float4(surf.xyz, 1.0)).z / mul(pc.viewProj, float4(surf.xyz, 1.0)).w;
+		float range = smoothstep(0.0, 1.0, radius / max(length(p - surf.xyz), 1e-4));
+		if (surfDepth < ndc.z - bias)                 // the surface is in front of the sample point → occluded
+			occlusion += range;
+	}
+
+	return saturate(1.0 - occlusion / kKernel * intensity);
+}
