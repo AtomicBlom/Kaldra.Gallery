@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 using ImGuiNET;
 using Loom.Core;
@@ -415,16 +416,11 @@ internal static class Program
 		ImGui.DestroyContext();
 	}
 
-	// Flatten a matrix to 16 floats in the same field order System.Numerics stores them (M11..M44) — the
-	// layout the shader's float4x4 expects, matching how the MVP push uploads its matrix bytes. Used to hand
-	// the sun's view-projection to the lighting shader through the scalar push channel.
-	private static float[] Mat(Matrix4x4 m) =>
-	[
-		m.M11, m.M12, m.M13, m.M14,
-		m.M21, m.M22, m.M23, m.M24,
-		m.M31, m.M32, m.M33, m.M34,
-		m.M41, m.M42, m.M43, m.M44,
-	];
+	// View a matrix as its 16 contiguous floats (M11..M44 — System.Numerics' field order, exactly what the
+	// shader's float4x4 and the MVP push expect) with no per-frame array allocation. The span aliases the
+	// caller's matrix temporary, which lives to the end of the enclosing push call where it is read
+	// synchronously, so it never escapes. Used to hand a view-projection to a shader's scalar push channel.
+	private static ReadOnlySpan<float> Mat(in Matrix4x4 m) => MemoryMarshal.CreateReadOnlySpan(in m.M11, 16);
 
 	// A flat ground quad at the cube's base (y = -0.5), facing up — the receiver the cube's shadow falls on.
 	// Cull is disabled, so winding doesn't matter; the normal points up for lighting.
