@@ -53,6 +53,12 @@ internal static class Program
 			["outline.seed"] = new(ShaderPath(shaderDir, "outline_seed.spv"), "vertexMain", "fragmentMain", SampleCount: 1, HasFragmentPush: true),
 			["outline.jfa"] = new(ShaderPath(shaderDir, "outline_jfa.spv"), "vertexMain", "fragmentMain", SampleCount: 1, HasFragmentPush: true),
 			["outline.resolve"] = new(ShaderPath(shaderDir, "outline_resolve.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
+			// Auto-exposure (§12 M5 "Persistent + Compute"): a compute reduction samples lit (0) + read-writes
+			// the 1×1 persistent exposure storage image (1); the tonemap samples glow (0) + exposure (1).
+			// slangc names a lone compute entry point "main" in the SPIR-V (it keeps explicit names only to
+			// disambiguate multiple entries, as the graphics modules have); the compute entry rides FragmentEntry.
+			["exposure"] = new(ShaderPath(shaderDir, "exposure.spv"), "main", "main", SampleCount: 1, IsCompute: true, StorageCount: 1, HasFragmentPush: true),
+			["tonemap"] = new(ShaderPath(shaderDir, "tonemap.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
 		};
 
 		var (vertices, indices) = BuildCube();
@@ -134,11 +140,29 @@ internal static class Program
 			// derives its mip-chain serialization, barriers, and (M5.5b) aliasing of dead memory.
 			var glow = g.Bloom(outlined, threshold: 1.0f, mips: 5);
 
+			// Auto-exposure (§12 M5 "Persistent + Compute"). A compute pass meters the lit scene's luminance
+			// and read-writes a 1×1 PERSISTENT exposure value — persistent, so it carries across frames and the
+			// adaptation is temporal. The tonemap then reads it. The engine derives the GENERAL-layout storage
+			// transition, the compute→fragment hand-off barrier, and (in the backend) the cross-frame layout.
+			var meter = g.Domain("meter", 1, 1);
+			var exposure = meter.Persistent("exposure", Format.R16F);
+			var graded = world.Color("graded", Format.Rgba16F);
+
+			g.Compute("exposure")
+				.Samples(lit)
+				.ReadWrites(exposure)
+				.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * ctx.DeltaTime], [lit], [exposure]));
+
+			g.Pass("tonemap")
+				.Samples(glow, exposure)
+				.Writes(graded)
+				.Draw(ctx => ctx.FullScreen("tonemap", glow, exposure));
+
 			// Cross domains: nearest-neighbour upscale from the low-res world to the native screen (§6/§9).
 			g.Pass("upscale")
-				.Samples(glow)
+				.Samples(graded)
 				.Writes(screen)
-				.Draw(ctx => ctx.FullScreen("blit", glow));
+				.Draw(ctx => ctx.FullScreen("blit", graded));
 
 			g.Present(screen);
 		});
