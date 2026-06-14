@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 using ImGuiNET;
 using Loom.Core;
-using Loom.Vulkan;
+using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned backend type (Planning.md §5)
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -25,7 +25,7 @@ internal static class Program
 		var options = WindowOptions.DefaultVulkan with
 		{
 			Size = new Vector2D<int>(1280, 720),
-			Title = "Loom - M6: deferred reference frame + Dear ImGui inspector",
+			Title = "Loom - M7: neutral engine facade + Dear ImGui inspector",
 			FramesPerSecond = maxFps,
 		};
 
@@ -35,59 +35,62 @@ internal static class Program
 		if (window.VkSurface is null)
 			throw new InvalidOperationException("The windowing platform did not expose a Vulkan surface.");
 
-		using var context = new VulkanContext(window.VkSurface, enableValidation: true);
-
-		var shaderDir = Path.Combine(AppContext.BaseDirectory, "shaders");
-		var techniques = new Dictionary<string, TechniqueTemplate>
+		// Engine configuration is a settings object now, not scattered env vars / constructor args (Planning.md
+		// §3). VulkanEngineSettings is the one backend type the app names; constructing it also loads Loom.Vulkan,
+		// which self-registers the Vulkan backend into Engine.AvailableEngines. LOOM_BACKEND optionally selects a
+		// backend by name (default: the first available — Vulkan today).
+		var settings = new VulkanEngineSettings
 		{
-			// A gradient written from SV_VertexID (no input).
-			["fullscreen"] = new(ShaderPath(shaderDir, "fullscreen.spv"), "vertexMain", "fragmentMain"),
-			// A fullscreen sample of one input (combined image sampler at set 0/binding 0).
-			["blit"] = new(ShaderPath(shaderDir, "blit.spv"), "vertexMain", "fragmentMain", SampleCount: 1),
-			// Geometry: reads a Loom.Core.Vertex buffer (position/normal/uv).
-			["mesh"] = new(ShaderPath(shaderDir, "mesh.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			// G-buffer geometry: writes albedo + encoded normal + world position (MRT) + depth.
-			["gbuffer"] = new(ShaderPath(shaderDir, "gbuffer.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			// Depth-only shadow caster: drawn from the sun's view into the shadow map (no colour output).
-			["depthonly"] = new(ShaderPath(shaderDir, "depthonly.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			// SSAO: samples world position (0) + normal (1); the camera view-projection rides the push.
-			["ssao"] = new(ShaderPath(shaderDir, "ssao.spv"), "vertexMain", "fragmentMain", SampleCount: 2, HasFragmentPush: true),
-			// Deferred lighting: samples albedo (0) + normal (1) + position (2) + shadow map (3) + ao (4); the
-			// sun's view-projection rides the fragment push for the shadow test. Writes the lit result.
-			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 5, HasFragmentPush: true),
-			// Transparent forward: alpha-blends a tint onto the lit target, depth-tested read-only.
-			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: BlendMode.AlphaOver),
-			// Bloom sub-graph (§7.1). All sample with a linear filter (smooth glow); the upsample additively
-			// accumulates. "bloom.down" and "bloom.up" share one shader — only their blend/edge intent differs.
-			["bloom.prefilter"] = new(ShaderPath(shaderDir, "bloom_prefilter.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true, HasFragmentPush: true),
-			["bloom.down"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true),
-			["bloom.up"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, Blend: BlendMode.Additive, LinearFilter: true),
-			["bloom.composite"] = new(ShaderPath(shaderDir, "bloom_composite.spv"), "vertexMain", "fragmentMain", SampleCount: 2, LinearFilter: true, HasFragmentPush: true),
-			// JFA hover-outline (§7.4/§7.5). "id" writes the cube's object id; seed/jfa/resolve grow a glowing
-			// border from the hovered silhouette. seed + jfa take a fragment push (hovered id, step + dims).
-			["id"] = new(ShaderPath(shaderDir, "id.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			["outline.seed"] = new(ShaderPath(shaderDir, "outline_seed.spv"), "vertexMain", "fragmentMain", SampleCount: 1, HasFragmentPush: true),
-			["outline.jfa"] = new(ShaderPath(shaderDir, "outline_jfa.spv"), "vertexMain", "fragmentMain", SampleCount: 1, HasFragmentPush: true),
-			["outline.resolve"] = new(ShaderPath(shaderDir, "outline_resolve.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
-			// Auto-exposure (§12 M5 "Persistent + Compute"): a compute reduction samples lit (0) + read-writes
-			// the 1×1 persistent exposure storage image (1); the tonemap samples glow (0) + exposure (1).
-			// slangc names a lone compute entry point "main" in the SPIR-V (it keeps explicit names only to
-			// disambiguate multiple entries, as the graphics modules have); the compute entry rides FragmentEntry.
-			["exposure"] = new(ShaderPath(shaderDir, "exposure.spv"), "main", "main", SampleCount: 1, IsCompute: true, StorageCount: 1, HasFragmentPush: true),
-			["tonemap"] = new(ShaderPath(shaderDir, "tonemap.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
-			// Runtime buffer inspector + terminal upscale: samples every inspectable buffer (10 combined image
-			// samplers) and presents the one the HUD's View menu selects via a fragment push (mode 0 = final).
-			["debugview"] = new(ShaderPath(shaderDir, "debugview.spv"), "vertexMain", "fragmentMain", SampleCount: 10, HasFragmentPush: true),
-			// GPU particles (§7.6): a compute writes the particle storage buffer (binding 0); the render reads
-			// it as point vertices and additively blends emissive sparks (lone compute entry → "main").
-			["particle.update"] = new(ShaderPath(shaderDir, "particle_update.spv"), "main", "main", IsCompute: true, StorageBufferCount: 1, HasFragmentPush: true),
-			["particle.render"] = new(ShaderPath(shaderDir, "particle_render.spv"), "vertexMain", "fragmentMain", Blend: BlendMode.Additive, ParticleInput: true),
+			EnableValidation = true,
+			VSync = vsync,
+			MaxFramesPerSecond = maxFps,
+			PreferredBackend = Environment.GetEnvironmentVariable("LOOM_BACKEND"),
 		};
 
+		// Pick a backend at runtime by name, with a sensible fallback — the app names no graphics-API type here.
+		var backend = Engine.AvailableEngines.FirstOrDefault(e => e.Name == settings.PreferredBackend)
+			?? Engine.AvailableEngines.First();
+		using var engine = backend.Create(window.VkSurface, window.FramebufferSize.X, window.FramebufferSize.Y, settings);
+
+		// Register the techniques the graph draws with, by logical name. The shader is named logically
+		// ("fullscreen" → the backend resolves <shaders>/fullscreen.spv); no backend artifact path appears here.
+		engine.DefineTechnique("fullscreen", new TechniqueDescriptor("fullscreen")); // gradient from SV_VertexID, no input
+		engine.DefineTechnique("blit", new TechniqueDescriptor("blit", SampleCount: 1)); // fullscreen sample of one input
+		engine.DefineTechnique("mesh", new TechniqueDescriptor("mesh", HasVertexInput: true)); // reads a Vertex buffer
+		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true)); // MRT: albedo+normal+position+depth
+		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true)); // shadow caster, no colour
+		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", SampleCount: 2, HasFragmentPush: true)); // samples position+normal
+		// Deferred lighting: samples albedo+normal+position+shadow+ao; the sun's VP rides the fragment push.
+		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", SampleCount: 5, HasFragmentPush: true));
+		engine.DefineTechnique("transparent", new TechniqueDescriptor("transparent", HasVertexInput: true, Blend: BlendMode.AlphaOver));
+		// Bloom sub-graph (§7.1). All sample with a linear filter; the upsample additively accumulates. "bloom.down"
+		// and "bloom.up" share one shader (bloom_sample) — only their blend/edge intent differs.
+		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", SampleCount: 1, LinearFilter: true, HasFragmentPush: true));
+		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", SampleCount: 1, LinearFilter: true));
+		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", SampleCount: 1, Blend: BlendMode.Additive, LinearFilter: true));
+		engine.DefineTechnique("bloom.composite", new TechniqueDescriptor("bloom_composite", SampleCount: 2, LinearFilter: true, HasFragmentPush: true));
+		// JFA hover-outline (§7.4/§7.5). "id" writes the cube's object id; seed/jfa/resolve grow a glowing border.
+		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
+		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed", SampleCount: 1, HasFragmentPush: true));
+		engine.DefineTechnique("outline.jfa", new TechniqueDescriptor("outline_jfa", SampleCount: 1, HasFragmentPush: true));
+		engine.DefineTechnique("outline.resolve", new TechniqueDescriptor("outline_resolve", SampleCount: 2));
+		// Auto-exposure (§12 M5): a compute reduction samples lit (0) + read-writes the 1×1 persistent exposure
+		// storage image (1); the tonemap samples glow (0) + exposure (1). slangc names a lone compute entry "main".
+		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", SampleCount: 1, IsCompute: true, StorageImageCount: 1, HasFragmentPush: true));
+		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", SampleCount: 2));
+		// Runtime buffer inspector + terminal upscale: samples every inspectable buffer (10) and presents the one
+		// the HUD's View menu selects via a fragment push (mode 0 = final).
+		engine.DefineTechnique("debugview", new TechniqueDescriptor("debugview", SampleCount: 10, HasFragmentPush: true));
+		// GPU particles (§7.6): a compute writes the particle storage buffer; the render reads it as point vertices
+		// and additively blends emissive sparks (lone compute entry → "main").
+		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, StorageBufferCount: 1, HasFragmentPush: true));
+		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, ParticleInput: true));
+
+		// Upload geometry once; the scene passes draw these stable handles (pulled, not captured — §8).
 		var (cubeVerts, cubeIndices) = BuildCube();
 		var (planeVerts, planeIndices) = BuildPlane();
-		Mesh cube = default;  // assigned after the executor exists; the scene passes read them at draw time
-		Mesh plane = default; // a ground plane to catch the cube's shadow
+		var cube = engine.CreateMesh(cubeVerts, cubeIndices);
+		var plane = engine.CreateMesh(planeVerts, planeIndices); // a ground plane to catch the cube's shadow
 
 		// The reference frame (Planning.md §6). The whole 3D world — geometry, deferred lighting, transparency,
 		// bloom — renders into a small WORLD domain (320×180); the terminal "upscale" pass nearest-samples it
@@ -273,22 +276,22 @@ internal static class Program
 			g.Present(screen);
 		});
 
-		using var executor = new GraphExecutor(context, graph, techniques, window.FramebufferSize, vsync);
-		cube = executor.CreateMesh(cubeVerts, cubeIndices);    // upload geometry before the first frame
-		plane = executor.CreateMesh(planeVerts, planeIndices);
+		// Make the graph active — the engine derives its schedule/barriers/aliasing + transients once, reusing
+		// the device and pipeline cache (Planning.md §8). Calling SetGraph again would swap the active graph.
+		engine.SetGraph(graph);
 
-		// The sun: a directional light. Its view-projection is constant (the light doesn't move), so set it
-		// once; the shadow pass draws from it and lighting projects into it. Orthographic — directional light.
+		// The sun: a directional light. Its view-projection is constant (the light doesn't move), so build it
+		// once and hand the same value in every frame's inputs. Orthographic — directional light. No Y-flip here:
+		// the projection is neutral (+Y up); the backend applies its clip-space convention on ingest (M7-B5).
 		var lightDir = Vector3.Normalize(new Vector3(0.6f, 0.55f, 0.45f)); // matches lighting.slang's lightDir
 		var sunView = Matrix4x4.CreateLookAt(lightDir * 7f, Vector3.Zero, Vector3.UnitY);
 		var sunProj = Matrix4x4.CreateOrthographic(9f, 9f, 0.1f, 14f);
-		sunProj.M22 *= -1f; // same Vulkan Y-flip as the camera; render + sample share it, so it's consistent
-		executor.SunView = new Camera(sunView, sunProj);
+		var sunCamera = new Camera(sunView, sunProj);
 
-		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the backend's ImGuiRenderer (the
-		// imgui_impl_vulkan equivalent, quarantined in Loom.Vulkan) does the GPU work. Create the context and
+		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's ImGui renderer (the
+		// imgui_impl_vulkan equivalent, quarantined in the backend) does the GPU work. Create the context and
 		// build the font atlas BEFORE EnableImGui (which uploads it). Per frame we feed input + display size,
-		// build the panel, ImGui.Render(), and hand the executor the native draw-data pointer for the hud pass.
+		// build the panel, ImGui.Render(), and hand the engine the native draw-data pointer via FrameInputs.
 		ImGui.CreateContext();
 		var io = ImGui.GetIO();
 		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
@@ -296,11 +299,11 @@ internal static class Program
 		io.DisplayFramebufferScale = Vector2.One;
 		io.Fonts.AddFontDefault();
 		ImGui.StyleColorsDark();
-		executor.EnableImGui(ShaderPath(shaderDir, "imgui.spv"));
+		engine.EnableImGui();
 		var pauseCamera = false;
 		var showDemo = false;
 
-		Console.WriteLine($"Loom M6 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; use the View menu to inspect any buffer/pass. Close the window to exit.");
+		Console.WriteLine($"Loom M7 - graph-driven 3D render on {engine.DeviceName} ({engine.BackendName}). Hover the cube for a glowing outline; use the View menu to inspect any buffer/pass. Close the window to exit.");
 
 		// Mouse, for the hover test that drives the outline (the cube is object id 1) and ImGui input.
 		using var input = window.CreateInput();
@@ -319,7 +322,7 @@ internal static class Program
 		var displayFps = 0.0;
 		var displayMs = 0.0;
 
-		window.FramebufferResize += size => executor.OnResize(size);
+		window.FramebufferResize += size => engine.Resize(size.X, size.Y);
 		window.Render += delta =>
 		{
 			frame++;
@@ -336,34 +339,38 @@ internal static class Program
 				fpsFrames = 0;
 			}
 
-			// Orbit the camera around the cube. Host-side per-frame data, handed to the graph via ctx.Camera.
+			// Orbit the camera around the cube. Host-side per-frame data, handed to the graph via FrameInputs.
+			// The projection is neutral (+Y up) — the backend applies the Vulkan clip-space Y-flip on ingest.
 			var eye = new Vector3(MathF.Sin(elapsed) * 2.5f, 1.6f, MathF.Cos(elapsed) * 2.5f);
 			var view = Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitY);
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
-			projection.M22 *= -1f; // Vulkan clip space has +Y down — flip it
-			executor.Camera = new Camera(view, projection);
-			executor.Time = elapsed; // drives the GPU particle fountain
+			var camera = new Camera(view, projection);
 
 			// Hover: in headless capture force the cube hovered (no cursor) so the outline shows; otherwise
 			// read the cursor's object id from the picking readback (§7.4) — pixel-accurate to the silhouette,
 			// a frame or two stale (imperceptible for hover). Map the cursor from screen to the world domain.
+			uint hoverId;
 			if (capturePath is not null)
 			{
-				executor.HoverId = 1u;
+				hoverId = 1u;
 			}
 			else if (mouse is not null)
 			{
 				var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * 320);
 				var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * 180);
-				executor.HoverId = (uint)MathF.Round(executor.SamplePickReadback(px, py));
+				hoverId = (uint)MathF.Round(engine.SamplePick(px, py));
+			}
+			else
+			{
+				hoverId = 0u;
 			}
 
 			if (capturePath is not null && frame == 10)
-				executor.RequestCapture(capturePath);
+				engine.RequestCapture(capturePath);
 
-			// Drive ImGui: feed it this frame's display size + input, build the control panel, and hand the
-			// executor the resulting draw data for the hud pass to render.
+			// Drive ImGui: feed it this frame's display size + input, build the control panel, and produce the
+			// draw data this frame's FrameInputs forwards to the hud pass.
 			io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
 			io.DisplayFramebufferScale = Vector2.One;
 			io.DeltaTime = delta > 0 ? (float)delta : 1f / 60f; // ImGui asserts a positive dt
@@ -404,7 +411,7 @@ internal static class Program
 				// the X from the text width every frame, which makes the whole block jitter as the numbers change.
 				// The FPS is the smoothed value (refreshed 4x/sec), readable even at 1000+ fps.
 				ImGui.Separator();
-				ImGui.Text($"{displayFps:F0} fps ({displayMs:F2} ms)   |   view: {viewNames[inspectView]}   |   hovered {executor.HoverId}   |   {context.DeviceName}");
+				ImGui.Text($"{displayFps:F0} fps ({displayMs:F2} ms)   |   view: {viewNames[inspectView]}   |   hovered {hoverId}   |   {engine.DeviceName}");
 
 				ImGui.EndMainMenuBar();
 			}
@@ -413,9 +420,18 @@ internal static class Program
 				ImGui.ShowDemoWindow(ref showDemo);
 
 			ImGui.Render();
-			unsafe { executor.ImGuiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
+			nint imguiDrawData;
+			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
 
-			executor.DrawFrame(delta);
+			engine.Render(new FrameInputs
+			{
+				DeltaSeconds = delta,
+				Time = elapsed, // drives the GPU particle fountain
+				Camera = camera,
+				SunView = sunCamera,
+				HoverId = hoverId,
+				ImGuiDrawData = imguiDrawData,
+			});
 
 			if (capturePath is not null && frame >= 12)
 				window.Close();
@@ -424,7 +440,7 @@ internal static class Program
 		};
 
 		window.Run();
-		executor.WaitIdle(); // Drain the GPU before the using-disposals tear down Vulkan objects.
+		engine.WaitIdle(); // Drain the GPU before the using-disposals tear down the engine.
 		ImGui.DestroyContext();
 	}
 
@@ -449,14 +465,6 @@ internal static class Program
 			new(new(-s, y, s), up, new(0, 1)),
 		];
 		return (vertices, [0, 1, 2, 0, 2, 3]);
-	}
-
-	private static string ShaderPath(string dir, string file)
-	{
-		var path = Path.Combine(dir, file);
-		if (!File.Exists(path))
-			throw new FileNotFoundException($"Compiled shader not found: {path}. Did Loom.Shaders build?");
-		return path;
 	}
 
 	// A unit cube centred at the origin, 24 vertices (4 per face) so each face carries its own flat normal,
