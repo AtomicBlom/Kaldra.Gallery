@@ -64,6 +64,10 @@ internal static class Program
 			// disambiguate multiple entries, as the graphics modules have); the compute entry rides FragmentEntry.
 			["exposure"] = new(ShaderPath(shaderDir, "exposure.spv"), "main", "main", SampleCount: 1, IsCompute: true, StorageCount: 1, HasFragmentPush: true),
 			["tonemap"] = new(ShaderPath(shaderDir, "tonemap.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
+			// GPU particles (§7.6): a compute writes the particle storage buffer (binding 0); the render reads
+			// it as point vertices and additively blends emissive sparks (lone compute entry → "main").
+			["particle.update"] = new(ShaderPath(shaderDir, "particle_update.spv"), "main", "main", IsCompute: true, StorageBufferCount: 1, HasFragmentPush: true),
+			["particle.render"] = new(ShaderPath(shaderDir, "particle_render.spv"), "vertexMain", "fragmentMain", Blend: BlendMode.Additive, ParticleInput: true),
 		};
 
 		var (cubeVerts, cubeIndices) = BuildCube();
@@ -136,6 +140,22 @@ internal static class Program
 				.Blends(lit)
 				.ReadsDepth(depth)
 				.Draw(ctx => ctx.Draw(cube, "transparent"));
+
+			// GPU particles (§7.6): a compute pass writes positions into a storage BUFFER (a deterministic
+			// looping fountain from the cube base); the draw reads that same buffer as point vertices and
+			// additively blends glowing sparks onto lit (so they bloom). Two edges — .ReadWrites then
+			// .ReadsVertex — and the engine derives the compute→vertex-input barrier (the one new sync here).
+			const int particleCount = 4096;
+			var particles = g.Buffer("particles", particleCount * 16); // float4 per particle
+
+			g.Compute("particle.update")
+				.ReadWrites(particles)
+				.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [ctx.Time], [], [particles]));
+
+			g.Pass("particle.draw")
+				.Blends(lit)
+				.ReadsVertex(particles)
+				.Draw(ctx => ctx.DrawParticles(particles, particleCount, "particle.render"));
 
 			// Hover outline (§7.4 picking + §7.5 JFA). "id" writes the cube's object id; "outline.seed" marks
 			// the hovered object's pixels; a jump-flood ping-pong (step 4→2→1) propagates the nearest seed
@@ -272,6 +292,7 @@ internal static class Program
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
 			projection.M22 *= -1f; // Vulkan clip space has +Y down — flip it
 			executor.Camera = new Camera(view, projection);
+			executor.Time = elapsed; // drives the GPU particle fountain
 
 			// Hover: in headless capture force the cube hovered (no cursor) so the outline shows; otherwise
 			// read the cursor's object id from the picking readback (§7.4) — pixel-accurate to the silhouette,
