@@ -299,6 +299,7 @@ internal static class Program
 		{
 			var screen = g.Backbuffer;
 			g.Pass("gradient").Writes(screen).Draw(ctx => ctx.FullScreen("fullscreen"));
+			HudOverlay(g, screen); // the ImGui menu bar rides on top of every demo, not just the full frame
 			g.Present(screen);
 		});
 
@@ -317,7 +318,8 @@ internal static class Program
 					ctx.Draw(cube, "mesh");
 					ctx.Draw(plane, "mesh");
 				});
-			g.Pass("present").Samples(scene).Writes(screen).Draw(ctx => ctx.FullScreen("blit", scene));
+			g.Pass("blit").Samples(scene).Writes(screen).Draw(ctx => ctx.FullScreen("blit", scene));
+			HudOverlay(g, screen);
 			g.Present(screen);
 		});
 
@@ -337,7 +339,8 @@ internal static class Program
 					ctx.Draw(plane, "mesh");
 				});
 			var glow = g.Bloom(scene, threshold: 0.4f, mips: 5); // low threshold so the normal-coloured cube blooms
-			g.Pass("present").Samples(glow).Writes(screen).Draw(ctx => ctx.FullScreen("blit", glow));
+			g.Pass("blit").Samples(glow).Writes(screen).Draw(ctx => ctx.FullScreen("blit", glow));
+			HudOverlay(g, screen);
 			g.Present(screen);
 		});
 
@@ -574,6 +577,13 @@ internal static class Program
 	// caller's matrix temporary, which lives to the end of the enclosing push call where it is read
 	// synchronously, so it never escapes. Used to hand a view-projection to a shader's scalar push channel.
 	private static ReadOnlySpan<float> Mat(in Matrix4x4 m) => MemoryMarshal.CreateReadOnlySpan(in m.M11, 16);
+
+	// The native-resolution Dear ImGui overlay (§6/§9): a pass that .Blends the backbuffer (LoadOp.Load + alpha,
+	// so the engine orders it strictly after the present write and derives the barrier) and hands this frame's
+	// draw data to the backend ImGui renderer. Every demo ends with this so the menu bar / Demo switcher / status
+	// render on all of them, not just the full reference frame. A no-op if the host hasn't enabled ImGui (§8).
+	private static void HudOverlay(GraphBuilder g, ColorHandle screen) =>
+		g.Pass("hud").Blends(screen).Draw(ctx => ctx.DrawImGui());
 
 	// A flat ground quad at the cube's base (y = -0.5), facing up — the receiver the cube's shadow falls on.
 	// Cull is disabled, so winding doesn't matter; the normal points up for lighting.
