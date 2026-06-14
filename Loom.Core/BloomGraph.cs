@@ -22,11 +22,12 @@ public static class BloomGraph
 	/// </summary>
 	/// <param name="g">The graph being authored.</param>
 	/// <param name="source">The HDR image to bloom (e.g. the lit result).</param>
-	/// <param name="threshold">Brightness above which a texel glows. Advisory until a fragment push-constant
-	/// channel lands — currently a constant in the prefilter shader.</param>
+	/// <param name="threshold">Brightness above which a texel glows. Delivered to the prefilter shader through
+	/// the fragment push channel (M7-A3).</param>
 	/// <param name="mips">Pyramid depth. Near a ceiling at low resolution, not a quality knob (§9): ~5 is the
 	/// most a 480×270 world supports before mips become noise.</param>
-	/// <param name="intensity">How strongly the glow composites back. Advisory until push constants (see above).</param>
+	/// <param name="intensity">How strongly the glow composites back. Delivered to the composite shader through
+	/// the fragment push channel (M7-A3).</param>
 	public static ResourceHandle Bloom(this GraphBuilder g, ResourceHandle source, float threshold = 1.0f, int mips = 5, float intensity = 0.7f)
 	{
 		ArgumentNullException.ThrowIfNull(g);
@@ -43,7 +44,7 @@ public static class BloomGraph
 		g.Pass("bloom.prefilter")
 			.Samples(source)
 			.Writes(chain[0])
-			.Draw(ctx => ctx.FullScreen("bloom.prefilter", source));
+			.Draw(ctx => ctx.FullScreen("bloom.prefilter", [threshold], source));
 
 		// Downsample: each mip is the half-size, box-filtered version of the one above.
 		for (var i = 1; i < mips; i++)
@@ -75,7 +76,7 @@ public static class BloomGraph
 		g.Pass("bloom.composite")
 			.Samples(source, mip0)
 			.Writes(output)
-			.Draw(ctx => ctx.FullScreen("bloom.composite", source, mip0));
+			.Draw(ctx => ctx.FullScreen("bloom.composite", [intensity], source, mip0));
 
 		return output;
 	}

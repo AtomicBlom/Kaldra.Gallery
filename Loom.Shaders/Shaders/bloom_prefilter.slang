@@ -3,10 +3,16 @@
 // Sampling a 2x-larger source with a linear sampler already averages a 2x2 box, so this is the bright-pass
 // AND the first halving in one pass. The full §7.1 recipe Karis-averages a 13-tap downsample to stop the
 // bloom flickering as the camera moves; the single-tap form here is correctness-first (the glow reads
-// correctly) — the wider tap is a shader-only quality refinement. Threshold is a constant for now (no
-// fragment push-constant path yet); it becomes a push constant when ctx.FullScreen grows a params channel.
+// correctly) — the wider tap is a shader-only quality refinement. The brightness threshold is supplied by
+// BloomGraph through the fragment push channel (M7-A3) — no longer a hardcoded constant.
 
 [[vk::binding(0, 0)]] Sampler2D source;
+
+struct PushConstants
+{
+	float threshold; // brightness above which a texel glows; wired from BloomGraph.Bloom(threshold:) (§7.1)
+};
+[[vk::push_constant]] PushConstants pc;
 
 struct VsOut
 {
@@ -28,7 +34,7 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 [shader("fragment")]
 float4 fragmentMain(VsOut input) : SV_Target
 {
-	static const float threshold = 1.0; // only genuinely HDR (>1) texels glow — a hard knee reads as intentional
+	float threshold = pc.threshold; // only genuinely HDR (>threshold) texels glow — a hard knee reads as intentional
 
 	float3 c = source.Sample(input.uv).rgb;
 	float brightness = max(c.r, max(c.g, c.b));

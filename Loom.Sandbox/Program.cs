@@ -59,10 +59,10 @@ internal static class Program
 			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: BlendMode.AlphaOver),
 			// Bloom sub-graph (§7.1). All sample with a linear filter (smooth glow); the upsample additively
 			// accumulates. "bloom.down" and "bloom.up" share one shader — only their blend/edge intent differs.
-			["bloom.prefilter"] = new(ShaderPath(shaderDir, "bloom_prefilter.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true),
+			["bloom.prefilter"] = new(ShaderPath(shaderDir, "bloom_prefilter.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true, HasFragmentPush: true),
 			["bloom.down"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, LinearFilter: true),
 			["bloom.up"] = new(ShaderPath(shaderDir, "bloom_sample.spv"), "vertexMain", "fragmentMain", SampleCount: 1, Blend: BlendMode.Additive, LinearFilter: true),
-			["bloom.composite"] = new(ShaderPath(shaderDir, "bloom_composite.spv"), "vertexMain", "fragmentMain", SampleCount: 2, LinearFilter: true),
+			["bloom.composite"] = new(ShaderPath(shaderDir, "bloom_composite.spv"), "vertexMain", "fragmentMain", SampleCount: 2, LinearFilter: true, HasFragmentPush: true),
 			// JFA hover-outline (§7.4/§7.5). "id" writes the cube's object id; seed/jfa/resolve grow a glowing
 			// border from the hovered silhouette. seed + jfa take a fragment push (hovered id, step + dims).
 			["id"] = new(ShaderPath(shaderDir, "id.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
@@ -187,6 +187,9 @@ internal static class Program
 			// coordinate; "outline.resolve" turns nearest-seed distance into an emissive ring composited over
 			// lit. Two physical buffers serve the whole flood — the (read,write) handle swap is the §8 ping-pong,
 			// and the graph derives the strict serialization + a barrier between each level from the edges.
+			// R16F (not R32Uint) is deliberate: the only id here is the cube (1), exact in F16, and a float id
+			// composes directly with the float-based JFA seed/sample below. Apps needing large/precise picking
+			// ids should use Format.R32Uint (integer-exact) and read it back as uint — see the Format docs.
 			var ids = world.Color("object_id", Format.R16F);
 			var seedA = world.Color("outline_a", Format.Rg16F);
 			var seedB = world.Color("outline_b", Format.Rg16F);

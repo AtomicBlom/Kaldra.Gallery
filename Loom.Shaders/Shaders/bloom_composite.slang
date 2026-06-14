@@ -1,11 +1,17 @@
 // Bloom composite (Planning.md §7.1) — the bloom sub-graph's output pass. Samples the original lit image
 // (binding 0) and the fully-accumulated bloom mip0 (binding 1), and writes lit + intensity*bloom into a
 // fresh "lit_bloomed" target. This is a plain .Writes (not a blend): it produces a new resource the rest of
-// the frame consumes, so the bloom's memory can be aliased away afterwards. Intensity is a constant for now
-// (no fragment push-constant channel yet).
+// the frame consumes, so the bloom's memory can be aliased away afterwards. The composite intensity is
+// supplied by BloomGraph through the fragment push channel (M7-A3).
 
 [[vk::binding(0, 0)]] Sampler2D litTex;
 [[vk::binding(1, 0)]] Sampler2D bloomTex;
+
+struct PushConstants
+{
+	float intensity; // how strongly the glow composites back; wired from BloomGraph.Bloom(intensity:) (§7.1)
+};
+[[vk::push_constant]] PushConstants pc;
 
 struct VsOut
 {
@@ -27,7 +33,7 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 [shader("fragment")]
 float4 fragmentMain(VsOut input) : SV_Target
 {
-	static const float intensity = 0.5; // how strongly the glow adds back over the lit image
+	float intensity = pc.intensity; // how strongly the glow adds back over the lit image
 
 	float3 lit = litTex.Sample(input.uv).rgb;
 	float3 bloom = bloomTex.Sample(input.uv).rgb;
