@@ -14,10 +14,19 @@ internal static class Program
 {
 	private static void Main()
 	{
+		// Frame-pacing knobs. V-Sync is ON by default — consistent, no tearing, no wasted GPU on
+		// every driver. LOOM_VSYNC=0/false/off/no flips to an uncapped, low-latency present mode
+		// (Immediate where available, e.g. NVIDIA; else Mailbox, e.g. Adreno). LOOM_MAXFPS bounds the
+		// uncapped loop via Silk's own limiter so "off" need not spin at 1000 fps (0 = unlimited).
+		var vsyncEnv = Environment.GetEnvironmentVariable("LOOM_VSYNC");
+		var vsync = vsyncEnv is null || vsyncEnv.ToLowerInvariant() is not ("0" or "false" or "off" or "no");
+		var maxFps = double.TryParse(Environment.GetEnvironmentVariable("LOOM_MAXFPS"), out var f) && f > 0 ? f : 0.0;
+
 		var options = WindowOptions.DefaultVulkan with
 		{
 			Size = new Vector2D<int>(1280, 720),
 			Title = "Loom - M6: deferred reference frame + Dear ImGui inspector",
+			FramesPerSecond = maxFps,
 		};
 
 		using var window = Window.Create(options);
@@ -261,7 +270,7 @@ internal static class Program
 			g.Present(screen);
 		});
 
-		using var executor = new GraphExecutor(context, graph, techniques, window.FramebufferSize);
+		using var executor = new GraphExecutor(context, graph, techniques, window.FramebufferSize, vsync);
 		cube = executor.CreateMesh(cubeVerts, cubeIndices);    // upload geometry before the first frame
 		plane = executor.CreateMesh(planeVerts, planeIndices);
 
