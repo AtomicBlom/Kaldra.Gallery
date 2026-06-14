@@ -115,7 +115,12 @@ internal static class Program
 				Console.WriteLine($"[loom] LOOM_DEBUG='{initialView}' is not a known view ({string.Join(", ", viewNames)}); starting on Final.");
 		}
 
-		var graph = RenderGraph.Define(g =>
+		// Each demo is a self-contained graph the engine swaps at runtime via SetGraph — the concrete payoff of
+		// the device/graph split (Planning.md §8: "structural changes rebuild the baked graph — cheap and
+		// cached"). The full reference frame is one option among several minimal, single-purpose pipelines; the
+		// keyboard (number keys / Tab) and the Demo menu switch between them live, re-deriving the schedule and
+		// transients for the chosen graph while the device, pipeline cache, and meshes are reused.
+		RenderGraph FullDemo() => RenderGraph.Define(g =>
 		{
 			var screen = g.Backbuffer;
 			var world = g.Domain("world", 320, 180);
@@ -276,9 +281,89 @@ internal static class Program
 			g.Present(screen);
 		});
 
-		// Make the graph active — the engine derives its schedule/barriers/aliasing + transients once, reusing
-		// the device and pipeline cache (Planning.md §8). Calling SetGraph again would swap the active graph.
-		engine.SetGraph(graph);
+		// A from-scratch fullscreen gradient (no inputs) straight to the backbuffer — the smallest possible
+		// pipeline, the clearest demonstration of a swap to a trivial graph.
+		RenderGraph TriangleDemo() => RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			g.Pass("gradient").Writes(screen).Draw(ctx => ctx.FullScreen("fullscreen"));
+			g.Present(screen);
+		});
+
+		// A single forward-shaded mesh: draw the cube (coloured by normal) + ground plane into a native-res
+		// colour+depth pair, then blit to the screen. Just geometry → depth-test → present, no deferred stages.
+		RenderGraph CubeDemo() => RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var scene = g.Screen.Color("scene", Format.Rgba8Srgb);
+			var depth = g.Screen.Depth("scene_depth", Format.Depth32F);
+			g.Pass("scene")
+				.Writes(scene)
+				.WritesDepth(depth)
+				.Draw(ctx =>
+				{
+					ctx.Draw(cube, "mesh");
+					ctx.Draw(plane, "mesh");
+				});
+			g.Pass("present").Samples(scene).Writes(screen).Draw(ctx => ctx.FullScreen("blit", scene));
+			g.Present(screen);
+		});
+
+		// The bloom sub-graph (§7.1) in isolation: render the cube into an HDR target, run the threshold/mip
+		// pyramid, blit the glow. The same g.Bloom helper the full frame uses, but nothing else around it.
+		RenderGraph BloomDemo() => RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var scene = g.Screen.Color("scene", Format.Rgba16F);
+			var depth = g.Screen.Depth("scene_depth", Format.Depth32F);
+			g.Pass("scene")
+				.Writes(scene)
+				.WritesDepth(depth)
+				.Draw(ctx =>
+				{
+					ctx.Draw(cube, "mesh");
+					ctx.Draw(plane, "mesh");
+				});
+			var glow = g.Bloom(scene, threshold: 0.4f, mips: 5); // low threshold so the normal-coloured cube blooms
+			g.Pass("present").Samples(glow).Writes(screen).Draw(ctx => ctx.FullScreen("blit", glow));
+			g.Present(screen);
+		});
+
+		// Build every demo's graph up front (immutable descriptions are cheap); the engine swaps the active one.
+		(string Name, RenderGraph Graph)[] demos =
+		[
+			("Triangle", TriangleDemo()),
+			("Cube", CubeDemo()),
+			("Bloom", BloomDemo()),
+			("Full reference frame", FullDemo()),
+		];
+
+		// Start on the full reference frame (so LOOM_CAPTURE still grabs it); LOOM_DEMO=<name|index> overrides.
+		var currentDemo = demos.Length - 1;
+		var demoEnv = Environment.GetEnvironmentVariable("LOOM_DEMO");
+		if (demoEnv is not null)
+		{
+			var byName = Array.FindIndex(demos, d => string.Equals(d.Name, demoEnv, StringComparison.OrdinalIgnoreCase));
+			if (byName >= 0)
+				currentDemo = byName;
+			else if (int.TryParse(demoEnv, out var byIndex) && byIndex >= 0 && byIndex < demos.Length)
+				currentDemo = byIndex;
+			else
+				Console.WriteLine($"[loom] LOOM_DEMO='{demoEnv}' is not a known demo ({string.Join(", ", demos.Select(d => d.Name))}); starting on {demos[currentDemo].Name}.");
+		}
+
+		// Make the chosen graph active — the engine derives its schedule/barriers/aliasing + transients, reusing
+		// the device and pipeline cache. SelectDemo (below) calls SetGraph again to swap at runtime.
+		engine.SetGraph(demos[currentDemo].Graph);
+
+		void SelectDemo(int index)
+		{
+			if (index < 0 || index >= demos.Length || index == currentDemo)
+				return;
+			currentDemo = index;
+			engine.SetGraph(demos[index].Graph); // drains the GPU, releases the old transients, binds the new graph
+			Console.WriteLine($"[loom] demo → {demos[index].Name}");
+		}
 
 		// The sun: a directional light. Its view-projection is constant (the light doesn't move), so build it
 		// once and hand the same value in every frame's inputs. Orthographic — directional light. No Y-flip here:
@@ -303,11 +388,24 @@ internal static class Program
 		var pauseCamera = false;
 		var showDemo = false;
 
-		Console.WriteLine($"Loom M7 - graph-driven 3D render on {engine.DeviceName} ({engine.BackendName}). Hover the cube for a glowing outline; use the View menu to inspect any buffer/pass. Close the window to exit.");
+		Console.WriteLine($"Loom M7 - graph-driven 3D render on {engine.DeviceName} ({engine.BackendName}). Keys 1-{demos.Length} / Tab switch demos (the engine swaps the active graph live). On the full frame, hover the cube for a glowing outline and use the View menu to inspect any buffer/pass. Close the window to exit.");
 
 		// Mouse, for the hover test that drives the outline (the cube is object id 1) and ImGui input.
 		using var input = window.CreateInput();
 		var mouse = input.Mice.Count > 0 ? input.Mice[0] : null;
+
+		// Keyboard switches demos at runtime (the user-facing payoff of the swappable graph): number keys 1..N
+		// select a demo directly, Tab cycles. Each press calls SelectDemo → engine.SetGraph, re-deriving the
+		// chosen graph's schedule + transients while the device and pipeline cache are reused.
+		var keyboard = input.Keyboards.Count > 0 ? input.Keyboards[0] : null;
+		if (keyboard is not null)
+			keyboard.KeyDown += (_, key, _) =>
+			{
+				if (key == Key.Tab)
+					SelectDemo((currentDemo + 1) % demos.Length);
+				else if (key >= Key.Number1 && key < Key.Number1 + demos.Length)
+					SelectDemo(key - Key.Number1);
+			};
 
 		// Headless smoke mode: LOOM_SMOKE_FRAMES=N renders N frames then closes (for automated checks).
 		// Capture mode: LOOM_CAPTURE=path grabs a warmed-up frame to a PNG, then exits.
@@ -326,6 +424,13 @@ internal static class Program
 		window.Render += delta =>
 		{
 			frame++;
+
+			// Headless smoke mode also validates the runtime graph-swap: walk through every demo (~2 frames
+			// each) so a validation-clean smoke run exercises SetGraph for each pipeline. Skipped under capture
+			// (which wants a steady frame of the selected demo).
+			if (smokeFrames > 0 && capturePath is null)
+				SelectDemo(Math.Min((frame - 1) / 2, demos.Length - 1));
+
 			if (!pauseCamera)
 				elapsed += (float)delta; // a paused orbit freezes the camera (and time-driven particles) — a real HUD control
 
@@ -390,6 +495,14 @@ internal static class Program
 			// SetNextWindow* marshaling quirk in this binding.
 			if (ImGui.BeginMainMenuBar())
 			{
+				// Demo menu: pick a pipeline; the engine swaps the active graph at runtime (same as keys 1..N / Tab).
+				if (ImGui.BeginMenu("Demo"))
+				{
+					for (var i = 0; i < demos.Length; i++)
+						if (ImGui.MenuItem($"{i + 1}. {demos[i].Name}", "", currentDemo == i))
+							SelectDemo(i);
+					ImGui.EndMenu();
+				}
 				if (ImGui.BeginMenu("View"))
 				{
 					for (var i = 0; i < viewNames.Length; i++)
@@ -411,7 +524,7 @@ internal static class Program
 				// the X from the text width every frame, which makes the whole block jitter as the numbers change.
 				// The FPS is the smoothed value (refreshed 4x/sec), readable even at 1000+ fps.
 				ImGui.Separator();
-				ImGui.Text($"{displayFps:F0} fps ({displayMs:F2} ms)   |   view: {viewNames[inspectView]}   |   hovered {hoverId}   |   {engine.DeviceName}");
+				ImGui.Text($"{displayFps:F0} fps ({displayMs:F2} ms)   |   demo: {demos[currentDemo].Name}   |   view: {viewNames[inspectView]}   |   hovered {hoverId}   |   {engine.DeviceName}");
 
 				ImGui.EndMainMenuBar();
 			}
