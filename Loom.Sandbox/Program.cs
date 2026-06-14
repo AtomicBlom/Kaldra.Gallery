@@ -141,6 +141,10 @@ internal static class Program
 				.Writes(ids)
 				.Draw(ctx => ctx.Draw(cube, "id"));
 
+			// Picking (§7.4): read the id buffer back to the CPU. The host samples it at the cursor to decide
+			// which object is hovered — real GPU→CPU picking, replacing the projected-bbox approximation.
+			g.Readback(ids);
+
 			g.Pass("outline.seed")
 				.Samples(ids)
 				.Writes(seedA)
@@ -259,12 +263,18 @@ internal static class Program
 			executor.Camera = new Camera(view, projection);
 
 			// Hover: in headless capture force the cube hovered (no cursor) so the outline shows; otherwise
-			// test the cursor against the cube's projected screen bounds. Id 1 = the cube, 0 = nothing.
-			var viewProjection = view * projection;
-			var size = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
-			executor.HoverId = capturePath is not null
-				? 1u
-				: mouse is not null && CursorOverCube(mouse.Position, viewProjection, size) ? 1u : 0u;
+			// read the cursor's object id from the picking readback (§7.4) — pixel-accurate to the silhouette,
+			// a frame or two stale (imperceptible for hover). Map the cursor from screen to the world domain.
+			if (capturePath is not null)
+			{
+				executor.HoverId = 1u;
+			}
+			else if (mouse is not null)
+			{
+				var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * 320);
+				var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * 180);
+				executor.HoverId = (uint)MathF.Round(executor.SamplePickReadback(px, py));
+			}
 
 			if (capturePath is not null && frame == 10)
 				executor.RequestCapture(capturePath);
@@ -307,29 +317,6 @@ internal static class Program
 			new(new(-s, y, s), up, new(0, 1)),
 		];
 		return (vertices, [0, 1, 2, 0, 2, 3]);
-	}
-
-	// Is the cursor over the cube? Project its eight corners with the same view-projection the GPU uses and
-	// test the cursor against their 2D screen bounding box — a cheap stand-in for true id-buffer readback
-	// (§7.4), which is the M6-faithful way to know what's hovered. The transpose matches the shader's
-	// column-vector mul() against the row-major System.Numerics matrix the renderer uploads.
-	private static bool CursorOverCube(Vector2 cursor, Matrix4x4 viewProjection, Vector2 screen)
-	{
-		var clipFromWorld = Matrix4x4.Transpose(viewProjection);
-		var min = new Vector2(float.MaxValue);
-		var max = new Vector2(float.MinValue);
-		for (var i = 0; i < 8; i++)
-		{
-			var corner = new Vector3((i & 1) == 0 ? -0.5f : 0.5f, (i & 2) == 0 ? -0.5f : 0.5f, (i & 4) == 0 ? -0.5f : 0.5f);
-			var clip = Vector4.Transform(new Vector4(corner, 1f), clipFromWorld);
-			if (clip.W <= 0f)
-				return false; // a corner behind the camera — skip the test this frame
-			var ndc = new Vector2(clip.X, clip.Y) / clip.W;
-			var px = new Vector2((ndc.X * 0.5f + 0.5f) * screen.X, (ndc.Y * 0.5f + 0.5f) * screen.Y);
-			min = Vector2.Min(min, px);
-			max = Vector2.Max(max, px);
-		}
-		return cursor.X >= min.X && cursor.X <= max.X && cursor.Y >= min.Y && cursor.Y <= max.Y;
 	}
 
 	private static string ShaderPath(string dir, string file)
