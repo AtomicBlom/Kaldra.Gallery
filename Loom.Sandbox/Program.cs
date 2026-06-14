@@ -35,10 +35,13 @@ internal static class Program
 			["blit"] = new(ShaderPath(shaderDir, "blit.spv"), "vertexMain", "fragmentMain", SampleCount: 1),
 			// Geometry: reads a Loom.Core.Vertex buffer (position/normal/uv).
 			["mesh"] = new(ShaderPath(shaderDir, "mesh.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			// G-buffer geometry: writes albedo + encoded normal (MRT) + depth.
+			// G-buffer geometry: writes albedo + encoded normal + world position (MRT) + depth.
 			["gbuffer"] = new(ShaderPath(shaderDir, "gbuffer.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
-			// Deferred lighting: samples albedo (0) + normal (1), writes the lit result.
-			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
+			// Depth-only shadow caster: drawn from the sun's view into the shadow map (no colour output).
+			["depthonly"] = new(ShaderPath(shaderDir, "depthonly.spv"), "vertexMain", "fragmentMain", HasVertexInput: true),
+			// Deferred lighting: samples albedo (0) + normal (1) + position (2) + shadow map (3); the sun's
+			// view-projection rides the fragment push for the shadow test. Writes the lit result.
+			["lighting"] = new(ShaderPath(shaderDir, "lighting.spv"), "vertexMain", "fragmentMain", SampleCount: 4, HasFragmentPush: true),
 			// Transparent forward: alpha-blends a tint onto the lit target, depth-tested read-only.
 			["transparent"] = new(ShaderPath(shaderDir, "transparent.spv"), "vertexMain", "fragmentMain", HasVertexInput: true, Blend: BlendMode.AlphaOver),
 			// Bloom sub-graph (§7.1). All sample with a linear filter (smooth glow); the upsample additively
@@ -61,8 +64,10 @@ internal static class Program
 			["tonemap"] = new(ShaderPath(shaderDir, "tonemap.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
 		};
 
-		var (vertices, indices) = BuildCube();
-		Mesh cube = default; // assigned after the executor exists; the scene pass reads it at draw time
+		var (cubeVerts, cubeIndices) = BuildCube();
+		var (planeVerts, planeIndices) = BuildPlane();
+		Mesh cube = default;  // assigned after the executor exists; the scene passes read them at draw time
+		Mesh plane = default; // a ground plane to catch the cube's shadow
 
 		// The reference frame (Planning.md §6). The whole 3D world — geometry, deferred lighting, transparency,
 		// bloom — renders into a small WORLD domain (320×180); the terminal "upscale" pass nearest-samples it
@@ -76,18 +81,37 @@ internal static class Program
 			var world = g.Domain("world", 320, 180);
 			var albedo = world.Color("albedo", Format.Rgba8Srgb);
 			var normal = world.Color("normal", Format.Rgba16F);
+			var position = world.Color("position", Format.Rgba16F); // world position, for the shadow test
 			var depth = world.Depth("depth", Format.Depth32F);
 			var lit = world.Color("lit", Format.Rgba16F);
 
+			// Shadows (§7.2): a depth-only pass renders the casters from the SUN's view (the view: param) into
+			// a shadow map; lighting projects each pixel into that light space and compares. Same draw, a
+			// different view — the novel primitive. The map lives in its own high-res domain.
+			var sun = g.Domain("sun_shadow", 1024, 1024);
+			var shadowMap = sun.Depth("sun_depth", Format.Depth32F);
+
+			g.Pass("shadow")
+				.WritesDepth(shadowMap)
+				.Draw(ctx =>
+				{
+					ctx.Draw(cube, "depthonly", ctx.SunView);
+					ctx.Draw(plane, "depthonly", ctx.SunView);
+				});
+
 			g.Pass("gbuffer")
-				.Writes(albedo, normal)
+				.Writes(albedo, normal, position)
 				.WritesDepth(depth)
-				.Draw(ctx => ctx.Draw(cube, "gbuffer"));
+				.Draw(ctx =>
+				{
+					ctx.Draw(cube, "gbuffer");
+					ctx.Draw(plane, "gbuffer");
+				});
 
 			g.Pass("lighting")
-				.Samples(albedo, normal)
+				.Samples(albedo, normal, position, shadowMap)
 				.Writes(lit)
-				.Draw(ctx => ctx.FullScreen("lighting", albedo, normal));
+				.Draw(ctx => ctx.FullScreen("lighting", Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap));
 
 			// Transparent forward pass: re-draws the cube as glass, accumulating a tint onto the lit target
 			// (.Blends → LoadOp.Load + alpha blend) while testing against the opaque depth read-only
@@ -168,7 +192,16 @@ internal static class Program
 		});
 
 		using var executor = new GraphExecutor(context, graph, techniques, window.FramebufferSize);
-		cube = executor.CreateMesh(vertices, indices); // upload geometry before the first frame
+		cube = executor.CreateMesh(cubeVerts, cubeIndices);    // upload geometry before the first frame
+		plane = executor.CreateMesh(planeVerts, planeIndices);
+
+		// The sun: a directional light. Its view-projection is constant (the light doesn't move), so set it
+		// once; the shadow pass draws from it and lighting projects into it. Orthographic — directional light.
+		var lightDir = Vector3.Normalize(new Vector3(0.6f, 0.55f, 0.45f)); // matches lighting.slang's lightDir
+		var sunView = Matrix4x4.CreateLookAt(lightDir * 7f, Vector3.Zero, Vector3.UnitY);
+		var sunProj = Matrix4x4.CreateOrthographic(9f, 9f, 0.1f, 14f);
+		sunProj.M22 *= -1f; // same Vulkan Y-flip as the camera; render + sample share it, so it's consistent
+		executor.SunView = new Camera(sunView, sunProj);
 
 		Console.WriteLine($"Loom M5 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; close the window to exit.");
 
@@ -218,6 +251,34 @@ internal static class Program
 
 		window.Run();
 		executor.WaitIdle(); // Drain the GPU before the using-disposals tear down Vulkan objects.
+	}
+
+	// Flatten a matrix to 16 floats in the same field order System.Numerics stores them (M11..M44) — the
+	// layout the shader's float4x4 expects, matching how the MVP push uploads its matrix bytes. Used to hand
+	// the sun's view-projection to the lighting shader through the scalar push channel.
+	private static float[] Mat(Matrix4x4 m) =>
+	[
+		m.M11, m.M12, m.M13, m.M14,
+		m.M21, m.M22, m.M23, m.M24,
+		m.M31, m.M32, m.M33, m.M34,
+		m.M41, m.M42, m.M43, m.M44,
+	];
+
+	// A flat ground quad at the cube's base (y = -0.5), facing up — the receiver the cube's shadow falls on.
+	// Cull is disabled, so winding doesn't matter; the normal points up for lighting.
+	private static (Vertex[] Vertices, uint[] Indices) BuildPlane()
+	{
+		const float s = 4f;
+		const float y = -0.5f;
+		var up = new Vector3(0, 1, 0);
+		Vertex[] vertices =
+		[
+			new(new(-s, y, -s), up, new(0, 0)),
+			new(new(s, y, -s), up, new(1, 0)),
+			new(new(s, y, s), up, new(1, 1)),
+			new(new(-s, y, s), up, new(0, 1)),
+		];
+		return (vertices, [0, 1, 2, 0, 2, 3]);
 	}
 
 	// Is the cursor over the cube? Project its eight corners with the same view-projection the GPU uses and

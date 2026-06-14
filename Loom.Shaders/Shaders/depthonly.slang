@@ -1,0 +1,43 @@
+// Depth-only technique (Planning.md §7.2 shadows). Drawn from the sun's view (the view: param) into the
+// shadow map: it writes only depth — no colour target, no fragment output — so each shadow-map texel holds
+// the distance from the sun to the nearest caster. Deferred lighting then compares against it. The vertex
+// stage is the usual MVP transform; here the MVP is the sun's view-projection, supplied via ctx.Draw(view:).
+
+struct PushConstants
+{
+	float4x4 mvp;
+};
+
+[[vk::push_constant]] PushConstants pc;
+
+struct VsIn
+{
+	[[vk::location(0)]] float3 position;
+	[[vk::location(1)]] float3 normal;
+	[[vk::location(2)]] float2 uv;
+};
+
+struct VsOut
+{
+	float4 position : SV_Position;
+	// Passed through (unused by the fragment) only so the vertex stage consumes the shared mesh layout's
+	// normal/uv attributes — keeps validation quiet without a per-technique vertex-input layout.
+	float3 normal : NORMAL;
+	float2 uv : TEXCOORD0;
+};
+
+[shader("vertex")]
+VsOut vertexMain(VsIn input)
+{
+	VsOut output;
+	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	output.normal = input.normal;
+	output.uv = input.uv;
+	return output;
+}
+
+[shader("fragment")]
+void fragmentMain(VsOut input)
+{
+	// No colour output — depth is written by the fixed-function depth test/write alone.
+}
