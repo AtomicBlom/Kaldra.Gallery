@@ -1,7 +1,9 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+#if LOOM_IMGUI
 using ImGuiNET;
+#endif
 using Loom.Core;
 using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned backend type (Planning.md §5)
 using Silk.NET.Input;
@@ -388,10 +390,15 @@ internal static class Program
 		var sunProj = Matrix4x4.CreateOrthographic(9f, 9f, 0.1f, 14f);
 		var sunCamera = new Camera(sunView, sunProj);
 
+		// A real HUD control (freezes the orbit); also togglable via the ImGui Window menu when built with ImGui.
+		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
+		var pauseCamera = false;
+#if LOOM_IMGUI
 		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's ImGui renderer (the
 		// imgui_impl_vulkan equivalent, quarantined in the backend) does the GPU work. Create the context and
 		// build the font atlas BEFORE EnableImGui (which uploads it). Per frame we feed input + display size,
 		// build the panel, ImGui.Render(), and hand the engine the native draw-data pointer via FrameInputs.
+		// Compiled out entirely when the engine is built without ImGui (UseImGui=false).
 		ImGui.CreateContext();
 		var io = ImGui.GetIO();
 		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
@@ -400,8 +407,8 @@ internal static class Program
 		io.Fonts.AddFontDefault();
 		ImGui.StyleColorsDark();
 		engine.EnableImGui();
-		var pauseCamera = false;
 		var showDemo = false;
+#endif
 
 		Console.WriteLine($"Loom M7 - graph-driven 3D render on {engine.DeviceName} ({engine.BackendName}). Keys 1-{demos.Length} / Tab switch demos (the engine swaps the active graph live). On the full frame, hover the cube for a glowing outline and use the View menu to inspect any buffer/pass. Close the window to exit.");
 
@@ -489,6 +496,10 @@ internal static class Program
 			if (capturePath is not null && frame == 10)
 				engine.RequestCapture(capturePath);
 
+			// The native ImDrawData* for this frame; stays null (no UI) when built without ImGui, so the hud
+			// pass's ctx.DrawImGui() is a no-op and every demo still renders, just without the overlay.
+			nint imguiDrawData = 0;
+#if LOOM_IMGUI
 			// Drive ImGui: feed it this frame's display size + input, build the control panel, and produce the
 			// draw data this frame's FrameInputs forwards to the hud pass.
 			io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
@@ -548,8 +559,8 @@ internal static class Program
 				ImGui.ShowDemoWindow(ref showDemo);
 
 			ImGui.Render();
-			nint imguiDrawData;
 			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
+#endif
 
 			engine.Render(new FrameInputs
 			{
@@ -569,7 +580,9 @@ internal static class Program
 
 		window.Run();
 		engine.WaitIdle(); // Drain the GPU before the using-disposals tear down the engine.
+#if LOOM_IMGUI
 		ImGui.DestroyContext();
+#endif
 	}
 
 	// View a matrix as its 16 contiguous floats (M11..M44 — System.Numerics' field order, exactly what the

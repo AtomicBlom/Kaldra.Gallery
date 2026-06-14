@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Consume the Loom MSBuild SDK explicitly (SDK-style imports; equivalent to Sdk="Loom.Sdk" once the
+       SDK is packaged). Brings in Slang shader compilation (Content mode) + UseVulkan/UseDX12 backend
+       selection. The engine feature flags live in the repo-root Directory.Build.props. -->
+  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.props" />
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,20 +12,27 @@
     <Nullable>enable</Nullable>
     <!-- The host hands the executor ImGui's native ImDrawData* each frame — one pointer cast. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- App/demo shaders, compiled by the Loom SDK to loose content under shaders\ next to the exe. -->
+    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</LoomShaderSourceDir>
+    <LoomShaderOutputMode>Content</LoomShaderOutputMode>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Loom.Vulkan\Loom.Vulkan.csproj" />
-    <!-- Brings the compiled .spv into the app output under shaders\ (no code dependency). -->
-    <ProjectReference Include="..\Loom.Shaders\Loom.Shaders.csproj" />
-  </ItemGroup>
+  <!-- The Vulkan backend reference is supplied by the SDK via <UseVulkan> (default true); the host still
+       names VulkanEngineSettings, the one sanctioned backend type, so it compiles against Loom.Vulkan.
+       Engine-owned shaders ship embedded in Loom.Vulkan, so the app no longer references Loom.Shaders. -->
 
   <!-- The host owns the window + input and hands the backend the surface. -->
   <ItemGroup>
     <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
-    <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel. -->
-    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+    <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel.
+         Gated on <UseImGui> (repo-wide); off compiles the host's ImGui control panel out entirely. -->
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" Condition="'$(UseImGui)' == 'true'" />
+    <!-- Hermetic slangc for the SDK's shader compile (bundled in the package; win-x64 / win-arm64). -->
+    <PackageReference Include="Slang.Sdk" Version="0.5.1" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
+
+  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
 
 </Project>
