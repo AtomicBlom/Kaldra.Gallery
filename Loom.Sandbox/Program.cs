@@ -19,6 +19,16 @@ internal static class Program
 {
 	private static void Main()
 	{
+#if LOOM_DX12
+		// The DX12 backend's first slice runs through its own focused harness (the demo gallery below is
+		// graph-driven + Vulkan-surface-specific). Opt in with LOOM_BACKEND=DX12 on a UseDX12=true build.
+		if (string.Equals(Environment.GetEnvironmentVariable("LOOM_BACKEND"), "DX12", StringComparison.OrdinalIgnoreCase))
+		{
+			Dx12Smoke.Run();
+			return;
+		}
+#endif
+
 		// Frame-pacing knobs. V-Sync ON by default; LOOM_VSYNC=0/false/off/no flips to a low-latency present
 		// mode, and LOOM_MAXFPS bounds the uncapped loop. LOOM_HDR=1 requests true HDR display output.
 		var vsyncEnv = Environment.GetEnvironmentVariable("LOOM_VSYNC");
