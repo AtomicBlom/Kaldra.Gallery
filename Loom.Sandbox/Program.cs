@@ -1,5 +1,6 @@
 using System.Numerics;
 
+using ImGuiNET;
 using Loom.Core;
 using Loom.Vulkan;
 using Silk.NET.Input;
@@ -251,6 +252,14 @@ internal static class Program
 				.Writes(screen)
 				.Draw(ctx => ctx.FullScreen("blit", present));
 
+			// Dear ImGui HUD (§6/§9: a native-resolution overlay on top of the pixelated world). It .Blends the
+			// backbuffer — LoadOp.Load + alpha, so the engine orders it strictly after the upscale (RAW on screen)
+			// and derives the barrier — and the ImGui renderer draws into this pass's scope. The host owns the
+			// ImGui context and sets the per-frame draw data; ctx.DrawImGui() is the UI-agnostic hand-off (§8).
+			g.Pass("hud")
+				.Blends(screen)
+				.Draw(ctx => ctx.DrawImGui());
+
 			g.Present(screen);
 		});
 
@@ -266,9 +275,24 @@ internal static class Program
 		sunProj.M22 *= -1f; // same Vulkan Y-flip as the camera; render + sample share it, so it's consistent
 		executor.SunView = new Camera(sunView, sunProj);
 
-		Console.WriteLine($"Loom M5 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; close the window to exit.");
+		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the backend's ImGuiRenderer (the
+		// imgui_impl_vulkan equivalent, quarantined in Loom.Vulkan) does the GPU work. Create the context and
+		// build the font atlas BEFORE EnableImGui (which uploads it). Per frame we feed input + display size,
+		// build the panel, ImGui.Render(), and hand the executor the native draw-data pointer for the hud pass.
+		ImGui.CreateContext();
+		var io = ImGui.GetIO();
+		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
+		io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+		io.DisplayFramebufferScale = Vector2.One;
+		io.Fonts.AddFontDefault();
+		ImGui.StyleColorsDark();
+		executor.EnableImGui(ShaderPath(shaderDir, "imgui.spv"));
+		var pauseCamera = false;
+		var showDemo = false;
 
-		// Mouse, for the hover test that drives the outline (the cube is object id 1).
+		Console.WriteLine($"Loom M6 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; the ImGui panel is the native-res HUD. Close the window to exit.");
+
+		// Mouse, for the hover test that drives the outline (the cube is object id 1) and ImGui input.
 		using var input = window.CreateInput();
 		var mouse = input.Mice.Count > 0 ? input.Mice[0] : null;
 
@@ -283,7 +307,8 @@ internal static class Program
 		window.Render += delta =>
 		{
 			frame++;
-			elapsed += (float)delta;
+			if (!pauseCamera)
+				elapsed += (float)delta; // a paused orbit freezes the camera (and time-driven particles) — a real HUD control
 
 			// Orbit the camera around the cube. Host-side per-frame data, handed to the graph via ctx.Camera.
 			var eye = new Vector3(MathF.Sin(elapsed) * 2.5f, 1.6f, MathF.Cos(elapsed) * 2.5f);
@@ -311,6 +336,39 @@ internal static class Program
 			if (capturePath is not null && frame == 10)
 				executor.RequestCapture(capturePath);
 
+			// Drive ImGui: feed it this frame's display size + input, build the control panel, and hand the
+			// executor the resulting draw data for the hud pass to render.
+			io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+			io.DisplayFramebufferScale = Vector2.One;
+			io.DeltaTime = delta > 0 ? (float)delta : 1f / 60f; // ImGui asserts a positive dt
+			if (mouse is not null)
+			{
+				io.AddMousePosEvent(mouse.Position.X, mouse.Position.Y);
+				io.AddMouseButtonEvent(0, mouse.IsButtonPressed(MouseButton.Left));
+				io.AddMouseButtonEvent(1, mouse.IsButtonPressed(MouseButton.Right));
+				io.AddMouseWheelEvent(0f, mouse.ScrollWheels.Count > 0 ? mouse.ScrollWheels[0].Y : 0f);
+			}
+
+			ImGui.NewFrame();
+			ImGui.Begin("Loom - Reference Frame"); // ASCII only: the default ImGui font atlas has no em-dash/section glyphs
+			ImGui.Text($"GPU: {context.DeviceName}");
+			ImGui.Text($"{(delta > 0 ? 1.0 / delta : 0.0):F0} fps   ({delta * 1000.0:F2} ms)");
+			ImGui.Text($"Frame {frame}");
+			ImGui.Separator();
+			ImGui.Text($"Hovered object id: {executor.HoverId}");
+			ImGui.Checkbox("Pause camera", ref pauseCamera);
+			ImGui.Checkbox("Show ImGui demo window", ref showDemo);
+			ImGui.Separator();
+			ImGui.TextWrapped(
+				"Deferred shading + SSAO + sun shadows + transparency + GPU particles + JFA hover outline + " +
+				"bloom + auto-exposure - the whole world rendered at 320x180 and nearest-upscaled. " +
+				"This HUD blends on top at native resolution.");
+			ImGui.End();
+			if (showDemo)
+				ImGui.ShowDemoWindow(ref showDemo);
+			ImGui.Render();
+			unsafe { executor.ImGuiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
+
 			executor.DrawFrame(delta);
 
 			if (capturePath is not null && frame >= 12)
@@ -321,6 +379,7 @@ internal static class Program
 
 		window.Run();
 		executor.WaitIdle(); // Drain the GPU before the using-disposals tear down Vulkan objects.
+		ImGui.DestroyContext();
 	}
 
 	// Flatten a matrix to 16 floats in the same field order System.Numerics stores them (M11..M44) — the
