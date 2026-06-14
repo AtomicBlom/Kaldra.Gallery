@@ -54,36 +54,39 @@ internal static class Program
 
 		// Register the techniques the graph draws with, by logical name. The shader is named logically
 		// ("fullscreen" → the backend resolves <shaders>/fullscreen.spv); no backend artifact path appears here.
+		// The descriptor-binding counts (samplers / storage images / buffers) are NOT stated here — the backend
+		// reads them from each shader's Slang reflection (M7-B4). The app states only the pipeline intent: the
+		// logical shader/entry names, whether it reads geometry, its blend, sampler filter, and compute-ness.
 		engine.DefineTechnique("fullscreen", new TechniqueDescriptor("fullscreen")); // gradient from SV_VertexID, no input
-		engine.DefineTechnique("blit", new TechniqueDescriptor("blit", SampleCount: 1)); // fullscreen sample of one input
+		engine.DefineTechnique("blit", new TechniqueDescriptor("blit")); // fullscreen sample of one input
 		engine.DefineTechnique("mesh", new TechniqueDescriptor("mesh", HasVertexInput: true)); // reads a Vertex buffer
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true)); // MRT: albedo+normal+position+depth
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true)); // shadow caster, no colour
-		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", SampleCount: 2, HasFragmentPush: true)); // samples position+normal
+		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", HasFragmentPush: true)); // samples position+normal
 		// Deferred lighting: samples albedo+normal+position+shadow+ao; the sun's VP rides the fragment push.
-		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", SampleCount: 5, HasFragmentPush: true));
+		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", HasFragmentPush: true));
 		engine.DefineTechnique("transparent", new TechniqueDescriptor("transparent", HasVertexInput: true, Blend: BlendMode.AlphaOver));
 		// Bloom sub-graph (§7.1). All sample with a linear filter; the upsample additively accumulates. "bloom.down"
 		// and "bloom.up" share one shader (bloom_sample) — only their blend/edge intent differs.
-		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", SampleCount: 1, LinearFilter: true, HasFragmentPush: true));
-		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", SampleCount: 1, LinearFilter: true));
-		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", SampleCount: 1, Blend: BlendMode.Additive, LinearFilter: true));
-		engine.DefineTechnique("bloom.composite", new TechniqueDescriptor("bloom_composite", SampleCount: 2, LinearFilter: true, HasFragmentPush: true));
+		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
+		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
+		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
+		engine.DefineTechnique("bloom.composite", new TechniqueDescriptor("bloom_composite", LinearFilter: true, HasFragmentPush: true));
 		// JFA hover-outline (§7.4/§7.5). "id" writes the cube's object id; seed/jfa/resolve grow a glowing border.
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
-		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed", SampleCount: 1, HasFragmentPush: true));
-		engine.DefineTechnique("outline.jfa", new TechniqueDescriptor("outline_jfa", SampleCount: 1, HasFragmentPush: true));
-		engine.DefineTechnique("outline.resolve", new TechniqueDescriptor("outline_resolve", SampleCount: 2));
-		// Auto-exposure (§12 M5): a compute reduction samples lit (0) + read-writes the 1×1 persistent exposure
-		// storage image (1); the tonemap samples glow (0) + exposure (1). slangc names a lone compute entry "main".
-		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", SampleCount: 1, IsCompute: true, StorageImageCount: 1, HasFragmentPush: true));
-		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", SampleCount: 2));
-		// Runtime buffer inspector + terminal upscale: samples every inspectable buffer (10) and presents the one
+		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed", HasFragmentPush: true));
+		engine.DefineTechnique("outline.jfa", new TechniqueDescriptor("outline_jfa", HasFragmentPush: true));
+		engine.DefineTechnique("outline.resolve", new TechniqueDescriptor("outline_resolve"));
+		// Auto-exposure (§12 M5): a compute reduction samples lit + read-writes the 1×1 persistent exposure
+		// storage image; the tonemap samples glow + exposure. slangc names a lone compute entry "main".
+		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap"));
+		// Runtime buffer inspector + terminal upscale: samples every inspectable buffer and presents the one
 		// the HUD's View menu selects via a fragment push (mode 0 = final).
-		engine.DefineTechnique("debugview", new TechniqueDescriptor("debugview", SampleCount: 10, HasFragmentPush: true));
+		engine.DefineTechnique("debugview", new TechniqueDescriptor("debugview", HasFragmentPush: true));
 		// GPU particles (§7.6): a compute writes the particle storage buffer; the render reads it as point vertices
 		// and additively blends emissive sparks (lone compute entry → "main").
-		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, StorageBufferCount: 1, HasFragmentPush: true));
+		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, ParticleInput: true));
 
 		// Upload geometry once; the scene passes draw these stable handles (pulled, not captured — §8).
