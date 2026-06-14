@@ -75,6 +75,12 @@ internal static class Program
 		// the consequence of rendering everything at low resolution and blowing each world texel up to a hard
 		// pixel block, so the pixel grid stays consistent through lighting and bloom. The engine derives pass
 		// order, the COLOR_ATTACHMENT↔SHADER_READ flips, depth states, load/store, transient aliasing, present.
+		// Debug viz (§7.6): LOOM_DEBUG=<name> blits a named intermediate to the screen instead of the final
+		// image, so any stage of the frame is inspectable. A build-time choice (feature toggles are control
+		// flow, §8) — set the env var and re-run. Names: albedo, normal, position, depth, lit, outlined,
+		// glow, shadow.
+		var debugView = Environment.GetEnvironmentVariable("LOOM_DEBUG");
+
 		var graph = RenderGraph.Define(g =>
 		{
 			var screen = g.Backbuffer;
@@ -183,10 +189,32 @@ internal static class Program
 				.Draw(ctx => ctx.FullScreen("tonemap", glow, exposure));
 
 			// Cross domains: nearest-neighbour upscale from the low-res world to the native screen (§6/§9).
+			// In debug-view mode the terminal pass blits the chosen intermediate instead of the graded image —
+			// every stage is a named handle, so inspecting one is just pointing the final blit at it (§7.6).
+			var present = graded;
+			if (debugView is not null)
+			{
+				var views = new Dictionary<string, ResourceHandle>(StringComparer.OrdinalIgnoreCase)
+				{
+					["albedo"] = albedo,
+					["normal"] = normal,
+					["position"] = position,
+					["depth"] = depth,
+					["lit"] = lit,
+					["outlined"] = outlined,
+					["glow"] = glow,
+					["shadow"] = shadowMap,
+				};
+				if (views.TryGetValue(debugView, out var chosen))
+					present = chosen;
+				else
+					Console.WriteLine($"[loom] LOOM_DEBUG='{debugView}' is not a known view ({string.Join(", ", views.Keys)}); showing the final image.");
+			}
+
 			g.Pass("upscale")
-				.Samples(graded)
+				.Samples(present)
 				.Writes(screen)
-				.Draw(ctx => ctx.FullScreen("blit", graded));
+				.Draw(ctx => ctx.FullScreen("blit", present));
 
 			g.Present(screen);
 		});
