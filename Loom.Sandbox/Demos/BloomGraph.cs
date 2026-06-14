@@ -1,12 +1,17 @@
-namespace Loom.Core;
+using Loom.Core;
+
+namespace Loom.Sandbox.Demos;
 
 /// <summary>
 /// The bloom sub-graph (Planning.md §7.1) as an <em>extension method</em> on <see cref="GraphBuilder"/> —
-/// the canonical example of a reusable graph fragment composing into a parent graph. Nothing about it is
-/// privileged: it just adds ordinary passes and returns the output handle. The structure is bright-pass →
-/// N downsamples → N−1 additive upsamples → composite; the engine derives the strict serialization (each
-/// upsample reads the mip the previous one accumulated into), the per-mip barriers, and — because the mip
-/// chain's lifetime doesn't overlap the consumed G-buffer's — the aliasing of the freed G-buffer memory.
+/// the canonical example of a reusable graph fragment composing into a parent graph. It is an
+/// <em>application-side effect</em>, not engine API: it adds ordinary passes that name app-supplied shaders
+/// (<c>bloom.prefilter</c>/<c>bloom.down</c>/<c>bloom.up</c>/<c>bloom.composite</c>, living next to it in
+/// <c>Loom.Sandbox/Shaders/</c>) and returns the output handle. Nothing about it is privileged. The structure
+/// is bright-pass → N downsamples → N−1 additive upsamples → composite; the engine derives the strict
+/// serialization (each upsample reads the mip the previous one accumulated into), the per-mip barriers, and —
+/// because the mip chain's lifetime doesn't overlap the consumed G-buffer's — the aliasing of the freed
+/// G-buffer memory.
 /// <para>
 /// The <c>.Writes</c> vs <c>.Blends</c> distinction is load-bearing here: the upsample passes <c>.Blends</c>
 /// (read-modify-write, <c>LoadOp.Load</c> + additive) the larger mip, so the graph preserves the
@@ -14,7 +19,7 @@ namespace Loom.Core;
 /// would lose the accumulation or miss the dependency (§7.1).
 /// </para>
 /// </summary>
-public static class BloomGraph
+internal static class BloomGraph
 {
 	/// <summary>
 	/// Add the bloom passes for <paramref name="source"/> (an HDR colour target) and return the composited
