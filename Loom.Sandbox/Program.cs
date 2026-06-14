@@ -16,7 +16,7 @@ internal static class Program
 		var options = WindowOptions.DefaultVulkan with
 		{
 			Size = new Vector2D<int>(1280, 720),
-			Title = "Loom - M5: deferred + transparency + bloom + pixelation",
+			Title = "Loom - M6: deferred reference frame + Dear ImGui inspector",
 		};
 
 		using var window = Window.Create(options);
@@ -65,6 +65,9 @@ internal static class Program
 			// disambiguate multiple entries, as the graphics modules have); the compute entry rides FragmentEntry.
 			["exposure"] = new(ShaderPath(shaderDir, "exposure.spv"), "main", "main", SampleCount: 1, IsCompute: true, StorageCount: 1, HasFragmentPush: true),
 			["tonemap"] = new(ShaderPath(shaderDir, "tonemap.spv"), "vertexMain", "fragmentMain", SampleCount: 2),
+			// Runtime buffer inspector + terminal upscale: samples every inspectable buffer (10 combined image
+			// samplers) and presents the one the HUD's View menu selects via a fragment push (mode 0 = final).
+			["debugview"] = new(ShaderPath(shaderDir, "debugview.spv"), "vertexMain", "fragmentMain", SampleCount: 10, HasFragmentPush: true),
 			// GPU particles (§7.6): a compute writes the particle storage buffer (binding 0); the render reads
 			// it as point vertices and additively blends emissive sparks (lone compute entry → "main").
 			["particle.update"] = new(ShaderPath(shaderDir, "particle_update.spv"), "main", "main", IsCompute: true, StorageBufferCount: 1, HasFragmentPush: true),
@@ -82,11 +85,22 @@ internal static class Program
 		// the consequence of rendering everything at low resolution and blowing each world texel up to a hard
 		// pixel block, so the pixel grid stays consistent through lighting and bloom. The engine derives pass
 		// order, the COLOR_ATTACHMENT↔SHADER_READ flips, depth states, load/store, transient aliasing, present.
-		// Debug viz (§7.6): LOOM_DEBUG=<name> blits a named intermediate to the screen instead of the final
-		// image, so any stage of the frame is inspectable. A build-time choice (feature toggles are control
-		// flow, §8) — set the env var and re-run. Names: albedo, normal, position, depth, lit, outlined,
-		// glow, shadow.
-		var debugView = Environment.GetEnvironmentVariable("LOOM_DEBUG");
+		// Debug viz (§7.6), now HUD-driven at RUNTIME: the terminal pass samples every inspectable buffer and a
+		// fragment push selects which to present. `inspectView` is the selected index; the HUD's View menu
+		// mutates it, and the terminal pass closure reads it each frame. The graph stays immutable — only the
+		// uniform varies, the read edges are fixed (§8). `viewNames` is the shared index→name list (menu + the
+		// terminal pass's .Samples order must agree). LOOM_DEBUG still works as the initial selection.
+		string[] viewNames = ["Final", "Albedo", "Normal", "Position", "Depth", "AO", "Lit", "Outlined", "Glow", "Shadow"];
+		var inspectView = 0;
+		var initialView = Environment.GetEnvironmentVariable("LOOM_DEBUG");
+		if (initialView is not null)
+		{
+			var idx = Array.FindIndex(viewNames, n => string.Equals(n, initialView, StringComparison.OrdinalIgnoreCase));
+			if (idx >= 0)
+				inspectView = idx;
+			else
+				Console.WriteLine($"[loom] LOOM_DEBUG='{initialView}' is not a known view ({string.Join(", ", viewNames)}); starting on Final.");
+		}
 
 		var graph = RenderGraph.Define(g =>
 		{
@@ -223,34 +237,17 @@ internal static class Program
 				.Writes(graded)
 				.Draw(ctx => ctx.FullScreen("tonemap", glow, exposure));
 
-			// Cross domains: nearest-neighbour upscale from the low-res world to the native screen (§6/§9).
-			// In debug-view mode the terminal pass blits the chosen intermediate instead of the graded image —
-			// every stage is a named handle, so inspecting one is just pointing the final blit at it (§7.6).
-			var present = graded;
-			if (debugView is not null)
-			{
-				var views = new Dictionary<string, ResourceHandle>(StringComparer.OrdinalIgnoreCase)
-				{
-					["albedo"] = albedo,
-					["normal"] = normal,
-					["position"] = position,
-					["depth"] = depth,
-					["ao"] = ao,
-					["lit"] = lit,
-					["outlined"] = outlined,
-					["glow"] = glow,
-					["shadow"] = shadowMap,
-				};
-				if (views.TryGetValue(debugView, out var chosen))
-					present = chosen;
-				else
-					Console.WriteLine($"[loom] LOOM_DEBUG='{debugView}' is not a known view ({string.Join(", ", views.Keys)}); showing the final image.");
-			}
-
+			// Terminal pass: nearest-neighbour upscale from the low-res world to the native screen (§6/§9) AND
+			// the runtime buffer inspector (§7.6). It samples EVERY inspectable buffer in viewNames order; the
+			// debugview shader presents the one `inspectView` selects (0 = the final graded image, the plain §9
+			// pixelation upscale). The closure reads `inspectView` each frame, so the HUD's View menu switches the
+			// display live without rebuilding the graph — only the push uniform varies, the read edges are fixed
+			// (§8). The cost: every sampled buffer stays alive to the end, so less of the transient aliasing folds
+			// than a single-input blit would — the honest price of a runtime inspector.
 			g.Pass("upscale")
-				.Samples(present)
+				.Samples(graded, albedo, normal, position, depth, ao, lit, outlined, glow, shadowMap)
 				.Writes(screen)
-				.Draw(ctx => ctx.FullScreen("blit", present));
+				.Draw(ctx => ctx.FullScreen("debugview", [(float)inspectView], graded, albedo, normal, position, depth, ao, lit, outlined, glow, shadowMap));
 
 			// Dear ImGui HUD (§6/§9: a native-resolution overlay on top of the pixelated world). It .Blends the
 			// backbuffer — LoadOp.Load + alpha, so the engine orders it strictly after the upscale (RAW on screen)
@@ -290,7 +287,7 @@ internal static class Program
 		var pauseCamera = false;
 		var showDemo = false;
 
-		Console.WriteLine($"Loom M6 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; the ImGui panel is the native-res HUD. Close the window to exit.");
+		Console.WriteLine($"Loom M6 - graph-driven 3D render on {context.DeviceName}. Hover the cube for a glowing outline; use the View menu to inspect any buffer/pass. Close the window to exit.");
 
 		// Mouse, for the hover test that drives the outline (the cube is object id 1) and ImGui input.
 		using var input = window.CreateInput();
@@ -302,6 +299,12 @@ internal static class Program
 		var capturePath = Environment.GetEnvironmentVariable("LOOM_CAPTURE");
 		var frame = 0;
 		var elapsed = 0f;
+		// Smoothed FPS for the HUD: at 1000+ fps a per-frame number is an unreadable blur, so average over a
+		// fixed window and only refresh the displayed value a few times a second.
+		var fpsTimer = 0f;
+		var fpsFrames = 0;
+		var displayFps = 0.0;
+		var displayMs = 0.0;
 
 		window.FramebufferResize += size => executor.OnResize(size);
 		window.Render += delta =>
@@ -309,6 +312,16 @@ internal static class Program
 			frame++;
 			if (!pauseCamera)
 				elapsed += (float)delta; // a paused orbit freezes the camera (and time-driven particles) — a real HUD control
+
+			fpsTimer += (float)delta;
+			fpsFrames++;
+			if (fpsTimer >= 0.25f)
+			{
+				displayFps = fpsFrames / fpsTimer;
+				displayMs = fpsTimer / fpsFrames * 1000.0;
+				fpsTimer = 0f;
+				fpsFrames = 0;
+			}
 
 			// Orbit the camera around the cube. Host-side per-frame data, handed to the graph via ctx.Camera.
 			var eye = new Vector3(MathF.Sin(elapsed) * 2.5f, 1.6f, MathF.Cos(elapsed) * 2.5f);
@@ -350,22 +363,42 @@ internal static class Program
 			}
 
 			ImGui.NewFrame();
-			ImGui.Begin("Loom - Reference Frame"); // ASCII only: the default ImGui font atlas has no em-dash/section glyphs
-			ImGui.Text($"GPU: {context.DeviceName}");
-			ImGui.Text($"{(delta > 0 ? 1.0 / delta : 0.0):F0} fps   ({delta * 1000.0:F2} ms)");
-			ImGui.Text($"Frame {frame}");
-			ImGui.Separator();
-			ImGui.Text($"Hovered object id: {executor.HoverId}");
-			ImGui.Checkbox("Pause camera", ref pauseCamera);
-			ImGui.Checkbox("Show ImGui demo window", ref showDemo);
-			ImGui.Separator();
-			ImGui.TextWrapped(
-				"Deferred shading + SSAO + sun shadows + transparency + GPU particles + JFA hover outline + " +
-				"bloom + auto-exposure - the whole world rendered at 320x180 and nearest-upscaled. " +
-				"This HUD blends on top at native resolution.");
-			ImGui.End();
+
+			// Title/menu bar across the top. The View menu turns on a visualization of any buffer/pass by setting
+			// inspectView (which the terminal pass reads); the Window menu holds the host-side toggles. Both
+			// BeginMainMenuBar and BeginViewportSideBar position themselves natively, so they sidestep the
+			// SetNextWindow* marshaling quirk in this binding.
+			if (ImGui.BeginMainMenuBar())
+			{
+				if (ImGui.BeginMenu("View"))
+				{
+					for (var i = 0; i < viewNames.Length; i++)
+						if (ImGui.MenuItem(viewNames[i], "", inspectView == i))
+							inspectView = i;
+					ImGui.EndMenu();
+				}
+				if (ImGui.BeginMenu("Window"))
+				{
+					ImGui.MenuItem("Pause camera", "", ref pauseCamera);
+					ImGui.MenuItem("ImGui demo window", "", ref showDemo);
+					ImGui.EndMenu();
+				}
+
+				// Live status on the menu bar. A bottom footer would need SetNextWindowPos (an ImVec2 by value,
+				// HFA-broken on win-arm64 in this binding) or igBeginViewportSideBar (not exposed by ImGui.NET
+				// 1.91.6.1), so the status rides the bar. It's LEFT-anchored right after the menus (the menu labels
+				// are fixed-width, so the start never moves) rather than right-aligned — right-alignment recomputes
+				// the X from the text width every frame, which makes the whole block jitter as the numbers change.
+				// The FPS is the smoothed value (refreshed 4x/sec), readable even at 1000+ fps.
+				ImGui.Separator();
+				ImGui.Text($"{displayFps:F0} fps ({displayMs:F2} ms)   |   view: {viewNames[inspectView]}   |   hovered {executor.HoverId}   |   {context.DeviceName}");
+
+				ImGui.EndMainMenuBar();
+			}
+
 			if (showDemo)
 				ImGui.ShowDemoWindow(ref showDemo);
+
 			ImGui.Render();
 			unsafe { executor.ImGuiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
 
