@@ -13,9 +13,11 @@ struct PushConstants
 
 struct VsIn
 {
-	[[vk::location(0)]] float3 position;
-	[[vk::location(1)]] float3 normal;
-	[[vk::location(2)]] float2 uv;
+	// HLSL semantics alongside the vk::location qualifiers (see lit.slang): Slang pins the SPIR-V input
+	// locations from vk::location (Vulkan unchanged) AND emits the semantics for the HLSL/DXIL target (DX12).
+	[[vk::location(0)]] float3 position : POSITION;
+	[[vk::location(1)]] float3 normal   : NORMAL;
+	[[vk::location(2)]] float2 uv        : TEXCOORD0;
 };
 
 struct VsOut
