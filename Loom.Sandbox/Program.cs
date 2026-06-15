@@ -187,7 +187,10 @@ internal static class Program
 			}
 
 			// Orbit the camera around the cube. Neutral projection — the backend applies the Vulkan Y-flip.
-			var eye = new Vector3(MathF.Sin(elapsed) * 2.5f, 1.6f, MathF.Cos(elapsed) * 2.5f);
+			// When capturing, FREEZE the orbit at the same fixed angle the DX12 harness uses, so the two backends'
+			// captures are the identical viewpoint (a deterministic A/B for pixel-diffing).
+			var camTime = capturePath is not null ? 0.6f : elapsed;
+			var eye = new Vector3(MathF.Sin(camTime) * 2.5f, 1.6f, MathF.Cos(camTime) * 2.5f);
 			var view = Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitY);
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
