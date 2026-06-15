@@ -188,7 +188,11 @@ internal static class Program
 
 			// Orbit the camera around the cube. Neutral projection — the backend applies the Vulkan Y-flip.
 			// When capturing, FREEZE the orbit at the same fixed angle the DX12 harness uses, so the two backends'
-			// captures are the identical viewpoint (a deterministic A/B for pixel-diffing).
+			// captures are the identical viewpoint (a deterministic A/B for pixel-diffing). The scene time and frame
+			// delta are frozen too (below), so the particle phase and the delta-driven auto-exposure converge
+			// identically on both backends — captured at the same frame, the dynamic demos diff like the static ones.
+			const float captureTime = 1.0f;
+			const double captureDelta = 1.0 / 60.0;
 			var camTime = capturePath is not null ? 0.6f : elapsed;
 			var eye = new Vector3(MathF.Sin(camTime) * 2.5f, 1.6f, MathF.Cos(camTime) * 2.5f);
 			var view = Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitY);
@@ -215,8 +219,8 @@ internal static class Program
 				hoverId = 0u;
 			}
 
-			if (capturePath is not null && frame == 10)
-				engine.RequestCapture(capturePath);
+			if (capturePath is not null && frame == 60)
+				engine.RequestCapture(capturePath); // late enough that the delta-driven auto-exposure has converged
 
 			// ImDrawData* for this frame; stays null (no UI) when built without ImGui — the hud pass's
 			// ctx.DrawImGui() is then a no-op, so every demo still renders, just without the overlay.
@@ -269,15 +273,15 @@ internal static class Program
 
 			engine.Render(new FrameInputs
 			{
-				DeltaSeconds = delta,
-				Time = elapsed,
+				DeltaSeconds = capturePath is not null ? captureDelta : delta,
+				Time = capturePath is not null ? captureTime : elapsed,
 				Camera = camera,
 				SunView = sunCamera,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
 			});
 
-			if (capturePath is not null && frame >= 12)
+			if (capturePath is not null && frame >= 62)
 				window.Close();
 			else if (smokeFrames > 0 && frame >= smokeFrames)
 				window.Close();
