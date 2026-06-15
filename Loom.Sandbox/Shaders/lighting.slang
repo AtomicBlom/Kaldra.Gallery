@@ -41,7 +41,7 @@ float sunVisibility(float3 worldPos)
 {
 	float4 lightClip = mul(pc.sunViewProj, float4(worldPos, 1.0));
 	float3 ndc = lightClip.xyz / lightClip.w;
-	float2 uv = ndc.xy * 0.5 + 0.5; // clip [-1,1] → shadow-map uv [0,1] (Vulkan Y already flipped in the proj)
+	float2 uv = ndc.xy * 0.5 + 0.5; // clip [-1,1] → shadow-map uv [0,1] (Vulkan-convention clip space on both backends)
 
 	if (any(uv < 0.0) || any(uv > 1.0) || ndc.z > 1.0)
 		return 1.0; // outside the sun's frustum — treat as lit
