@@ -6,8 +6,8 @@
 // Hemisphere SSAO entirely in world space: for each pixel, jitter a kernel of directions into the normal-
 // oriented hemisphere, reproject each sample with the camera's view-projection (the fragment push), and read
 // the surface position there; if that surface sits in front of the sample point (and within range), the
-// sample is occluded. Single-pass, no blur — a per-pixel rotation trades banding for noise (a blur pass is
-// the usual next edge). Position's .a flags geometry vs background.
+// sample is occluded. A per-pixel rotation trades banding for noise, which the following ssao.blur pass then
+// smooths into clean contact shadows (§7.6). Position's .a flags geometry vs background.
 
 [[vk::binding(0, 0)]] Sampler2D positionTex;
 [[vk::binding(1, 0)]] Sampler2D normalTex;
@@ -53,9 +53,9 @@ float hash(float2 p)
 [shader("fragment")]
 float fragmentMain(VsOut input) : SV_Target
 {
-	static const float radius = 0.6;
+	static const float radius = 0.3;    // world units; a small fraction of a feature (the cube is 1 unit) so AO stays in the crease
 	static const float intensity = 1.4;
-	static const float bias = 0.0025;
+	static const float bias = 0.025;    // world units of view-space depth (see the in-front test below)
 
 	float4 origin = positionTex.Sample(input.uv);
 	if (origin.a < 0.5)
@@ -77,9 +77,8 @@ float fragmentMain(VsOut input) : SV_Target
 		float3 dir = mul(kSamples[i], tbn);           // tangent → world
 		float3 q = p + dir * radius;                  // a point in the hemisphere
 
-		float4 clip = mul(pc.viewProj, float4(q, 1.0));
-		float3 ndc = clip.xyz / clip.w;
-		float2 uv = ndc.xy * 0.5 + 0.5;
+		float4 qClip = mul(pc.viewProj, float4(q, 1.0));
+		float2 uv = qClip.xy / qClip.w * 0.5 + 0.5;
 		if (any(uv < 0.0) || any(uv > 1.0))
 			continue;
 
@@ -87,9 +86,15 @@ float fragmentMain(VsOut input) : SV_Target
 		if (surf.a < 0.5)
 			continue;                                 // sample landed on background
 
-		float surfDepth = mul(pc.viewProj, float4(surf.xyz, 1.0)).z / mul(pc.viewProj, float4(surf.xyz, 1.0)).w;
-		float range = smoothstep(0.0, 1.0, radius / max(length(p - surf.xyz), 1e-4));
-		if (surfDepth < ndc.z - bias)                 // the surface is in front of the sample point → occluded
+		// Falloff by world distance from the shaded point to the occluder: full weight up close, fading to zero
+		// at the radius. This is what confines occlusion to the contact crease instead of letting a nearby floor
+		// darken the whole face — the old radius/dist form stayed ~0.5 even a radius or two away.
+		float range = 1.0 - smoothstep(radius * 0.5, radius, length(p - surf.xyz));
+		// clip.w is the (linear) view-space depth, so the in-front test and the bias are in world units — robust to
+		// the sample radius. Comparing NDC z with a constant bias is not: at a small radius the NDC z gaps shrink
+		// below the bias and every sample is rejected, which is what made the term vanish entirely.
+		float surfDepth = mul(pc.viewProj, float4(surf.xyz, 1.0)).w;
+		if (surfDepth < qClip.w - bias)               // occluder nearer the camera than the sample point → occluded
 			occlusion += range;
 	}
 

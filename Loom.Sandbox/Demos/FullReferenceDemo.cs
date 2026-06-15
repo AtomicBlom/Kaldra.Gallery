@@ -19,6 +19,7 @@ internal sealed class FullReferenceDemo : IDemo
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", HasFragmentPush: true));
+		engine.DefineTechnique("ssao.blur", new TechniqueDescriptor("ssao_blur"));
 		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", HasFragmentPush: true)); // 5-input deferred lighting + shadow + ao
 		engine.DefineTechnique("transparent", new TechniqueDescriptor("transparent", HasVertexInput: true, Blend: BlendMode.AlphaOver));
 		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
@@ -45,6 +46,7 @@ internal sealed class FullReferenceDemo : IDemo
 		var position = world.Color("position", Format.Rgba16F);
 		var depth = world.Depth("depth", Format.Depth32F);
 		var ao = world.Color("ao", Format.R16F);
+		var aoBlur = world.Color("ao_blur", Format.R16F);
 		var lit = world.Color("lit", Format.Rgba16F);
 
 		var sun = g.Domain("sun_shadow", 1024, 1024);
@@ -72,10 +74,15 @@ internal sealed class FullReferenceDemo : IDemo
 			.Writes(ao)
 			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.Camera.ViewProjection), position, normal));
 
+		g.Pass("ssao.blur")
+			.Samples(ao)
+			.Writes(aoBlur)
+			.Draw(ctx => ctx.FullScreen("ssao.blur", ao));
+
 		g.Pass("lighting")
-			.Samples(albedo, normal, position, shadowMap, ao)
+			.Samples(albedo, normal, position, shadowMap, aoBlur)
 			.Writes(lit)
-			.Draw(ctx => ctx.FullScreen("lighting", DemoGraph.Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap, ao));
+			.Draw(ctx => ctx.FullScreen("lighting", DemoGraph.Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap, aoBlur));
 
 		g.Pass("transparent")
 			.Blends(lit)
