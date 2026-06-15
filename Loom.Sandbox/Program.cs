@@ -116,7 +116,7 @@ internal static class Program
 
 		// The sun: a directional light, constant — built once and handed in every frame's inputs. Neutral
 		// projection (+Y up); the backend applies the Vulkan clip-space Y-flip on ingest (M7-B5).
-		var lightDir = Vector3.Normalize(new Vector3(0.6f, 0.55f, 0.45f));
+		var lightDir = Vector3.Normalize(new Vector3(0.45f, 0.55f, -0.6f));
 		var sunView = Matrix4x4.CreateLookAt(lightDir * 7f, Vector3.Zero, Vector3.UnitY);
 		var sunProj = Matrix4x4.CreateOrthographic(9f, 9f, 0.1f, 14f);
 		var sunCamera = new Camera(sunView, sunProj);

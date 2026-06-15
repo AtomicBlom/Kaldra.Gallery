@@ -57,7 +57,7 @@ float4 fragmentMain(VsOut input) : SV_Target
 	float3 normal = normalize(normalTex.Sample(input.uv).rgb * 2.0 - 1.0); // decode [0,1] -> [-1,1]
 	float3 worldPos = positionTex.Sample(input.uv).rgb;
 
-	float3 lightDir = normalize(float3(0.6, 0.55, 0.45)); // matches the sandbox sun; lower angle → long shadow
+	float3 lightDir = normalize(float3(0.45, 0.55, -0.6)); // matches the sandbox sun; side angle → visible shadow
 	float ndotl = max(dot(normal, lightDir), 0.0);
 	float ambient = 0.15;
 

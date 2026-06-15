@@ -58,7 +58,7 @@ float4 fragmentMain(VsOut input) : SV_Target
 	float3 normal = normalize(normalTex.Sample(input.uv).rgb * 2.0 - 1.0);
 	float3 worldPos = positionTex.Sample(input.uv).rgb;
 
-	float3 lightDir = normalize(float3(0.6, 0.55, 0.45));
+	float3 lightDir = normalize(float3(0.45, 0.55, -0.6));
 	float ndotl = max(dot(normal, lightDir), 0.0);
 	const float ambient = 0.15;
 	const float key = 1.8;
