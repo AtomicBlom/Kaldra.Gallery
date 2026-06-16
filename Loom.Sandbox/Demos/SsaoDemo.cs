@@ -40,7 +40,7 @@ internal sealed class SsaoDemo : IDemo
 				ctx.Draw(scene.Plane, "gbuffer");
 			});
 
-		g.Pass("ssao")
+		g.Pass("ssao.calculate")
 			.Samples(position, normal)
 			.Writes(ao)
 			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.Camera.ViewProjection), position, normal));
