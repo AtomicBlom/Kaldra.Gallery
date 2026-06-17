@@ -159,6 +159,15 @@ internal static class Program
 		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
 		var pauseCamera = false;
 
+		// M13 detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
+		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
+		// fly around and see exactly what that camera framed. LOOM_FRUSTUM=1 enables it for a deterministic capture.
+		var fly = new FlyCamera();
+		var debugCam = Environment.GetEnvironmentVariable("LOOM_FRUSTUM") is "1" or "true";
+		var debugCamInit = false;
+		var frozenViewProjection = Matrix4x4.Identity;
+		var frustumSegments = new Vector4[12];
+
 		Console.WriteLine($"Loom M7 - demo gallery on {engine.DeviceName} ({engine.BackendName}). Keys 1-{demos.Length} / Tab switch demos (the engine swaps the active graph live); on Object Highlighting / Full, hover the cube. Close the window to exit.");
 
 		using var input = window.CreateInput();
@@ -171,6 +180,13 @@ internal static class Program
 					SelectDemo((currentDemo + 1) % demos.Length);
 				else if (key >= Key.Number1 && key < Key.Number1 + demos.Length)
 					SelectDemo(key - Key.Number1);
+			};
+
+		if (keyboard is not null)
+			keyboard.KeyDown += (_, key, _) =>
+			{
+				if (key == Key.F)
+					debugCam = !debugCam; // M13: toggle the detached debug camera + frustum freeze
 			};
 
 		// Headless smoke (LOOM_SMOKE_FRAMES=N) + capture (LOOM_CAPTURE=path) modes.
@@ -226,6 +242,41 @@ internal static class Program
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
 			var camera = new Camera(view, projection);
 
+			// M13 detached debug camera: when active, render from a free-fly view and draw the FROZEN scripted-camera
+			// frustum as a yellow wireframe. Entering debug mode freezes the current view; the host projects the frozen
+			// frustum's 8 corners to screen pixels and hands the 12 edges to the engine's overlay.
+			var renderCamera = camera;
+			if (debugCam)
+			{
+				if (!debugCamInit)
+				{
+					debugCamInit = true;
+					frozenViewProjection = camera.ViewProjection;
+					fly.PlaceLookingAt(new Vector3(6f, 4f, 6f), Vector3.Zero); // start outside the frozen frustum
+				}
+				// A fixed detached viewpoint under capture (deterministic); free-fly otherwise.
+				renderCamera = capturePath is not null
+					? new Camera(Matrix4x4.CreateLookAt(new Vector3(6f, 4f, 6f), Vector3.Zero, Vector3.UnitY), projection)
+					: fly.Update(keyboard, mouse, (float)delta, aspect);
+
+				var corners = frozenViewProjection.GetFrustumCorners();
+				var vp = renderCamera.ViewProjection;
+				var fbW = window.FramebufferSize.X;
+				var fbH = window.FramebufferSize.Y;
+				var segmentCount = 0;
+				var edges = Frustum.EdgeIndices;
+				for (var e = 0; e < edges.Length; e += 2)
+					if (ProjectToScreen(corners[edges[e]], vp, fbW, fbH, out var p0) &&
+						ProjectToScreen(corners[edges[e + 1]], vp, fbW, fbH, out var p1))
+						frustumSegments[segmentCount++] = new Vector4(p0.X, p0.Y, p1.X, p1.Y);
+				engine.SetDebugLines(frustumSegments.AsSpan(0, segmentCount));
+			}
+			else
+			{
+				debugCamInit = false;
+				engine.SetDebugLines(ReadOnlySpan<Vector4>.Empty);
+			}
+
 			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
 			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
 			// a readback return 0 from SamplePick, so this is harmless for them.
@@ -280,6 +331,7 @@ internal static class Program
 				if (ImGui.BeginMenu("Window"))
 				{
 					ImGui.MenuItem("Pause camera", "", ref pauseCamera);
+					ImGui.MenuItem("Debug camera (fly) + frustum freeze", "F", ref debugCam);
 					ImGui.MenuItem("ImGui demo window", "", ref showDemoWindow);
 					var gpuTiming = engine.GpuTimingEnabled;
 					if (ImGui.MenuItem("GPU timing", "", ref gpuTiming))
@@ -339,7 +391,7 @@ internal static class Program
 			{
 				DeltaSeconds = capturePath is not null ? captureDelta : delta,
 				Time = capturePath is not null ? captureTime : elapsed,
-				Camera = camera,
+				Camera = renderCamera,
 				SunView = sunCamera,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
@@ -366,5 +418,21 @@ internal static class Program
 #if LOOM_IMGUI
 		ImGui.DestroyContext();
 #endif
+	}
+
+	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection (M13
+	// frustum wireframe). Returns false for points behind the camera (w ≤ 0), so edges that cross the near plane are
+	// dropped rather than drawn wrapped. The engine's overlay maps these pixels to clip space on either backend.
+	private static bool ProjectToScreen(Vector3 world, Matrix4x4 viewProjection, int width, int height, out Vector2 pixel)
+	{
+		var clip = Vector4.Transform(new Vector4(world, 1f), viewProjection);
+		if (clip.W <= 1e-4f)
+		{
+			pixel = default;
+			return false;
+		}
+		var ndc = new Vector2(clip.X, clip.Y) / clip.W;
+		pixel = new Vector2((ndc.X * 0.5f + 0.5f) * width, (0.5f - ndc.Y * 0.5f) * height);
+		return true;
 	}
 }
