@@ -33,6 +33,20 @@
     <PackageReference Include="Slang.Sdk" Version="0.5.1" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
+  <!-- The neutral asset loaders (image + glTF) the M11 demos use to load committed textures/models. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
+  </ItemGroup>
+
+  <!-- Committed demo assets (brick textures + the glTF cube). The Loom SDK copies only shaders, so these are
+       copied explicitly into an assets\ folder next to the exe (where the demos resolve them). -->
+  <ItemGroup>
+    <Content Include="Assets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
   <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
 
 </Project>

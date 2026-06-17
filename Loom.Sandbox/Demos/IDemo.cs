@@ -24,8 +24,9 @@ internal interface IDemo
 	RenderGraph Build(DemoScene scene);
 }
 
-/// <summary>The shared, app-owned geometry every demo draws — uploaded once by the host and handed to each demo.</summary>
-internal readonly record struct DemoScene(Mesh Cube, Mesh Plane);
+/// <summary>The shared, app-owned geometry every demo draws — uploaded once by the host and handed to each demo.
+/// <paramref name="NormalMapped"/> is a brick material (albedo + normal map) the M11 demos draw with.</summary>
+internal readonly record struct DemoScene(Mesh Cube, Mesh Plane, Material NormalMapped);
 
 /// <summary>Small helpers shared by the demo graphs — the native-resolution ImGui overlay and a matrix→push view.</summary>
 internal static class DemoGraph
