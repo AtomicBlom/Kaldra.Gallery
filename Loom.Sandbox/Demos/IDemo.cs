@@ -22,6 +22,16 @@ internal interface IDemo
 
 	/// <summary>Build this demo's render graph. <paramref name="scene"/> carries the shared meshes the host uploaded.</summary>
 	RenderGraph Build(DemoScene scene);
+
+	/// <summary>
+	/// Optional per-frame CPU update with the frame's camera, called by the launcher before <c>Render</c> — the
+	/// hook a demo uses for app-side work like CPU frustum culling (M12), where the surviving draw list must be
+	/// ready before the pass closure runs. Default no-op; only the instancing demo overrides it.
+	/// </summary>
+	void Update(Camera camera) { }
+
+	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
+	string? HudStatus => null;
 }
 
 /// <summary>The shared, app-owned geometry every demo draws — uploaded once by the host and handed to each demo.</summary>
