@@ -59,6 +59,8 @@ internal static class Program
 			MaxFramesPerSecond = maxFps,
 			HdrOutput = hdr,
 			PreferredBackend = Environment.GetEnvironmentVariable("LOOM_BACKEND"),
+			// M13 shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
+			WatchShaderDirectory = Environment.GetEnvironmentVariable("LOOM_WATCH_SHADERS") is "1" or "true",
 		};
 
 		// Pick a backend at runtime by name, with a sensible fallback — the app names no graphics-API type here.
