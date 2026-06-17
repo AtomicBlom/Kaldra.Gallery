@@ -117,6 +117,22 @@ internal static class Program
 			Console.WriteLine($"[loom] graph → {dot} + {json}");
 		}
 
+#if LOOM_IMGUI
+		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's renderer does the GPU work.
+		// Compiled out entirely when the engine is built without ImGui (UseImGui=false). Enabled BEFORE the first
+		// SetGraph so the engine injects the M13 resource-viewer sample edges into the initial graph too.
+		ImGui.CreateContext();
+		var io = ImGui.GetIO();
+		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
+		io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+		io.DisplayFramebufferScale = Vector2.One;
+		io.Fonts.AddFontDefault();
+		ImGui.StyleColorsDark();
+		engine.EnableImGui();
+		var showDemoWindow = false;
+		var showInspect = Environment.GetEnvironmentVariable("LOOM_INSPECT") is "1" or "true"; // auto-open for headless capture verification
+#endif
+
 		engine.SetGraph(graphs[currentDemo]);
 		if (dumpGraphPrefix is not null)
 			DumpGraph(currentDemo, dumpGraphPrefix);
@@ -142,19 +158,6 @@ internal static class Program
 		// A real HUD control (freezes the orbit); also togglable via the ImGui Window menu when built with ImGui.
 		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
 		var pauseCamera = false;
-#if LOOM_IMGUI
-		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's renderer does the GPU work.
-		// Compiled out entirely when the engine is built without ImGui (UseImGui=false).
-		ImGui.CreateContext();
-		var io = ImGui.GetIO();
-		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
-		io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
-		io.DisplayFramebufferScale = Vector2.One;
-		io.Fonts.AddFontDefault();
-		ImGui.StyleColorsDark();
-		engine.EnableImGui();
-		var showDemoWindow = false;
-#endif
 
 		Console.WriteLine($"Loom M7 - demo gallery on {engine.DeviceName} ({engine.BackendName}). Keys 1-{demos.Length} / Tab switch demos (the engine swaps the active graph live); on Object Highlighting / Full, hover the cube. Close the window to exit.");
 
@@ -281,6 +284,7 @@ internal static class Program
 					var gpuTiming = engine.GpuTimingEnabled;
 					if (ImGui.MenuItem("GPU timing", "", ref gpuTiming))
 						engine.GpuTimingEnabled = gpuTiming;
+					ImGui.MenuItem("Resource viewer", "", ref showInspect);
 					if (ImGui.MenuItem("Export graph (DOT/JSON)"))
 						DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph");
 					ImGui.EndMenu();
@@ -294,6 +298,25 @@ internal static class Program
 
 			if (showDemoWindow)
 				ImGui.ShowDemoWindow(ref showDemoWindow);
+
+			// M13 resource viewer: enumerate the active graph's colour/depth resources and preview each via
+			// ImGui.Image (the engine binds the resource's live, ShaderRead view to the returned id). Click a
+			// thumbnail to enlarge it. Works for any loaded graph — the buffer list comes from the engine.
+			if (showInspect)
+			{
+				if (ImGui.Begin("Resource viewer", ref showInspect))
+				{
+					// This window is the legend; the engine draws the matching thumbnail grid (row-major, same order)
+					// to the right. GetDebugTextureId returns non-zero for inspectable resources AND requests the
+					// thumbnail for this frame. (ImGui.Image can't draw the textures itself on win-arm64.)
+					ImGui.Text("Buffers (grid is row-major, same order):");
+					var slot = 0;
+					foreach (var r in engine.InspectableResources)
+						if (engine.GetDebugTextureId(r.Id) != 0)
+							ImGui.Text($"{slot++,2}  {r.Name}  ({r.Kind} {r.Format})");
+				}
+				ImGui.End();
+			}
 
 			// M13 GPU profiler HUD: per-pass GPU ms + frame total from the most recently completed frame.
 			if (engine.GpuTimingEnabled)
