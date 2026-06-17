@@ -19,11 +19,13 @@ struct VsIn
 	[[vk::location(0)]] float3 position : POSITION;
 	[[vk::location(1)]] float3 normal   : NORMAL;
 	[[vk::location(2)]] float2 uv        : TEXCOORD0;
+	[[vk::location(3)]] float4 tangent   : TANGENT;
 };
 
 struct VsOut
 {
 	float4 position : SV_Position;
+	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout (M12 retires this)
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD0;
 };
@@ -33,6 +35,7 @@ VsOut vertexMain(VsIn input)
 {
 	VsOut output;
 	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	output.tangent = input.tangent;
 	output.normal = input.normal;
 	output.uv = input.uv;
 	return output;

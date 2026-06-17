@@ -4,8 +4,11 @@
 // another edge — gbuffer → ssao → ssao.blur → (view|lighting) — and the engine re-derives ordering and barriers.
 //
 // One full-screen pass, a symmetric box (no separation): the kernel is tiny and the term is single-channel, so a
-// box is cheaper than ping-ponging a separable Gaussian and reads the same here. Texel size comes from the
-// sampled target's own dimensions, so it works whether ao is at screen res (SSAO demo) or 320×180 (full frame).
+// box is cheaper than ping-ponging a separable Gaussian and reads the same here. The texel size comes from the
+// fullscreen-triangle's uv gradient (ddx(uv).x == 1/width, ddy(uv).y == 1/height), so it tracks the sampled
+// target's resolution whether ao is at screen res (SSAO demo) or 320×180 (full frame) — and, unlike
+// Sampler2D.GetDimensions (which Slang lowers to a 3-argument call dxc rejects on the DXIL target), it compiles
+// identically for SPIR-V and DXIL, keeping the box blur byte-for-byte the same on both backends.
 
 [[vk::binding(0, 0)]] Sampler2D aoTex;
 
@@ -31,9 +34,7 @@ float fragmentMain(VsOut input) : SV_Target
 {
 	static const int kRadius = 2; // a 5x5 box — wide enough to dissolve the per-pixel rotation noise, still one pass
 
-	uint width, height;
-	aoTex.GetDimensions(width, height);
-	float2 texel = 1.0 / float2(width, height);
+	float2 texel = float2(ddx(input.uv).x, ddy(input.uv).y); // one texel, from the fullscreen uv gradient
 
 	float sum = 0.0;
 	for (int y = -kRadius; y <= kRadius; y++)

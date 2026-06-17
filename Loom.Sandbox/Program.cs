@@ -3,6 +3,7 @@ using System.Numerics;
 #if LOOM_IMGUI
 using ImGuiNET;
 #endif
+using Loom.Assets;
 using Loom.Core;
 using Loom.Sandbox.Demos;
 using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned backend type (Planning.md §5)
@@ -69,7 +70,13 @@ internal static class Program
 		// Shared geometry every demo draws, uploaded once.
 		var (cubeVerts, cubeIndices) = Geometry.BuildCube();
 		var (planeVerts, planeIndices) = Geometry.BuildPlane();
-		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices));
+		// The shared brick material — albedo + tangent-space normal map, decoded from committed PNGs (M11). The
+		// loaders live in Loom.Assets (neutral); the engine just uploads the resulting TextureData + mip chain.
+		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
+		var brick = engine.CreateMaterial(
+			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_albedo.png"), TextureFormat.Rgba8Srgb)),
+			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_normal.png"), TextureFormat.Rgba8Unorm)));
+		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), brick);
 
 		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
 		IDemo[] demos =
@@ -82,6 +89,8 @@ internal static class Program
 			new ParticlesDemo(),
 			new HighlightingDemo(),
 			new FullReferenceDemo(),
+			new NormalMappingDemo(),
+			new GltfDemo(),
 		];
 
 		// Register every demo's techniques once (idempotent across demos that share one), then build each graph.
