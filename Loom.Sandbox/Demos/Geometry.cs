@@ -71,7 +71,8 @@ internal static class Geometry
 		var r = denom != 0f ? 1f / denom : 0f;
 		var t = (e1 * d2.Y - e2 * d1.Y) * r;
 		var bitangent = (e2 * d1.X - e1 * d2.X) * r;
-		t = Vector3.Normalize(t - n * Vector3.Dot(n, t));
+		var ortho = t - n * Vector3.Dot(n, t); // Gram-Schmidt; guard the degenerate-UV case so we never normalize a zero vector
+		t = ortho.LengthSquared() > 1e-12f ? Vector3.Normalize(ortho) : new Vector3(1, 0, 0);
 		var w = Vector3.Dot(Vector3.Cross(n, t), bitangent) < 0f ? -1f : 1f;
 		return new Vector4(t, w);
 	}
