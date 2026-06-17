@@ -60,6 +60,8 @@ internal static class Program
 			MaxFramesPerSecond = maxFps,
 			HdrOutput = hdr,
 			PreferredBackend = Environment.GetEnvironmentVariable("LOOM_BACKEND"),
+			// M13 shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
+			WatchShaderDirectory = Environment.GetEnvironmentVariable("LOOM_WATCH_SHADERS") is "1" or "true",
 		};
 
 		// Pick a backend at runtime by name, with a sensible fallback — the app names no graphics-API type here.
@@ -113,7 +115,39 @@ internal static class Program
 				Console.WriteLine($"[loom] LOOM_DEMO='{demoEnv}' is not a known demo ({string.Join(", ", demos.Select(d => d.Name))}); starting on {demos[currentDemo].Name}.");
 		}
 
+		// M13 graph-viz export. LOOM_DUMP_GRAPH=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the
+		// active graph on startup and every swap; the ImGui "Export graph" menu item writes the same on demand.
+		var dumpGraphPrefix = Environment.GetEnvironmentVariable("LOOM_DUMP_GRAPH");
+
+		void DumpGraph(int index, string prefix)
+		{
+			var safe = string.Concat(demos[index].Name.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
+			var dot = $"{prefix}.{safe}.dot";
+			var json = $"{prefix}.{safe}.json";
+			File.WriteAllText(dot, graphs[index].ToDot());
+			File.WriteAllText(json, graphs[index].ToJson());
+			Console.WriteLine($"[loom] graph → {dot} + {json}");
+		}
+
+#if LOOM_IMGUI
+		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's renderer does the GPU work.
+		// Compiled out entirely when the engine is built without ImGui (UseImGui=false). Enabled BEFORE the first
+		// SetGraph so the engine injects the M13 resource-viewer sample edges into the initial graph too.
+		ImGui.CreateContext();
+		var io = ImGui.GetIO();
+		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
+		io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+		io.DisplayFramebufferScale = Vector2.One;
+		io.Fonts.AddFontDefault();
+		ImGui.StyleColorsDark();
+		engine.EnableImGui();
+		var showDemoWindow = false;
+		var showInspect = Environment.GetEnvironmentVariable("LOOM_INSPECT") is "1" or "true"; // auto-open for headless capture verification
+#endif
+
 		engine.SetGraph(graphs[currentDemo]);
+		if (dumpGraphPrefix is not null)
+			DumpGraph(currentDemo, dumpGraphPrefix);
 
 		void SelectDemo(int index)
 		{
@@ -122,6 +156,8 @@ internal static class Program
 			currentDemo = index;
 			engine.SetGraph(graphs[index]); // drains the GPU, releases the old transients, binds the new graph
 			Console.WriteLine($"[loom] demo → {demos[index].Name}");
+			if (dumpGraphPrefix is not null)
+				DumpGraph(index, dumpGraphPrefix);
 		}
 
 		// The sun: a directional light, constant — built once and handed in every frame's inputs. Neutral
@@ -134,19 +170,15 @@ internal static class Program
 		// A real HUD control (freezes the orbit); also togglable via the ImGui Window menu when built with ImGui.
 		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
 		var pauseCamera = false;
-#if LOOM_IMGUI
-		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's renderer does the GPU work.
-		// Compiled out entirely when the engine is built without ImGui (UseImGui=false).
-		ImGui.CreateContext();
-		var io = ImGui.GetIO();
-		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
-		io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
-		io.DisplayFramebufferScale = Vector2.One;
-		io.Fonts.AddFontDefault();
-		ImGui.StyleColorsDark();
-		engine.EnableImGui();
-		var showDemoWindow = false;
-#endif
+
+		// M13 detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
+		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
+		// fly around and see exactly what that camera framed. LOOM_FRUSTUM=1 enables it for a deterministic capture.
+		var fly = new FlyCamera();
+		var debugCam = Environment.GetEnvironmentVariable("LOOM_FRUSTUM") is "1" or "true";
+		var debugCamInit = false;
+		var frozenViewProjection = Matrix4x4.Identity;
+		var frustumSegments = new Vector4[12];
 
 		Console.WriteLine($"Loom M7 - demo gallery on {engine.DeviceName} ({engine.BackendName}). Keys 1-{demos.Length} / Tab switch demos (the engine swaps the active graph live); on Object Highlighting / Full, hover the cube. Close the window to exit.");
 
@@ -162,9 +194,21 @@ internal static class Program
 					SelectDemo(key - Key.Number1);
 			};
 
+		if (keyboard is not null)
+			keyboard.KeyDown += (_, key, _) =>
+			{
+				if (key == Key.F)
+					debugCam = !debugCam; // M13: toggle the detached debug camera + frustum freeze
+			};
+
 		// Headless smoke (LOOM_SMOKE_FRAMES=N) + capture (LOOM_CAPTURE=path) modes.
 		var smokeFrames = int.TryParse(Environment.GetEnvironmentVariable("LOOM_SMOKE_FRAMES"), out var n) ? n : 0;
 		var capturePath = Environment.GetEnvironmentVariable("LOOM_CAPTURE");
+
+		// M13 GPU profiler: in a headless smoke run, turn timing on so the final frame can dump per-pass numbers for
+		// a cross-backend sanity check (no-op if the queue can't timestamp; the setter guards it).
+		if (smokeFrames > 0)
+			engine.GpuTimingEnabled = true;
 		var frame = 0;
 		var elapsed = 0f;
 		var fpsTimer = 0f;
@@ -211,8 +255,45 @@ internal static class Program
 			var camera = new Camera(view, projection);
 
 			// Per-frame CPU work for the active demo (e.g. the instancing demo's frustum cull) — runs with this
-			// frame's camera, before Render, so the surviving draw list is ready when the pass closure records.
+			// frame's MAIN camera (the one the debug view freezes), before Render, so the surviving draw list is
+			// ready when the pass closure records. In freeze mode the demo still culls against the main frustum
+			// while we fly the detached camera around to inspect what it framed.
 			demos[currentDemo].Update(camera);
+
+			// M13 detached debug camera: when active, render from a free-fly view and draw the FROZEN scripted-camera
+			// frustum as a yellow wireframe. Entering debug mode freezes the current view; the host projects the frozen
+			// frustum's 8 corners to screen pixels and hands the 12 edges to the engine's overlay.
+			var renderCamera = camera;
+			if (debugCam)
+			{
+				if (!debugCamInit)
+				{
+					debugCamInit = true;
+					frozenViewProjection = camera.ViewProjection;
+					fly.PlaceLookingAt(new Vector3(6f, 4f, 6f), Vector3.Zero); // start outside the frozen frustum
+				}
+				// A fixed detached viewpoint under capture (deterministic); free-fly otherwise.
+				renderCamera = capturePath is not null
+					? new Camera(Matrix4x4.CreateLookAt(new Vector3(6f, 4f, 6f), Vector3.Zero, Vector3.UnitY), projection)
+					: fly.Update(keyboard, mouse, (float)delta, aspect);
+
+				var corners = frozenViewProjection.GetFrustumCorners();
+				var vp = renderCamera.ViewProjection;
+				var fbW = window.FramebufferSize.X;
+				var fbH = window.FramebufferSize.Y;
+				var segmentCount = 0;
+				var edges = Frustum.EdgeIndices;
+				for (var e = 0; e < edges.Length; e += 2)
+					if (ProjectToScreen(corners[edges[e]], vp, fbW, fbH, out var p0) &&
+						ProjectToScreen(corners[edges[e + 1]], vp, fbW, fbH, out var p1))
+						frustumSegments[segmentCount++] = new Vector4(p0.X, p0.Y, p1.X, p1.Y);
+				engine.SetDebugLines(frustumSegments.AsSpan(0, segmentCount));
+			}
+			else
+			{
+				debugCamInit = false;
+				engine.SetDebugLines(ReadOnlySpan<Vector4>.Empty);
+			}
 
 			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
 			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
@@ -268,7 +349,14 @@ internal static class Program
 				if (ImGui.BeginMenu("Window"))
 				{
 					ImGui.MenuItem("Pause camera", "", ref pauseCamera);
+					ImGui.MenuItem("Debug camera (fly) + frustum freeze", "F", ref debugCam);
 					ImGui.MenuItem("ImGui demo window", "", ref showDemoWindow);
+					var gpuTiming = engine.GpuTimingEnabled;
+					if (ImGui.MenuItem("GPU timing", "", ref gpuTiming))
+						engine.GpuTimingEnabled = gpuTiming;
+					ImGui.MenuItem("Resource viewer", "", ref showInspect);
+					if (ImGui.MenuItem("Export graph (DOT/JSON)"))
+						DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph");
 					ImGui.EndMenu();
 				}
 
@@ -284,6 +372,38 @@ internal static class Program
 			if (showDemoWindow)
 				ImGui.ShowDemoWindow(ref showDemoWindow);
 
+			// M13 resource viewer: enumerate the active graph's colour/depth resources and preview each via
+			// ImGui.Image (the engine binds the resource's live, ShaderRead view to the returned id). Click a
+			// thumbnail to enlarge it. Works for any loaded graph — the buffer list comes from the engine.
+			if (showInspect)
+			{
+				if (ImGui.Begin("Resource viewer", ref showInspect))
+				{
+					// This window is the legend; the engine draws the matching thumbnail grid (row-major, same order)
+					// to the right. GetDebugTextureId returns non-zero for inspectable resources AND requests the
+					// thumbnail for this frame. (ImGui.Image can't draw the textures itself on win-arm64.)
+					ImGui.Text("Buffers (grid is row-major, same order):");
+					var slot = 0;
+					foreach (var r in engine.InspectableResources)
+						if (engine.GetDebugTextureId(r.Id) != 0)
+							ImGui.Text($"{slot++,2}  {r.Name}  ({r.Kind} {r.Format})");
+				}
+				ImGui.End();
+			}
+
+			// M13 GPU profiler HUD: per-pass GPU ms + frame total from the most recently completed frame.
+			if (engine.GpuTimingEnabled)
+			{
+				if (ImGui.Begin("GPU Timing"))
+				{
+					foreach (var t in engine.LastFrameTimings)
+						ImGui.Text($"{t.Name,-18} {t.GpuMilliseconds,7:F3} ms");
+					ImGui.Separator();
+					ImGui.Text($"{"frame total",-18} {engine.LastFrameGpuMilliseconds,7:F3} ms");
+				}
+				ImGui.End();
+			}
+
 			ImGui.Render();
 			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
 #endif
@@ -292,7 +412,7 @@ internal static class Program
 			{
 				DeltaSeconds = capturePath is not null ? captureDelta : delta,
 				Time = capturePath is not null ? captureTime : elapsed,
-				Camera = camera,
+				Camera = renderCamera,
 				SunView = sunCamera,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
@@ -301,7 +421,17 @@ internal static class Program
 			if (capturePath is not null && frame >= 62)
 				window.Close();
 			else if (smokeFrames > 0 && frame >= smokeFrames)
+			{
+				// M13: dump the last completed frame's GPU timings (cross-backend sanity: sum ≤ frame total ≤ wall).
+				if (engine.GpuTimingEnabled && engine.LastFrameTimings.Count > 0)
+				{
+					Console.WriteLine($"[loom] GPU timing ({engine.BackendName}, demo {demos[currentDemo].Name}):");
+					foreach (var t in engine.LastFrameTimings)
+						Console.WriteLine($"  {t.Name,-18} {t.GpuMilliseconds,7:F3} ms");
+					Console.WriteLine($"  {"frame total",-18} {engine.LastFrameGpuMilliseconds,7:F3} ms");
+				}
 				window.Close();
+			}
 		};
 
 		window.Run();
@@ -309,5 +439,21 @@ internal static class Program
 #if LOOM_IMGUI
 		ImGui.DestroyContext();
 #endif
+	}
+
+	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection (M13
+	// frustum wireframe). Returns false for points behind the camera (w ≤ 0), so edges that cross the near plane are
+	// dropped rather than drawn wrapped. The engine's overlay maps these pixels to clip space on either backend.
+	private static bool ProjectToScreen(Vector3 world, Matrix4x4 viewProjection, int width, int height, out Vector2 pixel)
+	{
+		var clip = Vector4.Transform(new Vector4(world, 1f), viewProjection);
+		if (clip.W <= 1e-4f)
+		{
+			pixel = default;
+			return false;
+		}
+		var ndc = new Vector2(clip.X, clip.Y) / clip.W;
+		pixel = new Vector2((ndc.X * 0.5f + 0.5f) * width, (0.5f - ndc.Y * 0.5f) * height);
+		return true;
 	}
 }
