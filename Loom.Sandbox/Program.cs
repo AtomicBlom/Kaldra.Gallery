@@ -88,6 +88,7 @@ internal static class Program
 			new BloomDemo(),
 			new ParticlesDemo(),
 			new HighlightingDemo(),
+			new InstancingDemo(),
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
@@ -209,6 +210,10 @@ internal static class Program
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
 			var camera = new Camera(view, projection);
 
+			// Per-frame CPU work for the active demo (e.g. the instancing demo's frustum cull) — runs with this
+			// frame's camera, before Render, so the surviving draw list is ready when the pass closure records.
+			demos[currentDemo].Update(camera);
+
 			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
 			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
 			// a readback return 0 from SamplePick, so this is harmless for them.
@@ -268,7 +273,10 @@ internal static class Program
 				}
 
 				ImGui.Separator();
-				ImGui.Text($"{displayFps:F0} fps ({displayMs:F2} ms)   |   demo: {demos[currentDemo].Name}   |   hovered {hoverId}   |   {engine.DeviceName}");
+				var status = $"{displayFps:F0} fps ({displayMs:F2} ms)   |   demo: {demos[currentDemo].Name}   |   hovered {hoverId}   |   {engine.DeviceName}";
+				if (demos[currentDemo].HudStatus is { } demoStatus)
+					status += $"   |   {demoStatus}";
+				ImGui.Text(status);
 
 				ImGui.EndMainMenuBar();
 			}
