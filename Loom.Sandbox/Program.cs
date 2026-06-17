@@ -103,7 +103,23 @@ internal static class Program
 				Console.WriteLine($"[loom] LOOM_DEMO='{demoEnv}' is not a known demo ({string.Join(", ", demos.Select(d => d.Name))}); starting on {demos[currentDemo].Name}.");
 		}
 
+		// M13 graph-viz export. LOOM_DUMP_GRAPH=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the
+		// active graph on startup and every swap; the ImGui "Export graph" menu item writes the same on demand.
+		var dumpGraphPrefix = Environment.GetEnvironmentVariable("LOOM_DUMP_GRAPH");
+
+		void DumpGraph(int index, string prefix)
+		{
+			var safe = string.Concat(demos[index].Name.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
+			var dot = $"{prefix}.{safe}.dot";
+			var json = $"{prefix}.{safe}.json";
+			File.WriteAllText(dot, graphs[index].ToDot());
+			File.WriteAllText(json, graphs[index].ToJson());
+			Console.WriteLine($"[loom] graph → {dot} + {json}");
+		}
+
 		engine.SetGraph(graphs[currentDemo]);
+		if (dumpGraphPrefix is not null)
+			DumpGraph(currentDemo, dumpGraphPrefix);
 
 		void SelectDemo(int index)
 		{
@@ -112,6 +128,8 @@ internal static class Program
 			currentDemo = index;
 			engine.SetGraph(graphs[index]); // drains the GPU, releases the old transients, binds the new graph
 			Console.WriteLine($"[loom] demo → {demos[index].Name}");
+			if (dumpGraphPrefix is not null)
+				DumpGraph(index, dumpGraphPrefix);
 		}
 
 		// The sun: a directional light, constant — built once and handed in every frame's inputs. Neutral
@@ -155,6 +173,11 @@ internal static class Program
 		// Headless smoke (LOOM_SMOKE_FRAMES=N) + capture (LOOM_CAPTURE=path) modes.
 		var smokeFrames = int.TryParse(Environment.GetEnvironmentVariable("LOOM_SMOKE_FRAMES"), out var n) ? n : 0;
 		var capturePath = Environment.GetEnvironmentVariable("LOOM_CAPTURE");
+
+		// M13 GPU profiler: in a headless smoke run, turn timing on so the final frame can dump per-pass numbers for
+		// a cross-backend sanity check (no-op if the queue can't timestamp; the setter guards it).
+		if (smokeFrames > 0)
+			engine.GpuTimingEnabled = true;
 		var frame = 0;
 		var elapsed = 0f;
 		var fpsTimer = 0f;
@@ -255,6 +278,11 @@ internal static class Program
 				{
 					ImGui.MenuItem("Pause camera", "", ref pauseCamera);
 					ImGui.MenuItem("ImGui demo window", "", ref showDemoWindow);
+					var gpuTiming = engine.GpuTimingEnabled;
+					if (ImGui.MenuItem("GPU timing", "", ref gpuTiming))
+						engine.GpuTimingEnabled = gpuTiming;
+					if (ImGui.MenuItem("Export graph (DOT/JSON)"))
+						DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph");
 					ImGui.EndMenu();
 				}
 
@@ -266,6 +294,19 @@ internal static class Program
 
 			if (showDemoWindow)
 				ImGui.ShowDemoWindow(ref showDemoWindow);
+
+			// M13 GPU profiler HUD: per-pass GPU ms + frame total from the most recently completed frame.
+			if (engine.GpuTimingEnabled)
+			{
+				if (ImGui.Begin("GPU Timing"))
+				{
+					foreach (var t in engine.LastFrameTimings)
+						ImGui.Text($"{t.Name,-18} {t.GpuMilliseconds,7:F3} ms");
+					ImGui.Separator();
+					ImGui.Text($"{"frame total",-18} {engine.LastFrameGpuMilliseconds,7:F3} ms");
+				}
+				ImGui.End();
+			}
 
 			ImGui.Render();
 			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
@@ -284,7 +325,17 @@ internal static class Program
 			if (capturePath is not null && frame >= 62)
 				window.Close();
 			else if (smokeFrames > 0 && frame >= smokeFrames)
+			{
+				// M13: dump the last completed frame's GPU timings (cross-backend sanity: sum ≤ frame total ≤ wall).
+				if (engine.GpuTimingEnabled && engine.LastFrameTimings.Count > 0)
+				{
+					Console.WriteLine($"[loom] GPU timing ({engine.BackendName}, demo {demos[currentDemo].Name}):");
+					foreach (var t in engine.LastFrameTimings)
+						Console.WriteLine($"  {t.Name,-18} {t.GpuMilliseconds,7:F3} ms");
+					Console.WriteLine($"  {"frame total",-18} {engine.LastFrameGpuMilliseconds,7:F3} ms");
+				}
 				window.Close();
+			}
 		};
 
 		window.Run();
