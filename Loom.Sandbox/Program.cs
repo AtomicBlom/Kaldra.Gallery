@@ -94,6 +94,7 @@ internal static class Program
 			new InstancingDemo(),
 			new SpritesDemo(),
 			new Lighting2DDemo(),
+			new SpriteAnimationDemo(),
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
