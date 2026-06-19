@@ -8,14 +8,11 @@ namespace Loom.Sandbox.Demos;
 /// <summary>
 /// The Track-A pixel-art reference demo (PlanningPhase2.md M14-8) — the capstone that composes the whole 2D
 /// pipeline into one scene: a parallax background (M14-6), a tile-index tilemap ground (M14-2), animated sprites
-/// (M14-5), and dynamic normal-mapped 2D point lights (M14-3), all rasterised into a single depth-ordered 2D
-/// G-buffer, then composed (ambient + additive light volumes), bloomed (§7.1), and nearest-upscaled from the
-/// 320×180 world to the screen (§9 pixelation). Everything time-driven is pulled from <c>ctx.Time</c> (not
-/// captured), so a frozen capture is deterministic — the source of the committed cross-backend golden.
-/// <para>
-/// Generalized GPU particles (M14-4) are the one Track-A feature not yet folded in; they slot in as an additive
-/// pass over <c>lit</c> before bloom once that lands.
-/// </para>
+/// (M14-5), dynamic normal-mapped 2D point lights (M14-3), and generalized GPU ember particles (M14-4). The
+/// sprites/tilemap rasterise into a single depth-ordered 2D G-buffer, which is composed (ambient + additive light
+/// volumes); the particles' textured sub-UV sparks then blend additively over the lit result before it is bloomed
+/// (§7.1) and nearest-upscaled from the 320×180 world to the screen (§9 pixelation). Everything time-driven is
+/// pulled from <c>ctx.Time</c> (not captured), so a frozen capture is deterministic — the cross-backend golden.
 /// </summary>
 internal sealed class PixelArtDemo : IDemo
 {
@@ -44,8 +41,12 @@ internal sealed class PixelArtDemo : IDemo
 	private Material _tiles;       // tilemap atlas + index
 	private Mesh _mapQuad;
 	private Material _spinners;    // animated sprites
+	private Material _sparks;      // textured glow-particle atlas (M14-4)
 	private SpriteSheet _ballSheet = new(1, 1);
 	private SpriteSheet _spinSheet = new(1, 1);
+
+	private const int GlowParticleCount = 512; // multiple of 64 (the compute workgroup size)
+	private const int ParticleStrideBytes = 32; // VertexLayout.Particle: two IPARTICLE float4 rows
 
 	public string Name => "Pixel Art";
 
@@ -57,6 +58,10 @@ internal sealed class PixelArtDemo : IDemo
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
 		engine.DefineTechnique("light2d", new TechniqueDescriptor(
 			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Light2D));
+		engine.DefineTechnique("particle.glow.update", new TechniqueDescriptor(
+			"particle_glow_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("particle.glow.render", new TechniqueDescriptor(
+			"particle_glow_render", Blend: BlendMode.Additive, LinearFilter: true, ParticleInput: true, Instance: VertexLayout.Particle));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
@@ -65,6 +70,7 @@ internal sealed class PixelArtDemo : IDemo
 
 		_balls = BallAtlas.CreateMaterial(engine, out _ballSheet);
 		_spinners = SpinnerAtlas.CreateMaterial(engine, out _spinSheet);
+		_sparks = SparkAtlas.CreateMaterial(engine, out _);
 
 		TileAtlas.CreateTextures(engine, out var atlasAlbedo, out var atlasNormal);
 		var index = engine.CreateTexture(TextureData.FromRgba8(20, 12, BuildIndexBytes(), TextureFormat.Rgba8Unorm, generateMips: false));
@@ -100,6 +106,7 @@ internal sealed class PixelArtDemo : IDemo
 		var emissive = world.Color("pa_emissive", Format.Rgba8Srgb);
 		var depth = world.Depth("pa_depth", Format.Depth32F);
 		var lit = world.Color("pa_lit", Format.Rgba16F);
+		var glow = g.Buffer("pa_glow", GlowParticleCount * ParticleStrideBytes);
 
 		// One depth-ordered G-buffer pass: parallax background (far) → tilemap ground (mid) → animated sprites (near).
 		g.Pass("scene")
@@ -127,7 +134,19 @@ internal sealed class PixelArtDemo : IDemo
 				ctx.DrawInstanced(scene.Quad, "light2d", BuildLights(ctx.Time).AsSpan(), gbuffer);
 			});
 
-		// Bloom the HDR lit result (the light highlights glow), then nearest-upscale to the screen.
+		// Generalized GPU particles (M14-4): a compute fountain writes the wide particle stream (the demo pushes the
+		// emitter params), then the textured render pass blends warm sub-UV ember sparks additively over lit so they
+		// bloom. Two edges — .ReadWrites then .ReadsVertex — and the engine derives the compute→vertex-input barrier.
+		g.Compute("particle.glow.update")
+			.ReadWrites(glow)
+			.Dispatch(ctx => ctx.Dispatch("particle.glow.update", ((uint)(GlowParticleCount / 64), 1, 1), GlowEmitter(ctx.Time), [], [glow]));
+
+		g.Pass("glow")
+			.Blends(lit)
+			.ReadsVertex(glow)
+			.Draw(ctx => ctx.DrawParticles(glow, GlowParticleCount, _sparks, "particle.glow.render"));
+
+		// Bloom the HDR lit result (the light highlights + ember sparks glow), then nearest-upscale to the screen.
 		var bloomed = g.Bloom(lit, threshold: 1.0f, mips: 5, intensity: 0.8f);
 
 		g.Pass("upscale")
@@ -185,6 +204,16 @@ internal sealed class PixelArtDemo : IDemo
 			Light2DInstance.At(new Vector2(252f, 80f) + Orbit(t * 0.6f + 3.0f, 30f), 118f, new Vector3(0.50f, 0.95f, 0.55f), 1.2f, 40f),
 		];
 	}
+
+	// The ember emitter, as the generalized particle compute's push block (3 float4s; see particle_glow_update.slang).
+	// Rising warm motes across the lower scene — the demo owns the emitter shape, the shader stays generic.
+	//   p0: time, lifetime, origin.x, origin.y | p1: spawn half-width, rise, drift, gravity | p2: swirl amp, swirl freq, origin.z, _
+	private static float[] GlowEmitter(float time) =>
+	[
+		time, 3.4f, 160f, 34f,
+		150f, 26f, 6f, -3f,
+		8f, 1.5f, 3.5f, 0f,
+	];
 
 	private static Vector2 Orbit(float angle, float radius) => new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius);
 
