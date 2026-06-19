@@ -97,6 +97,7 @@ internal static class Program
 			new SpriteAnimationDemo(),
 			new TilemapDemo(),
 			new ParallaxDemo(),
+			new Debug2DDemo(),
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
