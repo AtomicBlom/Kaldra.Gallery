@@ -35,15 +35,10 @@ internal sealed class SpritesDemo : IDemo
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 
-		// Build the atlas once (the engine is in hand here): a 2×2 sheet of coloured balls + their spherical
-		// normal maps, uploaded as an albedo + normal-map material. No mips — pixel art samples nearest.
-		var (albedoPixels, normalPixels) = BuildBallAtlas(out var atlasW, out var atlasH);
-		_atlas = engine.CreateMaterial(
-			engine.CreateTexture(TextureData.FromRgba8(atlasW, atlasH, albedoPixels, TextureFormat.Rgba8Srgb, generateMips: false)),
-			engine.CreateTexture(TextureData.FromRgba8(atlasW, atlasH, normalPixels, TextureFormat.Rgba8Unorm, generateMips: false)));
+		// Build the shared 2×2 ball atlas (albedo + spherical normal map) — see BallAtlas.
+		_atlas = BallAtlas.CreateMaterial(engine, out var sheet);
 
 		// Lay out a field of sprites — one DrawInstanced batches them all. Cells cycle so the atlas is visible.
-		var sheet = new SpriteSheet(2, 2, atlasW, atlasH, insetTexels: 0.5f);
 		const int cols = 8, rows = 5;
 		var sprites = new SpriteInstance[cols * rows];
 		for (var r = 0; r < rows; r++)
@@ -96,69 +91,5 @@ internal sealed class SpritesDemo : IDemo
 		g.Present(screen);
 	});
 
-	public string? HudStatus => $"sprites {_sprites.Length} (1 batched draw)";
-
-	// A 2×2 atlas of coloured balls: each cell a filled circle (alpha 1 inside, 0 outside for alpha-test) with a
-	// spherical tangent-space normal map, so the sprites light as little 3D balls. Row-major cell order matches
-	// SpriteSheet.Uv. Deterministic → safe for cross-backend golden images.
-	private static (byte[] Albedo, byte[] Normal) BuildBallAtlas(out int width, out int height)
-	{
-		const int cell = 32, cols = 2, rows = 2;
-		width = cols * cell;
-		height = rows * cell;
-		var albedo = new byte[width * height * 4];
-		var normal = new byte[width * height * 4];
-
-		Vector3[] colors =
-		[
-			new(0.95f, 0.30f, 0.30f), // red
-			new(0.35f, 0.85f, 0.45f), // green
-			new(0.40f, 0.55f, 0.95f), // blue
-			new(0.95f, 0.80f, 0.30f), // yellow
-		];
-
-		const float radius = cell * 0.45f;
-		const float centre = cell * 0.5f;
-		for (var cy = 0; cy < rows; cy++)
-			for (var cx = 0; cx < cols; cx++)
-			{
-				var color = colors[cy * cols + cx];
-				for (var py = 0; py < cell; py++)
-					for (var px = 0; px < cell; px++)
-					{
-						var dx = px + 0.5f - centre;
-						var dy = py + 0.5f - centre;
-						var nd = MathF.Sqrt(dx * dx + dy * dy) / radius;
-						var gx = cx * cell + px;
-						var gy = cy * cell + py;
-						var o = (gy * width + gx) * 4;
-
-						if (nd <= 1f)
-						{
-							var nz = MathF.Sqrt(MathF.Max(0f, 1f - nd * nd));
-							var n = Vector3.Normalize(new Vector3(dx / radius, -dy / radius, nz)); // -dy: image-top → +Y
-							albedo[o + 0] = ToByte(color.X);
-							albedo[o + 1] = ToByte(color.Y);
-							albedo[o + 2] = ToByte(color.Z);
-							albedo[o + 3] = 255;
-							normal[o + 0] = ToByte(n.X * 0.5f + 0.5f);
-							normal[o + 1] = ToByte(n.Y * 0.5f + 0.5f);
-							normal[o + 2] = ToByte(n.Z * 0.5f + 0.5f);
-							normal[o + 3] = 255;
-						}
-						else
-						{
-							// Outside the ball: transparent (alpha-tested away); flat normal just in case.
-							normal[o + 0] = 128;
-							normal[o + 1] = 128;
-							normal[o + 2] = 255;
-							normal[o + 3] = 255;
-						}
-					}
-			}
-
-		return (albedo, normal);
-	}
-
-	private static byte ToByte(float v) => (byte)Math.Clamp((int)MathF.Round(v * 255f), 0, 255);
+	public string HudStatus => $"sprites {_sprites.Length} (1 batched draw)";
 }
