@@ -7,13 +7,8 @@
 // Entry points vertexMain/fragmentMain so the Loom build emits DXIL.
 //
 // The per-instance stream arrives as four ISPRITE rows (ISPRITE0..3) — a single repeated semantic with an index,
-// exactly like VertexLayout.Transform's ITRANSFORM, so DX12's semantic-name binding picks them up.
-//
-// KNOWN ISSUE (under investigation): on the win-arm64 DX12 backend, only the sprites near world-origin render —
-// mul(pc.mvp, world) drives clip.w negative for large world coordinates (the orthographic 2D camera centres the
-// world at ~(160,90)). Vulkan renders the full grid correctly with the identical shader. The cause is a
-// SPIR-V↔DXIL matrix-layout discrepancy that resisted the column-major flag / column_major qualifier / CPU
-// transpose and is insensitive to the multiply order on DX12 — pending native-x64 verification + RenderDoc.
+// exactly like VertexLayout.Transform's ITRANSFORM, so DX12's semantic-name binding picks them up. mul(pc.mvp, v)
+// works identically on both backends (the ortho camera is just the demo's GetCamera; no matrix-layout special-casing).
 
 [[vk::binding(0, 0)]] Sampler2D albedoTex; // atlas albedo (sRGB)
 [[vk::binding(1, 0)]] Sampler2D normalTex; // atlas tangent-space normal map (linear)
