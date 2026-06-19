@@ -146,10 +146,10 @@ internal static class Program
 #endif
 
 		// MU0 Phase A: stand up the game-UI seam (no-op renderer) so the demos' "ui" pass + ctx.DrawUI() run clean
-		// on both backends. Independent of ImGui (not gated). The real UiHost/compositor arrive in MU0 Phase B; for
+		// on both backends. Independent of ImGui (not gated). The real UIHost/compositor arrive in MU0 Phase B; for
 		// now the host hands one empty overlay surface each frame — DrawUI finds it by id, sees it empty, and skips.
 		engine.EnableUI();
-		var uiSurfaces = new (UiSurfaceId Id, UIDrawData Draw)[] { (UiSurface.Hud, UIDrawData.Empty) };
+		var uiSurfaces = new (UISurfaceId Id, UIDrawData Draw)[] { (UISurface.Hud, UIDrawData.Empty) };
 
 		engine.SetGraph(graphs[currentDemo]);
 		if (dumpGraphPrefix is not null)
@@ -422,7 +422,7 @@ internal static class Program
 				SunView = sunCamera,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
-				UiSurfaces = uiSurfaces,
+				UISurfaces = uiSurfaces,
 			});
 
 			if (capturePath is not null && frame >= 62)
