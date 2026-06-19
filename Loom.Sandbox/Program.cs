@@ -149,7 +149,7 @@ internal static class Program
 		// on both backends. Independent of ImGui (not gated). The real UiHost/compositor arrive in MU0 Phase B; for
 		// now the host hands one empty overlay surface each frame — DrawUI finds it by id, sees it empty, and skips.
 		engine.EnableUI();
-		var uiSurfaces = new (UiSurfaceId Id, UiDrawData Draw)[] { (UiSurface.Hud, UiDrawData.Empty) };
+		var uiSurfaces = new (UiSurfaceId Id, UIDrawData Draw)[] { (UiSurface.Hud, UIDrawData.Empty) };
 
 		engine.SetGraph(graphs[currentDemo]);
 		if (dumpGraphPrefix is not null)
