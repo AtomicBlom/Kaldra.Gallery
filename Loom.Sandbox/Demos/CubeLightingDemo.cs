@@ -28,6 +28,9 @@ internal sealed class CubeLightingDemo : IDemo
 				ctx.Draw(scene.Plane, "lit");
 			});
 
+		// MU0 Phase A: the game-UI overlay seam (no-op renderer). Proves the "ui" pass schedules + DrawUI records
+		// clean on both backends; under the debug HUD so ImGui stays on top.
+		DemoGraph.Ui(g, screen, UiSurface.Hud);
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
