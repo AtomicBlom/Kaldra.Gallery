@@ -4,9 +4,28 @@ using Loom.Core;
 
 namespace Loom.Sandbox.Demos;
 
-/// <summary>The two meshes every demo shares — a unit cube and a ground plane — built once by the host.</summary>
+/// <summary>The meshes every demo shares — a unit cube, a ground plane, and a unit quad — built once by the host.</summary>
 internal static class Geometry
 {
+	// A unit quad in the XY plane, corners (0,0)..(1,1), facing +Z with a +X tangent (a TBN frame for normal
+	// mapping). It carries the standard Vertex layout so it uploads through the ordinary CreateMesh and instances
+	// with VertexLayout.Sprite (M14): the sprite vertex shader reads only POSITION + TEXCOORD and ignores the
+	// normal/tangent, expanding each corner into the quad the per-instance SpriteInstance describes. UV = corner,
+	// so (0,0) is the quad's bottom-left; the shader applies the atlas uv-rect (and the v-flip) per sprite.
+	public static (Vertex[] Vertices, uint[] Indices) BuildQuad()
+	{
+		var n = new Vector3(0, 0, 1);
+		var tan = new Vector4(1, 0, 0, 1);
+		Vertex[] vertices =
+		[
+			new(new Vector3(0, 0, 0), n, new Vector2(0, 0), tan),
+			new(new Vector3(1, 0, 0), n, new Vector2(1, 0), tan),
+			new(new Vector3(1, 1, 0), n, new Vector2(1, 1), tan),
+			new(new Vector3(0, 1, 0), n, new Vector2(0, 1), tan),
+		];
+		return (vertices, [0, 1, 2, 0, 2, 3]);
+	}
+
 	// A flat ground quad at the cube's base (y = -0.5), facing up — the receiver the cube's shadow falls on.
 	// Cull is disabled, so winding doesn't matter; the normal points up for lighting.
 	public static (Vertex[] Vertices, uint[] Indices) BuildPlane()

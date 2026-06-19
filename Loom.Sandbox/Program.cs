@@ -72,13 +72,14 @@ internal static class Program
 		// Shared geometry every demo draws, uploaded once.
 		var (cubeVerts, cubeIndices) = Geometry.BuildCube();
 		var (planeVerts, planeIndices) = Geometry.BuildPlane();
+		var (quadVerts, quadIndices) = Geometry.BuildQuad();
 		// The shared brick material — albedo + tangent-space normal map, decoded from committed PNGs (M11). The
 		// loaders live in Loom.Assets (neutral); the engine just uploads the resulting TextureData + mip chain.
 		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
 		var brick = engine.CreateMaterial(
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_albedo.png"), TextureFormat.Rgba8Srgb)),
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_normal.png"), TextureFormat.Rgba8Unorm)));
-		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), brick);
+		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick);
 
 		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
 		IDemo[] demos =
@@ -91,6 +92,7 @@ internal static class Program
 			new ParticlesDemo(),
 			new HighlightingDemo(),
 			new InstancingDemo(),
+			new SpritesDemo(),
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
@@ -253,6 +255,11 @@ internal static class Program
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
 			var camera = new Camera(view, projection);
+
+			// A demo may override the camera — a 2D/sprite demo (M14) returns an orthographic view here; otherwise
+			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax, M14-6).
+			if (demos[currentDemo].GetCamera(aspect, camTime) is { } demoCamera)
+				camera = demoCamera;
 
 			// Per-frame CPU work for the active demo (e.g. the instancing demo's frustum cull) — runs with this
 			// frame's MAIN camera (the one the debug view freezes), before Render, so the surviving draw list is
