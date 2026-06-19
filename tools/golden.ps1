@@ -34,6 +34,7 @@ $demos = [ordered]@{
 	"FullReference" = "Full reference frame"
 	"Bloom"         = "Bloom"
 	"Particles"     = "Particles"
+	"PixelArt"      = "Pixel Art"
 }
 
 Write-Host "[golden] building..."
