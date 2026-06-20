@@ -1,8 +1,7 @@
-using Loom.Core;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.UI;
+using Loom.UI;
 
 namespace Loom.Sandbox.Demos;
 
@@ -34,7 +33,7 @@ internal sealed class UIInteractiveDemo : IDemo
 				ctx.Draw(scene.Plane, "lit");
 			});
 
-		DemoGraph.UI(g, screen, UISurface.Hud);
+		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});

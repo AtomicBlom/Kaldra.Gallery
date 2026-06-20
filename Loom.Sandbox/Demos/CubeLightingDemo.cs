@@ -1,7 +1,7 @@
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.UI;
+using Loom.UI;
 
 namespace Loom.Sandbox.Demos;
 
@@ -31,9 +31,9 @@ internal sealed class CubeLightingDemo : IDemo
 				ctx.Draw(scene.Plane, "lit");
 			});
 
-		// MU0 Phase A: the game-UI overlay seam (no-op renderer). Proves the "ui" pass schedules + DrawUI records
-		// clean on both backends; under the debug HUD so ImGui stays on top.
-		DemoGraph.UI(g, screen, UISurface.Hud);
+		// The game-UI overlay: the painter submits the composited HUD list through the public draw-list API, under
+		// the debug HUD so ImGui stays on top.
+		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});

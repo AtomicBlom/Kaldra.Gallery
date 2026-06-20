@@ -9,7 +9,6 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.UI;
 #if LOOM_DIRECTX12
 using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type (Planning.md §5)
 #endif
@@ -61,7 +60,10 @@ internal static class Program
 		var brick = engine.CreateMaterial(
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_albedo.png"), TextureFormat.Rgba8Srgb)),
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_normal.png"), TextureFormat.Rgba8Unorm)));
-		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick);
+		// The game-UI painter: registers the "ui" technique and uploads the white texel + default glyph atlas through
+		// the public API, then renders each composited overlay list. Created up front so the demo graphs capture it.
+		var uiPainter = UIPainter.Create(engine, FontAtlas.Default.Texture);
+		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter);
 
 		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
 		var (demos, graphs) = BuildGallery(engine, scene);
@@ -106,13 +108,10 @@ internal static class Program
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
 #endif
 
-		// MU1/MU2: stand up the real game-UI renderer + a screen-space overlay surface, now driven by a UIHost — the
-		// per-window host that owns pointer input + roots off the render graph (MU2). The default font (embedded
-		// Cascadia Code MTSDF) is uploaded to the renderer and shared with the host's compositor so UVs match. The
-		// single overlay surface carries one of two contents, swapped per active demo: the static MU1 panel (every
-		// existing demo, unchanged) and the MU2 interactive, data-bound page (the "UI Interactive" demo).
-		var uiFont = FontAtlas.Default;
-		engine.EnableUI(uiFont.Texture);
+		// A screen-space overlay surface driven by a UIHost — the per-window host that owns pointer input + the roots
+		// off the render graph. Its compositor lays glyphs out against the same default font (embedded Cascadia Code
+		// MTSDF) the painter uploaded, so UVs match. The single overlay surface carries one of two contents, swapped
+		// per active demo: the static panel (every other demo) and the interactive, data-bound page ("UI Interactive").
 		var uiHost = new UIHost();
 		var overlay = uiHost.CreateRoot(UIPlacement.Overlay(zLayer: 0, layoutScale: 1f));
 
@@ -437,9 +436,9 @@ internal static class Program
 #endif
 
 			// Swap the overlay content for the active demo, then drive the host: Tick drains queued pointer input →
-			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → Surfaces. The
+			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
 			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
-			// picks the surface up by id via ctx.DrawUI(UISurface.Hud).
+			// renders the list by id via the painter (scene.UI).
 			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage.Root : mu1Panel;
 
 			// Deterministic capture: with no live mouse, inject one press+release over the page's button (Border at
@@ -475,7 +474,7 @@ internal static class Program
 				CascadeSplits = cascadeSplits,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
-				UISurfaces = uiHost.Surfaces,
+				DrawLists = uiHost.DrawLists,
 			});
 
 			if (capturePath is not null && frame >= 62)
