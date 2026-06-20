@@ -540,6 +540,7 @@ internal static class Program
 			new SkinningDemo(),
 			new CascadedShadowsDemo(),
 			new SkyDayNightDemo(),
+			new FoliageDemo(),
 		];
 
 		var live = new List<IDemo>();
