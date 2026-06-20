@@ -24,13 +24,13 @@
 
   <!-- The host owns the window + input and hands the backend the surface. -->
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
-    <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.Windowing" />
+    <PackageReference Include="Silk.NET.Input" />
     <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel.
          Gated on <UseImGui> (repo-wide); off compiles the host's ImGui control panel out entirely. -->
-    <PackageReference Include="ImGui.NET" Version="1.91.6.1" Condition="'$(UseImGui)' == 'true'" />
+    <PackageReference Include="ImGui.NET" Condition="'$(UseImGui)' == 'true'" />
     <!-- Hermetic slangc for the SDK's shader compile (bundled in the package; win-x64 / win-arm64). -->
-    <PackageReference Include="Slang.Sdk" Version="0.5.1" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
+    <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
   <!-- The neutral asset loaders (image + glTF) the M11 demos use to load committed textures/models. -->

@@ -31,10 +31,11 @@ New-Item -ItemType Directory -Force -Path $captureDir | Out-Null
 
 # filename (without .png) -> exact demo Name (--demo). Keep in sync with the committed baselines.
 $demos = [ordered]@{
-	"FullReference" = "Full reference frame"
-	"Bloom"         = "Bloom"
-	"Particles"     = "Particles"
-	"PixelArt"      = "Pixel Art"
+	"FullReference"     = "Full reference frame"
+	"Bloom"             = "Bloom"
+	"Particles"         = "Particles"
+	"PixelArt"          = "Pixel Art"
+	"StylizedReference" = "Stylized reference"
 }
 
 Write-Host "[golden] building..."
@@ -58,7 +59,8 @@ if ($Update) {
 
 Write-Host "[golden] diffing captures against baselines..."
 $env:LOOM_GOLDEN_DIR = $captureDir
-dotnet test (Join-Path $repo "Loom.Tests/Loom.Tests.csproj") --filter "FullyQualifiedName~GoldenImageTests" --nologo
+# MTP syntax (.NET 10): --project, not a bare path, and --treenode-filter, not VSTest's --filter.
+dotnet test --project (Join-Path $repo "Loom.Tests/Loom.Tests.csproj") --treenode-filter "/*/*/GoldenImageTests/*"
 $code = $LASTEXITCODE
 $env:LOOM_GOLDEN_DIR = $null
 exit $code

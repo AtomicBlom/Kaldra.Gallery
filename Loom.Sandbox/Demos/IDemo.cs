@@ -1,6 +1,3 @@
-using System.Numerics;
-using System.Runtime.InteropServices;
-
 using Loom.Core;
 
 namespace Loom.Sandbox.Demos;
@@ -38,31 +35,30 @@ internal interface IDemo
 	/// </summary>
 	Camera? GetCamera(float aspect, float time) => null;
 
+	/// <summary>
+	/// Optional cascaded-shadow-map views for this frame (M15-3). A demo that wants CSM fits N cascades to its own
+	/// camera frustum + the sun <paramref name="lightDir"/> (it knows its camera's near/far) and returns the
+	/// per-cascade ortho cameras + their far view-depths; the launcher threads them into <c>FrameInputs.Cascades</c>/
+	/// <c>CascadeSplits</c> so the depth passes and deferred lighting can pull them. Default null — the demo uses
+	/// the single <c>SunView</c> shadow (or none). Pulled each frame, not captured, like <see cref="GetCamera"/>.
+	/// </summary>
+	(IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, System.Numerics.Vector3 lightDir) => null;
+
+	/// <summary>
+	/// Optional world-space debug line segments for this frame (M15-7) — pairs of endpoints the launcher projects
+	/// to screen and feeds <c>engine.SetDebugLines</c> (the M13 overlay). The skinning demo returns its skeleton
+	/// (bone segments + joint axis gizmos) here. Given the frame's effect <paramref name="time"/> so a demo can
+	/// resample its animation deterministically. Default none.
+	/// </summary>
+	IReadOnlyList<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> DebugWorldLines(float time) => [];
+
+	/// <summary>
+	/// Optional Dear ImGui controls for this demo (M15-7) — drawn by the launcher inside a "Debug" menu/window so a
+	/// demo can expose its own toggles (cascade-tint, time-of-day scrubber, skeleton overlay, bind-vs-animated).
+	/// Default no-op. Only meaningful when ImGui is enabled.
+	/// </summary>
+	void DrawDebugUI() { }
+
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
-}
-
-/// <summary>The shared, app-owned geometry every demo draws — uploaded once by the host and handed to each demo.
-/// <paramref name="Quad"/> is a unit XY quad for 2D sprite/tile batching (M14); <paramref name="NormalMapped"/> is
-/// a brick material (albedo + normal map) the M11 demos draw with.</summary>
-internal readonly record struct DemoScene(Mesh Cube, Mesh Plane, Mesh Quad, Material NormalMapped);
-
-/// <summary>Small helpers shared by the demo graphs — the native-resolution ImGui overlay and a matrix→push view.</summary>
-internal static class DemoGraph
-{
-	/// <summary>
-	/// Append the Dear ImGui overlay (§6/§9): a pass that <c>.Blends</c> the backbuffer (so the engine orders it
-	/// after the present write and derives the barrier) and hands this frame's draw data to the backend renderer.
-	/// Every demo ends with this so the menu bar / Demo switcher / status render on all of them. A no-op when
-	/// ImGui isn't enabled.
-	/// </summary>
-	public static void Hud(GraphBuilder g, ColorHandle screen) =>
-		g.Pass("hud").Blends(screen).Draw(ctx => ctx.DrawImGui());
-
-	/// <summary>
-	/// View a matrix as its 16 contiguous floats (System.Numerics field order — exactly what a shader's
-	/// <c>float4x4</c> push expects) with no per-frame allocation. The span aliases the caller's matrix
-	/// temporary, which lives to the end of the enclosing push call where it is read synchronously.
-	/// </summary>
-	public static ReadOnlySpan<float> Mat(in Matrix4x4 m) => MemoryMarshal.CreateReadOnlySpan(in m.M11, 16);
 }

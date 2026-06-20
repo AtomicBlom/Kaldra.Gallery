@@ -1,12 +1,5 @@
 namespace Loom.Sandbox;
 
-/// <summary>Which backend the sandbox launches on — chosen by <c>--backend</c>, defaulting to Vulkan.</summary>
-internal enum BackendChoice
-{
-	Vulkan,
-	Dx12,
-}
-
 /// <summary>
 /// The sandbox's command-line configuration — the single replacement for the pile of <c>LOOM_*</c> environment
 /// variables earlier milestones used to steer the launcher. Everything that used to be an env var is now an

@@ -17,7 +17,7 @@ internal sealed class BloomDemo : IDemo
 	{
 		engine.DefineTechnique("emissive", new TechniqueDescriptor("emissive", HasVertexInput: true)); // the glowing cube
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));           // the dim floor
-		// g.Bloom draws with these four (all linear-filtered; the upsample additively accumulates).
+																									   // g.Bloom draws with these four (all linear-filtered; the upsample additively accumulates).
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
