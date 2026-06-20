@@ -541,6 +541,7 @@ internal static class Program
 			new CascadedShadowsDemo(),
 			new SkyDayNightDemo(),
 			new FoliageDemo(),
+			new ToonDemo(),
 		];
 
 		var live = new List<IDemo>();
