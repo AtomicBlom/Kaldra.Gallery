@@ -33,9 +33,11 @@
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
-  <!-- The neutral asset loaders (image + glTF) the M11 demos use to load committed textures/models. -->
+  <!-- The neutral asset loaders (image + glTF) the M11 demos use to load committed textures/models, plus the
+       backend-neutral UI runtime (the host builds an overlay UIRoot + composites it each frame, MU1). -->
   <ItemGroup>
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
+    <ProjectReference Include="..\Loom.UI\Loom.UI.csproj" />
   </ItemGroup>
 
   <!-- Committed demo assets (brick textures + the glTF cube). The Loom SDK copies only shaders, so these are
