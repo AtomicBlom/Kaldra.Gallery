@@ -560,6 +560,7 @@ internal static class Program
 			new SkyDayNightDemo(),
 			new FoliageDemo(),
 			new ToonDemo(),
+			new StylizedDemo(),
 		];
 
 		var live = new List<IDemo>();
