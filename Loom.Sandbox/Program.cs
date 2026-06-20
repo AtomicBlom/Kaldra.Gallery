@@ -9,6 +9,7 @@ using Loom.Core;
 using Loom.DX12; // for DX12EngineSettings only — the one sanctioned DX12 backend type (Planning.md §5)
 #endif
 using Loom.Sandbox.Demos;
+using Loom.Sandbox.UI;
 using Loom.UI;
 using Loom.UI.Controls;
 #if LOOM_VULKAN
@@ -66,6 +67,10 @@ internal static class Program
 		if (currentDemo < 0)
 			return;
 
+		// The interactive UI demo (MU2): when it is active the overlay shows the data-bound page + routes pointer
+		// input; otherwise the static MU1 panel. -1 if its techniques were dropped on this backend (then never shown).
+		var interactiveIndex = Array.FindIndex(demos, d => d.Name == "UI Interactive");
+
 		// --dump-graph=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the active graph on startup
 		// and every swap; the ImGui "Export graph" menu item writes the same on demand.
 		var dumpGraphPrefix = opts.DumpGraph;
@@ -96,36 +101,40 @@ internal static class Program
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
 #endif
 
-		// MU1: stand up the real game-UI renderer + a screen-space overlay surface. The host builds a retained
-		// UIRoot — a rounded, bordered panel with an MSDF text label — and composites it to neutral UIDrawData each
-		// frame; the demos' "ui" pass (ctx.DrawUI) draws it over the world. Independent of ImGui. The default font
-		// (embedded Cascadia Code MTSDF) is uploaded to the renderer and shared with the compositor so the UVs match.
+		// MU1/MU2: stand up the real game-UI renderer + a screen-space overlay surface, now driven by a UIHost — the
+		// per-window host that owns pointer input + roots off the render graph (MU2). The default font (embedded
+		// Cascadia Code MTSDF) is uploaded to the renderer and shared with the host's compositor so UVs match. The
+		// single overlay surface carries one of two contents, swapped per active demo: the static MU1 panel (every
+		// existing demo, unchanged) and the MU2 interactive, data-bound page (the "UI Interactive" demo).
 		var uiFont = FontAtlas.Default;
 		engine.EnableUI(uiFont.Texture);
-		var uiCompositor = new DrawListCompositor(uiFont);
-		var uiRoot = new UIRoot(UISurface.Hud, uiCompositor)
+		var uiHost = new UIHost();
+		var overlay = uiHost.CreateRoot(UIPlacement.Overlay(zLayer: 0, layoutScale: 1f));
+
+		// The static MU1 panel (unchanged) — the overlay content for every non-interactive demo.
+		UIElement mu1Panel = new Border
 		{
-			Content = new Border
+			Width = 360f,
+			Height = 140f,
+			Margin = new Thickness(24f, 24f, 0f, 0f),
+			Padding = new Thickness(20f, 16f, 20f, 16f),
+			HorizontalAlignment = HorizontalAlignment.Left,
+			VerticalAlignment = VerticalAlignment.Top,
+			Background = HdrColor.FromRgb(28, 32, 44, 220),
+			BorderBrush = HdrColor.FromRgb(120, 180, 255),
+			BorderThickness = new Thickness(2f),
+			CornerRadius = 16f,
+			Child = new TextBlock
 			{
-				Width = 360f,
-				Height = 140f,
-				Margin = new Thickness(24f, 24f, 0f, 0f),
-				Padding = new Thickness(20f, 16f, 20f, 16f),
-				HorizontalAlignment = HorizontalAlignment.Left,
-				VerticalAlignment = VerticalAlignment.Top,
-				Background = HdrColor.FromRgb(28, 32, 44, 220),
-				BorderBrush = HdrColor.FromRgb(120, 180, 255),
-				BorderThickness = new Thickness(2f),
-				CornerRadius = 16f,
-				Child = new TextBlock
-				{
-					Text = "Loom UI - MU1",
-					FontSize = 28f,
-					Foreground = HdrColor.FromRgb(235, 240, 255),
-				},
+				Text = "Loom UI - MU1",
+				FontSize = 28f,
+				Foreground = HdrColor.FromRgb(235, 240, 255),
 			},
 		};
-		var uiSurfaces = new (UISurfaceId Id, UIDrawData Draw)[1];
+
+		// The MU2 interactive page: XAML → typed tree + {x:Bind} label + Click handler (UI/UIInteractiveView.*).
+		var interactivePage = new UIInteractiveView();
+		overlay.Root.Content = mu1Panel;
 
 		engine.SetGraph(graphs[currentDemo]);
 		if (dumpGraphPrefix is not null)
@@ -177,6 +186,15 @@ internal static class Program
 				else if (key == Key.F)
 					debugCam = !debugCam; // M13: toggle the detached debug camera + frustum freeze
 			};
+
+		// MU2: translate raw mouse into neutral pointer events the UIHost routes (the host owns hit-test + routing).
+		// Independent of the ImGui/camera/pick mouse uses below — multiple handlers per Silk event are fine.
+		if (mouse is not null)
+		{
+			mouse.MouseMove += (_, pos) => uiHost.QueuePointer(PointerInput.Move(pos));
+			mouse.MouseDown += (m, btn) => { if (btn == MouseButton.Left) uiHost.QueuePointer(PointerInput.Press(m.Position)); };
+			mouse.MouseUp += (m, btn) => { if (btn == MouseButton.Left) uiHost.QueuePointer(PointerInput.Release(m.Position)); };
+		}
 
 		// Headless smoke (--smoke-frames N) + capture (--capture path) modes.
 		var smokeFrames = opts.SmokeFrames;
@@ -413,10 +431,24 @@ internal static class Program
 			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
 #endif
 
-			// Lay out + composite the overlay surface for this frame (layout/visual caches make a static tree
-			// near-free; a resize re-measures). The "ui" pass picks it up by id via ctx.DrawUI(UISurface.Hud).
-			uiRoot.LayoutPass(new Size(window.FramebufferSize.X, window.FramebufferSize.Y));
-			uiSurfaces[0] = (UISurface.Hud, uiRoot.Render());
+			// Swap the overlay content for the active demo, then drive the host: Tick drains queued pointer input →
+			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → Surfaces. The
+			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
+			// picks the surface up by id via ctx.DrawUI(UISurface.Hud).
+			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage.Root : mu1Panel;
+
+			// Deterministic capture: with no live mouse, inject one press+release over the page's button (Border at
+			// 24,24 + padding 20,16 → button at 44,40, sized 200x56 → centre 144,68) so the captured frame shows the
+			// clicked/data-bound state on both backends.
+			if (capturePath is not null && currentDemo == interactiveIndex && frame == 30)
+			{
+				var click = new Vector2(144f, 68f);
+				uiHost.QueuePointer(PointerInput.Press(click));
+				uiHost.QueuePointer(PointerInput.Release(click));
+			}
+
+			uiHost.Tick(delta, elapsed, camera, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
+			uiHost.Render();
 
 			// M15-3: a demo that wants cascaded shadows fits cascades to the scripted camera + sun; threaded into
 			// FrameInputs so its depth passes + deferred lighting pull them. Other demos leave these empty.
@@ -438,7 +470,7 @@ internal static class Program
 				CascadeSplits = cascadeSplits,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
-				UISurfaces = uiSurfaces,
+				UISurfaces = uiHost.Surfaces,
 			});
 
 			if (capturePath is not null && frame >= 62)
@@ -570,6 +602,7 @@ internal static class Program
 		IDemo[] all =
 		[
 			new CubeLightingDemo(),
+			new UIInteractiveDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),
