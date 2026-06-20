@@ -27,6 +27,14 @@ internal interface IDemo
 	/// </summary>
 	void Update(Camera camera) { }
 
+	/// <summary>
+	/// Optional camera override for this demo, given the frame's framebuffer <paramref name="aspect"/> and elapsed
+	/// <paramref name="time"/>. A 2D/sprite demo (M14) returns an orthographic view here and the launcher renders
+	/// from it instead of the default perspective orbit; default null keeps the orbit camera. Pulled each frame,
+	/// not captured (so a 2D camera can scroll), exactly like the other per-frame inputs.
+	/// </summary>
+	Camera? GetCamera(float aspect, float time) => null;
+
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
 }
