@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace Loom.Core;
+namespace Loom.Core.Scene;
 
 /// <summary>
 /// One batched 2D sprite/tile (M14) — the per-instance data a <c>ctx.DrawInstanced(quad, atlas, "sprite", …)</c>

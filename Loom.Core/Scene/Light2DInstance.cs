@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace Loom.Core;
+namespace Loom.Core.Scene;
 
 /// <summary>
 /// One 2D point light (M14-3) — the per-instance data a <c>ctx.DrawInstanced(quad, "light2d", lights, gbuffer)</c>
