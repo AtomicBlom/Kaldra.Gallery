@@ -525,6 +525,7 @@ internal static class Program
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
+			new SkinningDemo(),
 		];
 
 		var live = new List<IDemo>();
