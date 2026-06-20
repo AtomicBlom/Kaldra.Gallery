@@ -35,6 +35,15 @@ internal interface IDemo
 	/// </summary>
 	Camera? GetCamera(float aspect, float time) => null;
 
+	/// <summary>
+	/// Optional cascaded-shadow-map views for this frame (M15-3). A demo that wants CSM fits N cascades to its own
+	/// camera frustum + the sun <paramref name="lightDir"/> (it knows its camera's near/far) and returns the
+	/// per-cascade ortho cameras + their far view-depths; the launcher threads them into <c>FrameInputs.Cascades</c>/
+	/// <c>CascadeSplits</c> so the depth passes and deferred lighting can pull them. Default null — the demo uses
+	/// the single <c>SunView</c> shadow (or none). Pulled each frame, not captured, like <see cref="GetCamera"/>.
+	/// </summary>
+	(IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, System.Numerics.Vector3 lightDir) => null;
+
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
 }

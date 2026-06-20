@@ -368,12 +368,24 @@ internal static class Program
 			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
 #endif
 
+			// M15-3: a demo that wants cascaded shadows fits cascades to the scripted camera + sun; threaded into
+			// FrameInputs so its depth passes + deferred lighting pull them. Other demos leave these empty.
+			IReadOnlyList<Camera> cascadeViews = [];
+			IReadOnlyList<float> cascadeSplits = [];
+			if (demos[currentDemo].GetCascades(camera, lightDir) is { } cs)
+			{
+				cascadeViews = cs.Cascades;
+				cascadeSplits = cs.Splits;
+			}
+
 			engine.Render(new FrameInputs
 			{
 				DeltaSeconds = capturePath is not null ? captureDelta : delta,
 				Time = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed,
 				Camera = renderCamera,
 				SunView = sunCamera,
+				Cascades = cascadeViews,
+				CascadeSplits = cascadeSplits,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
 				UISurfaces = uiSurfaces,
@@ -526,6 +538,7 @@ internal static class Program
 			new NormalMappingDemo(),
 			new GltfDemo(),
 			new SkinningDemo(),
+			new CascadedShadowsDemo(),
 		];
 
 		var live = new List<IDemo>();
