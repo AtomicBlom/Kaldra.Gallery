@@ -52,9 +52,11 @@ internal sealed class SkyDayNightDemo : IDemo
 
 	// GetCamera runs once per frame before GetCascades + Render, so it doubles as the per-frame sun update: the
 	// day phase advances with time (frozen under capture → a deterministic golden hour).
+	private float _phaseOverride = -1f; // M15-7: < 0 = advance with time; ≥ 0 = scrubbed time-of-day
+
 	public Camera? GetCamera(float aspect, float time)
 	{
-		_sun = DayNight.Compute(0.47f + 0.02f * time);
+		_sun = DayNight.Compute(_phaseOverride >= 0f ? _phaseOverride : 0.47f + 0.02f * time);
 		// Low eye looking slightly up across the ground toward the sun (upper-left), so the sky + horizon + sun
 		// glow fill the upper half of the frame.
 		var view = Matrix4x4.CreateLookAt(new Vector3(2f, 2.2f, 16f), new Vector3(-4f, 4f, -20f), Vector3.UnitY);
@@ -66,6 +68,18 @@ internal sealed class SkyDayNightDemo : IDemo
 	{
 		Cascades.Compute(camera, _sun.SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
 		return (_cascades, _splits);
+	}
+
+	public void DrawDebugUI()
+	{
+#if LOOM_IMGUI
+		var scrub = _phaseOverride >= 0f;
+		if (ImGuiNET.ImGui.Checkbox("Scrub time of day", ref scrub))
+			_phaseOverride = scrub ? 0.25f : -1f;
+		if (_phaseOverride >= 0f)
+			ImGuiNET.ImGui.SliderFloat("Time of day", ref _phaseOverride, 0f, 1f);
+		ImGuiNET.ImGui.Text($"sun height: {_sun.SunDir.Y:F2}");
+#endif
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>

@@ -23,6 +23,8 @@ internal sealed class SkinningDemo : IDemo
 	private Skeleton _skeleton = null!;
 	private AnimationClip _clip = null!;
 	private Matrix4x4[] _palette = [];
+	private Matrix4x4[] _jointWorld = [];
+	private bool _showSkeleton = true; // M15-7: skeleton overlay (bones + joint axes), on by default for the demo
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -44,6 +46,40 @@ internal sealed class SkinningDemo : IDemo
 		_skeleton = model.Skeleton;
 		_clip = model.Clips[0];
 		_palette = new Matrix4x4[_skeleton.JointCount];
+	}
+
+	// M15-7: the skeleton as world-space line segments — each bone (parent→joint) plus a small axis gizmo per
+	// joint. The launcher projects these to screen and draws them as the debug overlay.
+	public IReadOnlyList<(Vector3 A, Vector3 B)> DebugWorldLines(float time)
+	{
+		if (!_showSkeleton || _skeleton.JointCount == 0)
+			return [];
+		if (_jointWorld.Length != _skeleton.JointCount)
+			_jointWorld = new Matrix4x4[_skeleton.JointCount];
+		var t = _clip.Duration > 0f ? time % _clip.Duration : 0f;
+		AnimationSampler.EvaluateJointWorld(_skeleton, _clip, t, _jointWorld);
+
+		var lines = new List<(Vector3, Vector3)>();
+		const float axis = 0.18f;
+		for (var j = 0; j < _skeleton.JointCount; j++)
+		{
+			var w = _jointWorld[j];
+			var o = w.Translation;
+			var parent = _skeleton.ParentIndices[j];
+			if (parent >= 0)
+				lines.Add((_jointWorld[parent].Translation, o)); // bone
+			lines.Add((o, o + new Vector3(w.M11, w.M12, w.M13) * axis)); // local X
+			lines.Add((o, o + new Vector3(w.M21, w.M22, w.M23) * axis)); // local Y
+			lines.Add((o, o + new Vector3(w.M31, w.M32, w.M33) * axis)); // local Z
+		}
+		return lines;
+	}
+
+	public void DrawDebugUI()
+	{
+#if LOOM_IMGUI
+		ImGuiNET.ImGui.Checkbox("Show skeleton", ref _showSkeleton);
+#endif
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>

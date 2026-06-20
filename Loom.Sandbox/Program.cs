@@ -133,7 +133,7 @@ internal static class Program
 		var debugCam = opts.Frustum;
 		var debugCamInit = false;
 		var frozenViewProjection = Matrix4x4.Identity;
-		var frustumSegments = new Vector4[12];
+		var debugSegments = new List<Vector4>(); // M13 frustum wireframe + M15-7 demo debug lines (skeleton)
 
 		Console.WriteLine($"Loom - demo gallery (keys 1-{demos.Length} / Tab) on {engine.DeviceName} ({engine.BackendName}). On Object Highlighting / Full, hover the cube. Close the window to exit.");
 
@@ -224,6 +224,9 @@ internal static class Program
 			// frustum as a yellow wireframe. Entering debug mode freezes the current view; the host projects the frozen
 			// frustum's 8 corners to screen pixels and hands the 12 edges to the engine's overlay.
 			var renderCamera = camera;
+			var fbW = window.FramebufferSize.X;
+			var fbH = window.FramebufferSize.Y;
+			debugSegments.Clear();
 			if (debugCam)
 			{
 				if (!debugCamInit)
@@ -239,21 +242,30 @@ internal static class Program
 
 				var corners = frozenViewProjection.GetFrustumCorners();
 				var vp = renderCamera.ViewProjection;
-				var fbW = window.FramebufferSize.X;
-				var fbH = window.FramebufferSize.Y;
-				var segmentCount = 0;
 				var edges = Frustum.EdgeIndices;
 				for (var e = 0; e < edges.Length; e += 2)
 					if (ProjectToScreen(corners[edges[e]], vp, fbW, fbH, out var p0) &&
 						ProjectToScreen(corners[edges[e + 1]], vp, fbW, fbH, out var p1))
-						frustumSegments[segmentCount++] = new Vector4(p0.X, p0.Y, p1.X, p1.Y);
-				engine.SetDebugLines(frustumSegments.AsSpan(0, segmentCount));
+						debugSegments.Add(new Vector4(p0.X, p0.Y, p1.X, p1.Y));
 			}
 			else
 			{
 				debugCamInit = false;
-				engine.SetDebugLines(ReadOnlySpan<Vector4>.Empty);
 			}
+
+			// M15-7: the active demo's world-space debug lines (e.g. the skinning demo's skeleton), projected
+			// against the render camera and merged with any frustum wireframe.
+			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : elapsed);
+			if (demoLines.Count > 0)
+			{
+				var vp = renderCamera.ViewProjection;
+				for (var i = 0; i < demoLines.Count; i++)
+					if (ProjectToScreen(demoLines[i].A, vp, fbW, fbH, out var a) &&
+						ProjectToScreen(demoLines[i].B, vp, fbW, fbH, out var b))
+						debugSegments.Add(new Vector4(a.X, a.Y, b.X, b.Y));
+			}
+
+			engine.SetDebugLines(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(debugSegments));
 
 			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
 			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
@@ -317,6 +329,12 @@ internal static class Program
 					ImGui.MenuItem("Resource viewer", "", ref showInspect);
 					if (ImGui.MenuItem("Export graph (DOT/JSON)"))
 						DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph");
+					ImGui.EndMenu();
+				}
+				// M15-7: the active demo's own debug controls (skeleton overlay, cascade tint, time-of-day, …).
+				if (ImGui.BeginMenu("Debug"))
+				{
+					demos[currentDemo].DrawDebugUI();
 					ImGui.EndMenu();
 				}
 

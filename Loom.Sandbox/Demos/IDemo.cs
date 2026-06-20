@@ -44,6 +44,21 @@ internal interface IDemo
 	/// </summary>
 	(IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, System.Numerics.Vector3 lightDir) => null;
 
+	/// <summary>
+	/// Optional world-space debug line segments for this frame (M15-7) — pairs of endpoints the launcher projects
+	/// to screen and feeds <c>engine.SetDebugLines</c> (the M13 overlay). The skinning demo returns its skeleton
+	/// (bone segments + joint axis gizmos) here. Given the frame's effect <paramref name="time"/> so a demo can
+	/// resample its animation deterministically. Default none.
+	/// </summary>
+	IReadOnlyList<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> DebugWorldLines(float time) => [];
+
+	/// <summary>
+	/// Optional Dear ImGui controls for this demo (M15-7) — drawn by the launcher inside a "Debug" menu/window so a
+	/// demo can expose its own toggles (cascade-tint, time-of-day scrubber, skeleton overlay, bind-vs-animated).
+	/// Default no-op. Only meaningful when ImGui is enabled.
+	/// </summary>
+	void DrawDebugUI() { }
+
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
 }
