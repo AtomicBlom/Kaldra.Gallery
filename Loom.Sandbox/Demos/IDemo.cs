@@ -30,13 +30,22 @@ internal interface IDemo
 	/// </summary>
 	void Update(Camera camera) { }
 
+	/// <summary>
+	/// Optional camera override for this demo, given the frame's framebuffer <paramref name="aspect"/> and elapsed
+	/// <paramref name="time"/>. A 2D/sprite demo (M14) returns an orthographic view here and the launcher renders
+	/// from it instead of the default perspective orbit; default null keeps the orbit camera. Pulled each frame,
+	/// not captured (so a 2D camera can scroll), exactly like the other per-frame inputs.
+	/// </summary>
+	Camera? GetCamera(float aspect, float time) => null;
+
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
 }
 
 /// <summary>The shared, app-owned geometry every demo draws — uploaded once by the host and handed to each demo.
-/// <paramref name="NormalMapped"/> is a brick material (albedo + normal map) the M11 demos draw with.</summary>
-internal readonly record struct DemoScene(Mesh Cube, Mesh Plane, Material NormalMapped);
+/// <paramref name="Quad"/> is a unit XY quad for 2D sprite/tile batching (M14); <paramref name="NormalMapped"/> is
+/// a brick material (albedo + normal map) the M11 demos draw with.</summary>
+internal readonly record struct DemoScene(Mesh Cube, Mesh Plane, Mesh Quad, Material NormalMapped);
 
 /// <summary>Small helpers shared by the demo graphs — the native-resolution ImGui overlay and a matrix→push view.</summary>
 internal static class DemoGraph

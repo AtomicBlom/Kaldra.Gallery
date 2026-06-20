@@ -5,8 +5,13 @@ using ImGuiNET;
 #endif
 using Loom.Assets;
 using Loom.Core;
+#if LOOM_DX12
+using Loom.DX12; // for DX12EngineSettings only — the one sanctioned DX12 backend type (Planning.md §5)
+#endif
 using Loom.Sandbox.Demos;
-using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned backend type (Planning.md §5)
+#if LOOM_VULKAN
+using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type (Planning.md §5)
+#endif
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -16,108 +21,52 @@ namespace Loom.Sandbox;
 // The launcher. It owns the window, the engine, the shared geometry, and the per-frame loop — but knows nothing
 // about any one effect. Each capability lives in its own IDemo class under Demos/; this picks one, builds its
 // graph, and swaps the active graph at runtime (keys 1-N / Tab). Read a demo file to see how that feature works.
+//
+// ONE host serves BOTH backends: --backend vulkan (default) or --backend dx12 swaps the window surface + engine
+// settings (CreateWindow/CreateEngine); the demo gallery, the per-frame loop, and every debug feature are shared,
+// which is the portability thesis made concrete (and removes the old Program.cs/Dx12Smoke.cs sync hazard). Every
+// knob is a command-line option — run with --help for the list (there are no LOOM_* environment variables).
 internal static class Program
 {
-	private static void Main()
+	private static void Main(string[] args)
 	{
-#if LOOM_DX12
-		// The DX12 backend's first slice runs through its own focused harness (the demo gallery below is
-		// graph-driven + Vulkan-surface-specific). Opt in with LOOM_BACKEND=DX12 on a UseDX12=true build.
-		if (string.Equals(Environment.GetEnvironmentVariable("LOOM_BACKEND"), "DX12", StringComparison.OrdinalIgnoreCase))
+		var opts = LaunchOptions.Parse(args);
+		if (opts.ShowHelp)
 		{
-			Dx12Smoke.Run();
+			Console.WriteLine(LaunchOptions.Usage);
 			return;
 		}
-#endif
 
-		// Frame-pacing knobs. V-Sync ON by default; LOOM_VSYNC=0/false/off/no flips to a low-latency present
-		// mode, and LOOM_MAXFPS bounds the uncapped loop. LOOM_HDR=1 requests true HDR display output.
-		var vsyncEnv = Environment.GetEnvironmentVariable("LOOM_VSYNC");
-		var vsync = vsyncEnv is null || vsyncEnv.ToLowerInvariant() is not ("0" or "false" or "off" or "no");
-		var maxFps = double.TryParse(Environment.GetEnvironmentVariable("LOOM_MAXFPS"), out var f) && f > 0 ? f : 0.0;
-		var hdrEnv = Environment.GetEnvironmentVariable("LOOM_HDR");
-		var hdr = hdrEnv is not null && hdrEnv.ToLowerInvariant() is "1" or "true" or "on" or "yes";
-
-		var options = WindowOptions.DefaultVulkan with
-		{
-			Size = new Vector2D<int>(1280, 720),
-			Title = "Loom - M7: per-capability demo gallery",
-			FramesPerSecond = maxFps,
-		};
-
-		using var window = Window.Create(options);
-		window.Initialize();
-
-		if (window.VkSurface is null)
-			throw new InvalidOperationException("The windowing platform did not expose a Vulkan surface.");
-
-		// Engine config is a settings object (Planning.md §3). VulkanEngineSettings is the one backend type the
-		// app names; constructing it loads Loom.Vulkan, which self-registers the Vulkan backend.
-		var settings = new VulkanEngineSettings
-		{
-			EnableValidation = true,
-			VSync = vsync,
-			MaxFramesPerSecond = maxFps,
-			HdrOutput = hdr,
-			PreferredBackend = Environment.GetEnvironmentVariable("LOOM_BACKEND"),
-			// M13 shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
-			WatchShaderDirectory = Environment.GetEnvironmentVariable("LOOM_WATCH_SHADERS") is "1" or "true",
-		};
-
-		// Pick a backend at runtime by name, with a sensible fallback — the app names no graphics-API type here.
-		var backend = Engine.AvailableEngines.FirstOrDefault(e => e.Name == settings.PreferredBackend)
-			?? Engine.AvailableEngines.First();
-		using var engine = backend.Create(window.VkSurface, window.FramebufferSize.X, window.FramebufferSize.Y, settings);
+		// Pick a backend from the set actually compiled into this build (--backend chooses; otherwise the first
+		// compiled-in backend, Vulkan when present). The window surface and engine settings both follow from it.
+		var backend = ChooseBackend(opts.Backend);
+		using var window = CreateWindow(backend, opts);
+		using var engine = CreateEngine(backend, window, opts);
 
 		// Shared geometry every demo draws, uploaded once.
 		var (cubeVerts, cubeIndices) = Geometry.BuildCube();
 		var (planeVerts, planeIndices) = Geometry.BuildPlane();
+		var (quadVerts, quadIndices) = Geometry.BuildQuad();
 		// The shared brick material — albedo + tangent-space normal map, decoded from committed PNGs (M11). The
 		// loaders live in Loom.Assets (neutral); the engine just uploads the resulting TextureData + mip chain.
 		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
 		var brick = engine.CreateMaterial(
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_albedo.png"), TextureFormat.Rgba8Srgb)),
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_normal.png"), TextureFormat.Rgba8Unorm)));
-		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), brick);
+		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick);
 
 		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
-		IDemo[] demos =
-		[
-			new CubeLightingDemo(),
-			new ShadowsDemo(),
-			new SsaoDemo(),
-			new TonemappingDemo(),
-			new BloomDemo(),
-			new ParticlesDemo(),
-			new HighlightingDemo(),
-			new InstancingDemo(),
-			new FullReferenceDemo(),
-			new NormalMappingDemo(),
-			new GltfDemo(),
-		];
+		var (demos, graphs) = BuildGallery(engine, scene);
 
-		// Register every demo's techniques once (idempotent across demos that share one), then build each graph.
-		foreach (var demo in demos)
-			demo.DefineTechniques(engine);
-		var graphs = demos.Select(d => d.Build(scene)).ToArray();
+		// Start on the first (simplest) demo; --demo overrides (index / exact name / unique substring). An
+		// unresolved query (ambiguous or no match) prints why and exits — the window + engine dispose via `using`.
+		var currentDemo = ResolveDemoIndex(demos, opts.Demo);
+		if (currentDemo < 0)
+			return;
 
-		// Start on the first (simplest) demo; LOOM_DEMO=<name|index> overrides.
-		var currentDemo = 0;
-		var demoEnv = Environment.GetEnvironmentVariable("LOOM_DEMO");
-		if (demoEnv is not null)
-		{
-			var byName = Array.FindIndex(demos, d => string.Equals(d.Name, demoEnv, StringComparison.OrdinalIgnoreCase));
-			if (byName >= 0)
-				currentDemo = byName;
-			else if (int.TryParse(demoEnv, out var byIndex) && byIndex >= 0 && byIndex < demos.Length)
-				currentDemo = byIndex;
-			else
-				Console.WriteLine($"[loom] LOOM_DEMO='{demoEnv}' is not a known demo ({string.Join(", ", demos.Select(d => d.Name))}); starting on {demos[currentDemo].Name}.");
-		}
-
-		// M13 graph-viz export. LOOM_DUMP_GRAPH=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the
-		// active graph on startup and every swap; the ImGui "Export graph" menu item writes the same on demand.
-		var dumpGraphPrefix = Environment.GetEnvironmentVariable("LOOM_DUMP_GRAPH");
+		// --dump-graph=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the active graph on startup
+		// and every swap; the ImGui "Export graph" menu item writes the same on demand.
+		var dumpGraphPrefix = opts.DumpGraph;
 
 		void DumpGraph(int index, string prefix)
 		{
@@ -142,7 +91,7 @@ internal static class Program
 		ImGui.StyleColorsDark();
 		engine.EnableImGui();
 		var showDemoWindow = false;
-		var showInspect = Environment.GetEnvironmentVariable("LOOM_INSPECT") is "1" or "true"; // auto-open for headless capture verification
+		var showInspect = opts.Inspect; // auto-open for headless capture verification
 #endif
 
 		engine.SetGraph(graphs[currentDemo]);
@@ -173,14 +122,14 @@ internal static class Program
 
 		// M13 detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
 		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
-		// fly around and see exactly what that camera framed. LOOM_FRUSTUM=1 enables it for a deterministic capture.
+		// fly around and see exactly what that camera framed. --frustum enables it for a deterministic capture.
 		var fly = new FlyCamera();
-		var debugCam = Environment.GetEnvironmentVariable("LOOM_FRUSTUM") is "1" or "true";
+		var debugCam = opts.Frustum;
 		var debugCamInit = false;
 		var frozenViewProjection = Matrix4x4.Identity;
 		var frustumSegments = new Vector4[12];
 
-		Console.WriteLine($"Loom M7 - demo gallery on {engine.DeviceName} ({engine.BackendName}). Keys 1-{demos.Length} / Tab switch demos (the engine swaps the active graph live); on Object Highlighting / Full, hover the cube. Close the window to exit.");
+		Console.WriteLine($"Loom - demo gallery (keys 1-{demos.Length} / Tab) on {engine.DeviceName} ({engine.BackendName}). On Object Highlighting / Full, hover the cube. Close the window to exit.");
 
 		using var input = window.CreateInput();
 		var mouse = input.Mice.Count > 0 ? input.Mice[0] : null;
@@ -192,18 +141,18 @@ internal static class Program
 					SelectDemo((currentDemo + 1) % demos.Length);
 				else if (key >= Key.Number1 && key < Key.Number1 + demos.Length)
 					SelectDemo(key - Key.Number1);
-			};
-
-		if (keyboard is not null)
-			keyboard.KeyDown += (_, key, _) =>
-			{
-				if (key == Key.F)
+				else if (key == Key.F)
 					debugCam = !debugCam; // M13: toggle the detached debug camera + frustum freeze
 			};
 
-		// Headless smoke (LOOM_SMOKE_FRAMES=N) + capture (LOOM_CAPTURE=path) modes.
-		var smokeFrames = int.TryParse(Environment.GetEnvironmentVariable("LOOM_SMOKE_FRAMES"), out var n) ? n : 0;
-		var capturePath = Environment.GetEnvironmentVariable("LOOM_CAPTURE");
+		// Headless smoke (--smoke-frames N) + capture (--capture path) modes.
+		var smokeFrames = opts.SmokeFrames;
+		var capturePath = opts.Capture;
+		// --capture-animate: capture with time ADVANCING deterministically (time = frame·delta) instead of frozen
+		// at 1.0. The captured frame (60) lands on the same value, so a correct backend's capture is byte-identical —
+		// but the 59 frames before it now differ, so a cross-frame hazard (e.g. an aliased transient reading the
+		// previous frame's contents) surfaces, which a frozen capture (identical frames) can't reveal.
+		var captureAnimate = opts.CaptureAnimate;
 
 		// M13 GPU profiler: in a headless smoke run, turn timing on so the final frame can dump per-pass numbers for
 		// a cross-backend sanity check (no-op if the queue can't timestamp; the setter guards it).
@@ -241,18 +190,23 @@ internal static class Program
 			}
 
 			// Orbit the camera around the cube. Neutral projection — the backend applies the Vulkan Y-flip.
-			// When capturing, FREEZE the orbit at the same fixed angle the DX12 harness uses, so the two backends'
-			// captures are the identical viewpoint (a deterministic A/B for pixel-diffing). The scene time and frame
-			// delta are frozen too (below), so the particle phase and the delta-driven auto-exposure converge
-			// identically on both backends — captured at the same frame, the dynamic demos diff like the static ones.
+			// When capturing, FREEZE the orbit at the same fixed angle on both backends, so the two captures are the
+			// identical viewpoint (a deterministic A/B for pixel-diffing). The scene time and frame delta are frozen
+			// too (below), so the particle phase and the delta-driven auto-exposure converge identically on both
+			// backends — captured at the same frame, the dynamic demos diff like the static ones.
 			const float captureTime = 1.0f;
 			const double captureDelta = 1.0 / 60.0;
-			var camTime = capturePath is not null ? 0.6f : elapsed;
+			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : 0.6f) : elapsed;
 			var eye = new Vector3(MathF.Sin(camTime) * 2.5f, 1.6f, MathF.Cos(camTime) * 2.5f);
 			var view = Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitY);
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
 			var camera = new Camera(view, projection);
+
+			// A demo may override the camera — a 2D/sprite demo (M14) returns an orthographic view here; otherwise
+			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax, M14-6).
+			if (demos[currentDemo].GetCamera(aspect, camTime) is { } demoCamera)
+				camera = demoCamera;
 
 			// Per-frame CPU work for the active demo (e.g. the instancing demo's frustum cull) — runs with this
 			// frame's MAIN camera (the one the debug view freezes), before Render, so the surviving draw list is
@@ -361,7 +315,7 @@ internal static class Program
 				}
 
 				ImGui.Separator();
-				var status = $"{displayFps:F0} fps ({displayMs:F2} ms)   |   demo: {demos[currentDemo].Name}   |   hovered {hoverId}   |   {engine.DeviceName}";
+				var status = $"{displayFps:F0} fps ({displayMs:F2} ms)   |   {demos[currentDemo].Name}   |   hovered {hoverId}   |   {engine.DeviceName}";
 				if (demos[currentDemo].HudStatus is { } demoStatus)
 					status += $"   |   {demoStatus}";
 				ImGui.Text(status);
@@ -411,7 +365,7 @@ internal static class Program
 			engine.Render(new FrameInputs
 			{
 				DeltaSeconds = capturePath is not null ? captureDelta : delta,
-				Time = capturePath is not null ? captureTime : elapsed,
+				Time = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed,
 				Camera = renderCamera,
 				SunView = sunCamera,
 				HoverId = hoverId,
@@ -425,7 +379,7 @@ internal static class Program
 				// M13: dump the last completed frame's GPU timings (cross-backend sanity: sum ≤ frame total ≤ wall).
 				if (engine.GpuTimingEnabled && engine.LastFrameTimings.Count > 0)
 				{
-					Console.WriteLine($"[loom] GPU timing ({engine.BackendName}, demo {demos[currentDemo].Name}):");
+					Console.WriteLine($"[loom] GPU timing ({engine.BackendName}, {demos[currentDemo].Name}):");
 					foreach (var t in engine.LastFrameTimings)
 						Console.WriteLine($"  {t.Name,-18} {t.GpuMilliseconds,7:F3} ms");
 					Console.WriteLine($"  {"frame total",-18} {engine.LastFrameGpuMilliseconds,7:F3} ms");
@@ -439,6 +393,188 @@ internal static class Program
 #if LOOM_IMGUI
 		ImGui.DestroyContext();
 #endif
+	}
+
+	// Resolve which backend to run from the set actually compiled into this build (each is added under its own
+	// LOOM_* constant, the same flags that pull in the backend assembly). An explicit --backend that isn't compiled
+	// in is an error; with none requested we take the first compiled-in backend (Vulkan when present); a build with
+	// no backend at all fails with one clear message. This replaces per-backend "not compiled in" throws scattered
+	// through CreateEngine — there is a single source of truth for what's available.
+	private static BackendChoice ChooseBackend(BackendChoice? requested)
+	{
+		var available = new List<BackendChoice>();
+#if LOOM_VULKAN
+		available.Add(BackendChoice.Vulkan);
+#endif
+#if LOOM_DX12
+		available.Add(BackendChoice.Dx12);
+#endif
+		if (available.Count == 0)
+			throw new InvalidOperationException("No rendering backend was compiled into this build — build with -p:UseVulkan=true and/or -p:UseDX12=true.");
+		if (requested is { } choice)
+			return available.Contains(choice)
+				? choice
+				: throw new InvalidOperationException($"The {choice} backend was not compiled into this build (available: {string.Join(", ", available)}).");
+		return available[0];
+	}
+
+	// Create the host window for the chosen backend: a Vulkan-surface window (Silk hands the backend its IVkSurface)
+	// or a context-less Win32 window (the DX12 backend binds its swapchain to the raw HWND). The window is the only
+	// place the two backends diverge before the (shared) render loop. Both option sets are plain Silk types, so this
+	// needs no per-backend #if — only the engine settings below name a backend assembly.
+	private static IWindow CreateWindow(BackendChoice backend, LaunchOptions opts)
+	{
+		var size = new Vector2D<int>(1280, 720);
+		var options = backend == BackendChoice.Dx12
+			? WindowOptions.Default with { Size = size, Title = "Loom - DX12 demo gallery", API = GraphicsAPI.None, FramesPerSecond = opts.MaxFps }
+			: WindowOptions.DefaultVulkan with { Size = size, Title = "Loom - Vulkan demo gallery", FramesPerSecond = opts.MaxFps };
+		var window = Window.Create(options);
+		window.Initialize();
+		return window;
+	}
+
+	// Configure + create the engine for the chosen backend. This is the one place the host names a backend type: it
+	// populates the matching EngineSettings subclass from the command line, hands the backend its native surface
+	// (IVkSurface / HWND), and selects the registered backend by name. Constructing the settings subclass loads the
+	// backend assembly, which self-registers into Engine.AvailableEngines. Each branch is gated on the same LOOM_*
+	// constant ChooseBackend used, so the branch for the chosen backend is always present; the trailing throw is
+	// therefore unreachable (it only guards against a future BackendChoice with no factory here).
+	private static IEngine CreateEngine(BackendChoice backend, IWindow window, LaunchOptions opts)
+	{
+#if LOOM_VULKAN
+		if (backend == BackendChoice.Vulkan)
+		{
+			if (window.VkSurface is null)
+				throw new InvalidOperationException("The windowing platform did not expose a Vulkan surface.");
+			var vk = new VulkanEngineSettings
+			{
+				EnableValidation = true,
+				VSync = opts.VSync,
+				MaxFramesPerSecond = opts.MaxFps,
+				HdrOutput = opts.Hdr,
+				PreferredBackend = "Vulkan",
+				// M13 shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
+				WatchShaderDirectory = opts.WatchShaders,
+			};
+			return Resolve(window.VkSurface, window, vk);
+		}
+#endif
+#if LOOM_DX12
+		if (backend == BackendChoice.Dx12)
+		{
+			var hwnd = window.Native?.Win32?.Hwnd
+				?? throw new InvalidOperationException("The DX12 backend needs the window's Win32 HWND.");
+			var dx = new DX12EngineSettings
+			{
+				EnableValidation = true,
+				VSync = opts.VSync,
+				MaxFramesPerSecond = opts.MaxFps,
+				HdrOutput = opts.Hdr,
+				PreferredBackend = "DX12",
+				WatchShaderDirectory = opts.WatchShaders,
+				// The Loom SDK copies the app shaders' signed DXIL + reflection JSON next to the exe under shaders\.
+				ShaderDirectory = Path.Combine(AppContext.BaseDirectory, "shaders"),
+			};
+			return Resolve(hwnd, window, dx);
+		}
+#endif
+		throw new InvalidOperationException($"No engine factory for backend {backend} in this build.");
+	}
+
+	// Create the engine on the registered backend matching the settings' PreferredBackend. The name is guaranteed
+	// present (ChooseBackend only returns a compiled-in backend, and constructing its settings registered it), so a
+	// miss means the backend assembly failed to self-register — a clear, rare error rather than a silent fallback.
+	private static IEngine Resolve(object surface, IWindow window, EngineSettings settings)
+	{
+		var backend = Engine.AvailableEngines.FirstOrDefault(e => e.Name == settings.PreferredBackend)
+			?? throw new InvalidOperationException($"The {settings.PreferredBackend} backend did not register into Engine.AvailableEngines.");
+		return backend.Create(surface, window.FramebufferSize.X, window.FramebufferSize.Y, settings);
+	}
+
+	// Build the demo gallery: register every demo's techniques (idempotent across demos that share one), skipping any
+	// whose shaders don't cross-compile on this backend/toolchain (e.g. a fragment stage with no DX12 DXIL on
+	// win-arm64) — DefineTechniques throws NotSupportedException for the missing stage, so that demo is dropped from
+	// the gallery rather than crashing the whole harness (the same spirit as the SetGraph-time capability guards).
+	// Returns the live demos and their built graphs in lockstep.
+	private static (IDemo[] Demos, RenderGraph[] Graphs) BuildGallery(IEngine engine, DemoScene scene)
+	{
+		IDemo[] all =
+		[
+			new CubeLightingDemo(),
+			new ShadowsDemo(),
+			new SsaoDemo(),
+			new TonemappingDemo(),
+			new BloomDemo(),
+			new ParticlesDemo(),
+			new HighlightingDemo(),
+			new InstancingDemo(),
+			new SpritesDemo(),
+			new Lighting2DDemo(),
+			new SpriteAnimationDemo(),
+			new TilemapDemo(),
+			new ParallaxDemo(),
+			new Debug2DDemo(),
+			new PixelArtDemo(),
+			new FullReferenceDemo(),
+			new NormalMappingDemo(),
+			new GltfDemo(),
+		];
+
+		var live = new List<IDemo>();
+		foreach (var demo in all)
+		{
+			try
+			{
+				demo.DefineTechniques(engine);
+				live.Add(demo);
+			}
+			catch (NotSupportedException ex)
+			{
+				Console.WriteLine($"[loom] skipping demo '{demo.Name}' — {ex.Message}");
+			}
+		}
+		var demos = live.ToArray();
+		var graphs = demos.Select(d => d.Build(scene)).ToArray();
+		return (demos, graphs);
+	}
+
+	// Resolve the start demo from --demo into a gallery index, or -1 (having printed why) when the query can't be
+	// resolved, so the caller exits cleanly. Resolution order: a 0-based index wins (unambiguous); then an exact
+	// case-insensitive name (so "Bloom" picks "Bloom" even if another name contains it); then a unique
+	// case-insensitive substring. A substring that matches several demos is reported as ambiguous (the matches are
+	// listed) rather than guessed; one that matches none is an error (the full demo list is shown). Null = the first demo.
+	private static int ResolveDemoIndex(IReadOnlyList<IDemo> demos, string? query)
+	{
+		if (query is null)
+			return 0;
+
+		// An explicit numeric index wins, bounds-checked.
+		if (int.TryParse(query, out var index))
+		{
+			if (index >= 0 && index < demos.Count)
+				return index;
+			Console.Error.WriteLine($"[loom] --demo index {index} is out of range (0..{demos.Count - 1}).");
+			return -1;
+		}
+
+		// Exact name beats substring, so an exactly-typed name is never ambiguous against a longer one.
+		for (var i = 0; i < demos.Count; i++)
+			if (string.Equals(demos[i].Name, query, StringComparison.OrdinalIgnoreCase))
+				return i;
+
+		// Otherwise a unique case-insensitive substring match.
+		var matches = new List<int>();
+		for (var i = 0; i < demos.Count; i++)
+			if (demos[i].Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+				matches.Add(i);
+
+		if (matches.Count == 1)
+			return matches[0];
+		if (matches.Count == 0)
+			Console.Error.WriteLine($"[loom] --demo '{query}' matched no demo. Available: {string.Join(", ", demos.Select(d => d.Name))}.");
+		else
+			Console.Error.WriteLine($"[loom] --demo '{query}' is ambiguous — matched: {string.Join(", ", matches.Select(i => demos[i].Name))}. Be more specific.");
+		return -1;
 	}
 
 	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection (M13
