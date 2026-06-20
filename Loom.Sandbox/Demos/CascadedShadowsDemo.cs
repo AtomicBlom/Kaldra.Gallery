@@ -25,7 +25,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 	private Mesh _ground;
 	private readonly Camera[] _cascades = new Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
-	private readonly float[] _csmParams = new float[64]; // 3×mat4 (48) + splits(4) + eye(4) + forward(4) + sun(4)
+	private readonly float[] _csmParams = new float[72]; // 3×mat4 (48) + splits + eye + forward + sunDir + sunColor + ambient
 
 	public bool DebugTint { get; set; }
 
@@ -134,7 +134,9 @@ internal sealed class CascadedShadowsDemo : IDemo
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
 		p[52] = eye.X; p[53] = eye.Y; p[54] = eye.Z; p[55] = 0f;
 		p[56] = forward.X; p[57] = forward.Y; p[58] = forward.Z; p[59] = 0f;
-		p[60] = SunDir.X; p[61] = SunDir.Y; p[62] = SunDir.Z; p[63] = 1.8f;
+		p[60] = SunDir.X; p[61] = SunDir.Y; p[62] = SunDir.Z; p[63] = 1.8f; // sun dir + key intensity
+		p[64] = 1f; p[65] = 1f; p[66] = 1f; p[67] = 0f;                     // white sun light
+		p[68] = 0.15f; p[69] = 0.15f; p[70] = 0.15f; p[71] = 0f;            // flat grey ambient
 		return p;
 	}
 }

@@ -539,6 +539,7 @@ internal static class Program
 			new GltfDemo(),
 			new SkinningDemo(),
 			new CascadedShadowsDemo(),
+			new SkyDayNightDemo(),
 		];
 
 		var live = new List<IDemo>();

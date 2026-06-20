@@ -19,7 +19,9 @@ struct CsmParams
 	float4 splits;                           // far view-depth of cascades 0,1,2 in .xyz; .w = debug-tint flag
 	float4 eye;                              // camera world position (.xyz)
 	float4 forward;                          // camera forward, normalized (.xyz) — for the view-depth metric
-	float4 sunColor;                         // sun direction toward the light (.xyz), key intensity (.w)
+	float4 sunDir;                           // direction toward the sun (.xyz), key intensity (.w)
+	float4 sunColor;                         // sun light colour (.rgb) — warm at dawn/dusk, white at noon (M15-4)
+	float4 ambientColor;                     // sky-tinted ambient colour (.rgb), dynamic by time of day (M15-4)
 };
 [[vk::binding(6, 0)]] ConstantBuffer<CsmParams> csm : register(b1);
 
@@ -77,12 +79,12 @@ float4 fragmentMain(VsOut input) : SV_Target
 	if (viewDepth > csm.splits.y)
 		cascade = 2;
 
-	float3 lightDir = normalize(csm.sunColor.xyz);
+	float3 lightDir = normalize(csm.sunDir.xyz);
 	float ndotl = max(dot(normal, lightDir), 0.0);
-	float ambient = 0.15;
-	float keyIntensity = csm.sunColor.w;
+	float keyIntensity = csm.sunDir.w;
 	float shadow = sunVisibility(worldPos, cascade);
-	float3 lit = albedo * (ambient + ndotl * keyIntensity * shadow);
+	// Dynamic ambient (sky-tinted) + the sun's coloured key light; the shadow term removes the key, not ambient.
+	float3 lit = albedo * (csm.ambientColor.rgb + csm.sunColor.rgb * (ndotl * keyIntensity * shadow));
 
 	// Debug: tint the lit pixel by which cascade it sampled (red/green/blue) — the M15-7 cascade visualization.
 	if (csm.splits.w > 0.5)
