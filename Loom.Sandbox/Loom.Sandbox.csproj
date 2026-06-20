@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Consume the Loom MSBuild SDK explicitly (SDK-style imports; equivalent to Sdk="Loom.Sdk" once the
-       SDK is packaged). Brings in Slang shader compilation (Content mode) + UseVulkan/UseDX12 backend
+       SDK is packaged). Brings in Slang shader compilation (Content mode) + UseVulkan/UseDirectX12 backend
        selection. The engine feature flags live in the repo-root Directory.Build.props. -->
   <Import Project="..\build\Loom.Sdk\Sdk\Sdk.props" />
 

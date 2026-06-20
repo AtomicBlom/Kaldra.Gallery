@@ -10,8 +10,8 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Core.UI;
-#if LOOM_DX12
-using Loom.DX12; // for DX12EngineSettings only — the one sanctioned DX12 backend type (Planning.md §5)
+#if LOOM_DIRECTX12
+using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type (Planning.md §5)
 #endif
 using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
@@ -32,7 +32,7 @@ namespace Loom.Sandbox;
 //
 // ONE host serves BOTH backends: --backend vulkan (default) or --backend dx12 swaps the window surface + engine
 // settings (CreateWindow/CreateEngine); the demo gallery, the per-frame loop, and every debug feature are shared,
-// which is the portability thesis made concrete (and removes the old Program.cs/Dx12Smoke.cs sync hazard). Every
+// which is the portability thesis made concrete (and removes the old Program.cs/DirectX12Smoke.cs sync hazard). Every
 // knob is a command-line option — run with --help for the list (there are no LOOM_* environment variables).
 internal static class Program
 {
@@ -512,11 +512,11 @@ internal static class Program
 #if LOOM_VULKAN
 		available.Add(BackendChoice.Vulkan);
 #endif
-#if LOOM_DX12
-		available.Add(BackendChoice.Dx12);
+#if LOOM_DIRECTX12
+		available.Add(BackendChoice.DirectX12);
 #endif
 		if (available.Count == 0)
-			throw new InvalidOperationException("No rendering backend was compiled into this build — build with -p:UseVulkan=true and/or -p:UseDX12=true.");
+			throw new InvalidOperationException("No rendering backend was compiled into this build — build with -p:UseVulkan=true and/or -p:UseDirectX12=true.");
 		if (requested is { } choice)
 			return available.Contains(choice)
 				? choice
@@ -525,14 +525,14 @@ internal static class Program
 	}
 
 	// Create the host window for the chosen backend: a Vulkan-surface window (Silk hands the backend its IVkSurface)
-	// or a context-less Win32 window (the DX12 backend binds its swapchain to the raw HWND). The window is the only
+	// or a context-less Win32 window (the DirectX12 backend binds its swapchain to the raw HWND). The window is the only
 	// place the two backends diverge before the (shared) render loop. Both option sets are plain Silk types, so this
 	// needs no per-backend #if — only the engine settings below name a backend assembly.
 	private static IWindow CreateWindow(BackendChoice backend, LaunchOptions opts)
 	{
 		var size = new Vector2D<int>(1280, 720);
-		var options = backend == BackendChoice.Dx12
-			? WindowOptions.Default with { Size = size, Title = "Loom - DX12 demo gallery", API = GraphicsAPI.None, FramesPerSecond = opts.MaxFps }
+		var options = backend == BackendChoice.DirectX12
+			? WindowOptions.Default with { Size = size, Title = "Loom - DirectX12 demo gallery", API = GraphicsAPI.None, FramesPerSecond = opts.MaxFps }
 			: WindowOptions.DefaultVulkan with { Size = size, Title = "Loom - Vulkan demo gallery", FramesPerSecond = opts.MaxFps };
 		var window = Window.Create(options);
 		window.Initialize();
@@ -565,18 +565,18 @@ internal static class Program
 			return Resolve(window.VkSurface, window, vk);
 		}
 #endif
-#if LOOM_DX12
-		if (backend == BackendChoice.Dx12)
+#if LOOM_DIRECTX12
+		if (backend == BackendChoice.DirectX12)
 		{
 			var hwnd = window.Native?.Win32?.Hwnd
-				?? throw new InvalidOperationException("The DX12 backend needs the window's Win32 HWND.");
-			var dx = new DX12EngineSettings
+				?? throw new InvalidOperationException("The DirectX12 backend needs the window's Win32 HWND.");
+			var dx = new DirectX12EngineSettings
 			{
 				EnableValidation = true,
 				VSync = opts.VSync,
 				MaxFramesPerSecond = opts.MaxFps,
 				HdrOutput = opts.Hdr,
-				PreferredBackend = "DX12",
+				PreferredBackend = "DirectX12",
 				WatchShaderDirectory = opts.WatchShaders,
 				// The Loom SDK copies the app shaders' signed DXIL + reflection JSON next to the exe under shaders\.
 				ShaderDirectory = Path.Combine(AppContext.BaseDirectory, "shaders"),
@@ -598,7 +598,7 @@ internal static class Program
 	}
 
 	// Build the demo gallery: register every demo's techniques (idempotent across demos that share one), skipping any
-	// whose shaders don't cross-compile on this backend/toolchain (e.g. a fragment stage with no DX12 DXIL on
+	// whose shaders don't cross-compile on this backend/toolchain (e.g. a fragment stage with no DirectX12 DXIL on
 	// win-arm64) — DefineTechniques throws NotSupportedException for the missing stage, so that demo is dropped from
 	// the gallery rather than crashing the whole harness (the same spirit as the SetGraph-time capability guards).
 	// Returns the live demos and their built graphs in lockstep.

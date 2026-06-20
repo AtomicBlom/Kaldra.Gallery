@@ -6,7 +6,7 @@ namespace Loom.Sandbox;
 /// explicit option (run <c>dotnet run --project Loom.Sandbox -- --help</c>), so a run is self-describing and a
 /// verification script passes flags instead of mutating process state. (The engine assemblies read no environment
 /// variables at all; the only remaining one is <c>LOOM_GOLDEN_DIR</c>, which configures <c>dotnet test</c>, not
-/// this launcher. The <c>LOOM_IMGUI</c>/<c>LOOM_DX12</c>/… symbols are compile-time build flags, not runtime vars.)
+/// this launcher. The <c>LOOM_IMGUI</c>/<c>LOOM_DIRECTX12</c>/… symbols are compile-time build flags, not runtime vars.)
 /// <para>
 /// Parsing is deliberately tiny and dependency-free: <c>--key value</c>, <c>--key=value</c>, and bare
 /// <c>--flag</c> (optionally <c>--flag=false</c>). An unknown or malformed option prints usage and sets
@@ -195,7 +195,7 @@ internal sealed record LaunchOptions
 	private static BackendChoice ParseBackend(string value) => value.ToLowerInvariant() switch
 	{
 		"vulkan" or "vk" => BackendChoice.Vulkan,
-		"dx12" or "d3d12" or "directx12" or "directx" => BackendChoice.Dx12,
+		"dx12" or "d3d12" or "directx12" or "directx" => BackendChoice.DirectX12,
 		_ => throw new ArgumentException($"unknown backend '{value}' (expected vulkan or dx12)"),
 	};
 

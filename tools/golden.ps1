@@ -2,7 +2,7 @@
 .SYNOPSIS
   Golden-image + cross-backend parity harness (local). Captures each tracked demo deterministically on BOTH
   backends, diffs each against the committed baselines in Loom.Tests/Goldens (GoldenImageTests), and diffs the
-  Vulkan and DX12 captures against each other (CrossBackendParityTests).
+  Vulkan and DirectX12 captures against each other (CrossBackendParityTests).
 
 .DESCRIPTION
   The capture step needs a GPU, so this runs locally (GitHub-hosted CI runners have none — the CI workflow only
@@ -10,9 +10,9 @@
   time + camera, so a re-run reproduces the baseline bit-for-bit within tolerance.
 
 .PARAMETER Backend
-  Which backend's captures define the committed baseline for GoldenImageTests: "Vulkan" (default) or "DX12".
+  Which backend's captures define the committed baseline for GoldenImageTests: "Vulkan" (default) or "DirectX12".
   Both backends are always captured (the parity test needs both); this only selects the baseline source.
-  Note: on DX12 a demo whose shader stage has no DXIL on this toolchain (e.g. ssao_blur on win-arm64) is
+  Note: on DirectX12 a demo whose shader stage has no DXIL on this toolchain (e.g. ssao_blur on win-arm64) is
   skipped, so the parity test simply doesn't compare a frame missing from one backend.
 
 .PARAMETER Update
@@ -47,10 +47,10 @@ Write-Host "[golden] building..."
 dotnet build (Join-Path $repo "Loom.slnx") -c Debug --nologo | Out-Null
 
 # Capture every demo on BOTH backends. --capture freezes time + camera and exits after one frame; --backend
-# selects DX12 (Vulkan is the default). 'dx12' is the accepted backend value (aliased to directx12).
+# selects DirectX12 (Vulkan is the default). 'dx12' is the accepted backend value (aliased to directx12).
 $targets = @(
 	@{ Name = "Vulkan"; Dir = $vulkanDir; Extra = @() },
-	@{ Name = "DX12"; Dir = $dx12Dir; Extra = @('--backend', 'dx12') }
+	@{ Name = "DirectX12"; Dir = $dx12Dir; Extra = @('--backend', 'dx12') }
 )
 foreach ($target in $targets) {
 	foreach ($entry in $demos.GetEnumerator()) {
@@ -60,7 +60,7 @@ foreach ($target in $targets) {
 	}
 }
 
-$baselineDir = if ($Backend -eq "DX12") { $dx12Dir } else { $vulkanDir }
+$baselineDir = if ($Backend -eq "DirectX12") { $dx12Dir } else { $vulkanDir }
 
 if ($Update) {
 	New-Item -ItemType Directory -Force -Path $goldens | Out-Null
@@ -70,11 +70,11 @@ if ($Update) {
 }
 
 Write-Host "[golden] diffing captures against baselines + cross-backend parity..."
-# LOOM_GOLDEN_DIR drives GoldenImageTests (vs committed baselines); LOOM_VULKAN_DIR/LOOM_DX12_DIR drive
+# LOOM_GOLDEN_DIR drives GoldenImageTests (vs committed baselines); LOOM_VULKAN_DIR/LOOM_DIRECTX12_DIR drive
 # CrossBackendParityTests (the two backends vs each other). MTP syntax (.NET 10): --project + --treenode-filter.
 $env:LOOM_GOLDEN_DIR = $baselineDir
 $env:LOOM_VULKAN_DIR = $vulkanDir
-$env:LOOM_DX12_DIR = $dx12Dir
+$env:LOOM_DIRECTX12_DIR = $dx12Dir
 try {
 	dotnet test --project (Join-Path $repo "Loom.Tests/Loom.Tests.csproj") --treenode-filter "/*/*/GoldenImageTests/*"
 	$golden = $LASTEXITCODE
@@ -84,6 +84,6 @@ try {
 finally {
 	$env:LOOM_GOLDEN_DIR = $null
 	$env:LOOM_VULKAN_DIR = $null
-	$env:LOOM_DX12_DIR = $null
+	$env:LOOM_DIRECTX12_DIR = $null
 }
 exit ([Math]::Max($golden, $parity))
