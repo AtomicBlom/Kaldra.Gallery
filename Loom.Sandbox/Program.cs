@@ -9,6 +9,8 @@ using Loom.Core;
 using Loom.DX12; // for DX12EngineSettings only — the one sanctioned DX12 backend type (Planning.md §5)
 #endif
 using Loom.Sandbox.Demos;
+using Loom.UI;
+using Loom.UI.Controls;
 #if LOOM_VULKAN
 using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type (Planning.md §5)
 #endif
@@ -94,11 +96,36 @@ internal static class Program
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
 #endif
 
-		// MU0 Phase A: stand up the game-UI seam (no-op renderer) so the demos' "ui" pass + ctx.DrawUI() run clean
-		// on both backends. Independent of ImGui (not gated). The real UIHost/compositor arrive in MU0 Phase B; for
-		// now the host hands one empty overlay surface each frame — DrawUI finds it by id, sees it empty, and skips.
-		engine.EnableUI();
-		var uiSurfaces = new (UISurfaceId Id, UIDrawData Draw)[] { (UISurface.Hud, UIDrawData.Empty) };
+		// MU1: stand up the real game-UI renderer + a screen-space overlay surface. The host builds a retained
+		// UIRoot — a rounded, bordered panel with an MSDF text label — and composites it to neutral UIDrawData each
+		// frame; the demos' "ui" pass (ctx.DrawUI) draws it over the world. Independent of ImGui. The default font
+		// (embedded Cascadia Code MTSDF) is uploaded to the renderer and shared with the compositor so the UVs match.
+		var uiFont = FontAtlas.Default;
+		engine.EnableUI(uiFont.Texture);
+		var uiCompositor = new DrawListCompositor(uiFont);
+		var uiRoot = new UIRoot(UISurface.Hud, uiCompositor)
+		{
+			Content = new Border
+			{
+				Width = 360f,
+				Height = 140f,
+				Margin = new Thickness(24f, 24f, 0f, 0f),
+				Padding = new Thickness(20f, 16f, 20f, 16f),
+				HorizontalAlignment = HorizontalAlignment.Left,
+				VerticalAlignment = VerticalAlignment.Top,
+				Background = HdrColor.FromRgb(28, 32, 44, 220),
+				BorderBrush = HdrColor.FromRgb(120, 180, 255),
+				BorderThickness = new Thickness(2f),
+				CornerRadius = 16f,
+				Child = new TextBlock
+				{
+					Text = "Loom UI - MU1",
+					FontSize = 28f,
+					Foreground = HdrColor.FromRgb(235, 240, 255),
+				},
+			},
+		};
+		var uiSurfaces = new (UISurfaceId Id, UIDrawData Draw)[1];
 
 		engine.SetGraph(graphs[currentDemo]);
 		if (dumpGraphPrefix is not null)
@@ -385,6 +412,11 @@ internal static class Program
 			ImGui.Render();
 			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
 #endif
+
+			// Lay out + composite the overlay surface for this frame (layout/visual caches make a static tree
+			// near-free; a resize re-measures). The "ui" pass picks it up by id via ctx.DrawUI(UISurface.Hud).
+			uiRoot.LayoutPass(new Size(window.FramebufferSize.X, window.FramebufferSize.Y));
+			uiSurfaces[0] = (UISurface.Hud, uiRoot.Render());
 
 			// M15-3: a demo that wants cascaded shadows fits cascades to the scripted camera + sun; threaded into
 			// FrameInputs so its depth passes + deferred lighting pull them. Other demos leave these empty.
