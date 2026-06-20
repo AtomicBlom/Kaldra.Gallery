@@ -1,4 +1,8 @@
 using Loom.Core;
+using Loom.Core.Graph;
+using Loom.Core.Hosting;
+using Loom.Core.Materials;
+using Loom.Core.UI;
 
 namespace Loom.Sandbox.Demos;
 
