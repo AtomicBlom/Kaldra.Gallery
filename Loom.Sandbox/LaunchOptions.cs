@@ -148,14 +148,20 @@ internal sealed record LaunchOptions
 					case "--backend": backend = ParseBackend(Value()); break;
 					case "--vsync": vsync = ParseBool(Value()); break;
 					case "--no-vsync": vsync = false; break;
-					case "--max-fps": maxFps = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture); break;
+					case "--max-fps":
+						maxFps = double.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture);
+						if (maxFps < 0) return Fail("--max-fps must be non-negative.");
+						break;
 					case "--hdr": hdr = Flag(); break;
 					case "--watch-shaders": watch = Flag(); break;
 					case "--demo": demo = Value(); break;
 					case "--dump-graph": dumpGraph = Value(); break;
 					case "--inspect": inspect = Flag(); break;
 					case "--frustum": frustum = Flag(); break;
-					case "--smoke-frames": smokeFrames = int.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture); break;
+					case "--smoke-frames":
+						smokeFrames = int.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture);
+						if (smokeFrames <= 0) return Fail("--smoke-frames must be a positive frame count (a headless run needs N > 0 frames to render then exit).");
+						break;
 					case "--capture": capture = Value(); break;
 					case "--capture-animate": captureAnimate = Flag(); break;
 					case "--help" or "-h" or "-?": help = true; break;
