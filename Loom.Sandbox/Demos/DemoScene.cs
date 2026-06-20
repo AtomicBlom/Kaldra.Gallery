@@ -1,4 +1,6 @@
 using Loom.Core;
+using Loom.Core.Geometry;
+using Loom.Core.Materials;
 
 namespace Loom.Sandbox.Demos;
 

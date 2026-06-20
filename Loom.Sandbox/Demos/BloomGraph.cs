@@ -1,4 +1,4 @@
-using Loom.Core;
+using Loom.Core.Graph;
 
 namespace Loom.Sandbox.Demos;
 

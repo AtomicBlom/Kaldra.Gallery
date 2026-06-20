@@ -1,6 +1,8 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Loom.Core;
+using Loom.Core.Graph;
+using Loom.Core.Hosting;
+using Loom.Core.UI;
 
 namespace Loom.Sandbox.Demos;
 

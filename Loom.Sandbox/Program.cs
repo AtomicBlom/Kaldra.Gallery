@@ -5,6 +5,11 @@ using ImGuiNET;
 #endif
 using Loom.Assets;
 using Loom.Core;
+using Loom.Core.Geometry;
+using Loom.Core.Graph;
+using Loom.Core.Hosting;
+using Loom.Core.Materials;
+using Loom.Core.UI;
 #if LOOM_DX12
 using Loom.DX12; // for DX12EngineSettings only — the one sanctioned DX12 backend type (Planning.md §5)
 #endif

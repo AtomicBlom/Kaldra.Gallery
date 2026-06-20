@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Loom.Core.Geometry;
 
 namespace Loom.Core.Scene;
 

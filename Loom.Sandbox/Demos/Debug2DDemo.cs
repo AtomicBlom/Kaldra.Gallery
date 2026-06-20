@@ -1,6 +1,9 @@
 using System.Numerics;
-
-using Loom.Core;
+using Loom.Core.Geometry;
+using Loom.Core.Graph;
+using Loom.Core.Hosting;
+using Loom.Core.Materials;
+using Loom.Core.Scene;
 
 namespace Loom.Sandbox.Demos;
 
