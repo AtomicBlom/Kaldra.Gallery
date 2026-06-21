@@ -26,7 +26,8 @@ internal static class Geometry
 	}
 
 	// A flat ground quad at the cube's base (y = -0.5), facing up — the receiver the cube's shadow falls on.
-	// Cull is disabled, so winding doesn't matter; the normal points up for lighting.
+	// Wound counter-clockwise viewed from above so the up-facing side is the front face (matching the cube and the
+	// glTF convention), which keeps it visible under back-face culling; the normal points up for lighting.
 	public static (Vertex[] Vertices, uint[] Indices) BuildPlane()
 	{
 		const float s = 4f;
@@ -42,7 +43,7 @@ internal static class Geometry
 			new(c, up, new(1, 1), tan),
 			new(d, up, new(0, 1), tan),
 		];
-		return (vertices, [0, 1, 2, 0, 2, 3]);
+		return (vertices, [0, 2, 1, 0, 3, 2]);
 	}
 
 	// A unit cube centred at the origin, 24 vertices (4 per face) so each face carries its own flat normal,
