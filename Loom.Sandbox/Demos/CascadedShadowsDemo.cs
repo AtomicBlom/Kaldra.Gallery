@@ -69,12 +69,10 @@ internal sealed class CascadedShadowsDemo : IDemo
 
 	public void DrawDebugUI()
 	{
-#if LOOM_IMGUI
 		var tint = DebugTint;
 		if (ImGuiNET.ImGui.Checkbox("Cascade tint (red/green/blue by distance)", ref tint))
 			DebugTint = tint;
 		ImGuiNET.ImGui.Text($"splits: {_splits[0]:F1} / {_splits[1]:F1} / {_splits[2]:F1}");
-#endif
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>

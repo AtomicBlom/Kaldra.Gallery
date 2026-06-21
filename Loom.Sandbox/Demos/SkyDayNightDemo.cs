@@ -74,14 +74,12 @@ internal sealed class SkyDayNightDemo : IDemo
 
 	public void DrawDebugUI()
 	{
-#if LOOM_IMGUI
 		var scrub = _phaseOverride >= 0f;
 		if (ImGuiNET.ImGui.Checkbox("Scrub time of day", ref scrub))
 			_phaseOverride = scrub ? 0.25f : -1f;
 		if (_phaseOverride >= 0f)
 			ImGuiNET.ImGui.SliderFloat("Time of day", ref _phaseOverride, 0f, 1f);
 		ImGuiNET.ImGui.Text($"sun height: {_sun.SunDir.Y:F2}");
-#endif
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>

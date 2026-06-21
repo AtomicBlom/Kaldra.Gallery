@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Loom.Core.Graph;
+using Loom.UI.ImGui;
 using Loom.UI.SUIsei;
 using SUIsei.Drawing;
 
@@ -10,13 +11,20 @@ namespace Loom.Sandbox.Demos;
 internal static class DemoGraph
 {
 	/// <summary>
+	/// The Dear ImGui overlay painter (the optional <c>Loom.UI.ImGui</c> bridge), set once by the host. The ImGui
+	/// context is process-global, so a static handle mirrors that — unlike the per-host SUIsei painter. Null leaves
+	/// the HUD pass a no-op (ImGui not in use), so every demo still renders.
+	/// </summary>
+	public static ImGuiPainter? Overlay { get; set; }
+
+	/// <summary>
 	/// Append the Dear ImGui overlay (§6/§9): a pass that <c>.Blends</c> the backbuffer (so the engine orders it
-	/// after the present write and derives the barrier) and hands this frame's draw data to the backend renderer.
-	/// Every demo ends with this so the menu bar / Demo switcher / status render on all of them. A no-op when
-	/// ImGui isn't enabled.
+	/// after the present write and derives the barrier) and submits this frame's ImGui draw data through the public
+	/// draw-list API via <see cref="Overlay"/>. Every demo ends with this so the menu bar / Demo switcher / status
+	/// render on all of them. A no-op when no painter is set.
 	/// </summary>
 	public static void Hud(GraphBuilder g, ColorHandle screen) =>
-		g.Pass("hud").Blends(screen).Draw(ctx => ctx.DrawImGui());
+		g.Pass("hud").Blends(screen).Draw(ctx => Overlay?.Draw(ctx));
 
 	/// <summary>
 	/// Append the game-UI overlay: a pass that <c>.Blends</c> the backbuffer at native resolution and submits the
