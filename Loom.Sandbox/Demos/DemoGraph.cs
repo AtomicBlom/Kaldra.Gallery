@@ -1,6 +1,8 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Loom.Core;
+using Loom.Core.Graph;
+using Loom.Core.Hosting;
+using Loom.UI;
 
 namespace Loom.Sandbox.Demos;
 
@@ -17,14 +19,13 @@ internal static class DemoGraph
 		g.Pass("hud").Blends(screen).Draw(ctx => ctx.DrawImGui());
 
 	/// <summary>
-	/// Append the game-UI overlay (PlanningUI.md §D4.1): a pass that <c>.Blends</c> the backbuffer at native
-	/// resolution and hands the named surface's composited draw data to the backend's UI renderer — the twin of
-	/// <see cref="Hud"/> for the XAML UI engine. Place before <see cref="Hud"/> so the debug HUD stays on top.
-	/// A no-op until <c>engine.EnableUI()</c> and a matching surface in <see cref="FrameInputs.UISurfaces"/>;
-	/// in MU0 Phase A the backend renderer is a no-op, so this proves the seam runs clean on both backends.
+	/// Append the game-UI overlay: a pass that <c>.Blends</c> the backbuffer at native resolution and submits the
+	/// named draw list through <paramref name="painter"/> (which renders it via the public draw-list API) — the twin
+	/// of <see cref="Hud"/> for the XAML UI engine. Place before <see cref="Hud"/> so the debug HUD stays on top.
+	/// A no-op when the frame carries no matching list in <see cref="FrameInputs.DrawLists"/>.
 	/// </summary>
-	public static void UI(GraphBuilder g, ColorHandle screen, UISurfaceId surface) =>
-		g.Pass("ui").Blends(screen).Draw(ctx => ctx.DrawUI(surface));
+	public static void UI(GraphBuilder g, ColorHandle screen, UIPainter painter, DrawListId surface) =>
+		g.Pass("ui").Blends(screen).Draw(ctx => painter.Draw(ctx, surface));
 
 	/// <summary>
 	/// View a matrix as its 16 contiguous floats (System.Numerics field order — exactly what a shader's
