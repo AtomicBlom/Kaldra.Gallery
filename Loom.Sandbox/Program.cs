@@ -1,8 +1,6 @@
 using System.Numerics;
 
-#if LOOM_IMGUI
 using ImGuiNET;
-#endif
 using Loom.Assets;
 using Loom.Core;
 using Loom.Core.Geometry;
@@ -15,6 +13,8 @@ using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned
 using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
 using Loom.UI.SUIsei;
+// Alias the painter type only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare `ImGui`.
+using ImGuiPainter = Loom.UI.ImGui.ImGuiPainter;
 using SUIsei;
 using SUIsei.Controls;
 using SUIsei.Drawing;
@@ -96,10 +96,9 @@ internal static class Program
 			Console.WriteLine($"[loom] graph → {dot} + {json}");
 		}
 
-#if LOOM_IMGUI
-		// Dear ImGui (§6/§9 HUD). The host owns the context + input; the engine's renderer does the GPU work.
-		// Compiled out entirely when the engine is built without ImGui (UseImGui=false). Enabled BEFORE the first
-		// SetGraph so the engine injects the M13 resource-viewer sample edges into the initial graph too.
+		// Dear ImGui (§6/§9 HUD). The host owns the context + input + the per-frame UI; the optional Loom.UI.ImGui
+		// bridge renders the draw data through the public draw-list API (no backend ImGui dependency). Inspection is
+		// enabled BEFORE the first SetGraph so the resource-viewer sample edges land in the initial graph too.
 		ImGui.CreateContext();
 		var io = ImGui.GetIO();
 		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
@@ -107,10 +106,12 @@ internal static class Program
 		io.DisplayFramebufferScale = Vector2.One;
 		io.Fonts.AddFontDefault();
 		ImGui.StyleColorsDark();
-		engine.EnableImGui();
+		engine.ResourceInspectionEnabled = true;
+		var imguiPainter = ImGuiPainter.Create(engine);
+		DemoGraph.Overlay = imguiPainter;
+		var inspectIds = new List<int>();
 		var showDemoWindow = false;
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
-#endif
 
 		// A screen-space overlay surface driven by the UIHost created above. Its compositor lays glyphs out against the
 		// same default font the painter uploaded, so UVs match. The single overlay surface carries one of two contents,
@@ -341,7 +342,7 @@ internal static class Program
 						debugSegments.Add(new Vector4(a.X, a.Y, b.X, b.Y));
 			}
 
-			engine.SetDebugLines(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(debugSegments));
+			imguiPainter.SetDebugLines(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(debugSegments));
 
 			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
 			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
@@ -365,11 +366,8 @@ internal static class Program
 			if (capturePath is not null && frame == 60)
 				engine.RequestCapture(capturePath); // late enough that the delta-driven auto-exposure has converged
 
-			// ImDrawData* for this frame; stays null (no UI) when built without ImGui — the hud pass's
-			// ctx.DrawImGui() is then a no-op, so every demo still renders, just without the overlay.
-			nint imguiDrawData = 0;
-#if LOOM_IMGUI
-			// Drive ImGui: feed input, build the bar, produce the draw data this frame's FrameInputs forwards.
+			// Drive ImGui: feed input, build the bar; the Loom.UI.ImGui bridge renders the resulting draw data in
+			// the hud pass (it reads ImGui.GetDrawData() from the pass closure — no draw-data pointer plumbing).
 			io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
 			io.DisplayFramebufferScale = Vector2.One;
 			io.DeltaTime = delta > 0 ? (float)delta : 1f / 60f;
@@ -426,24 +424,25 @@ internal static class Program
 			if (showDemoWindow)
 				ImGui.ShowDemoWindow(ref showDemoWindow);
 
-			// M13 resource viewer: enumerate the active graph's colour/depth resources and preview each via
-			// ImGui.Image (the engine binds the resource's live, ShaderRead view to the returned id). Click a
-			// thumbnail to enlarge it. Works for any loaded graph — the buffer list comes from the engine.
+			// Resource viewer: enumerate the active graph's colour/depth resources; this window is the legend and the
+			// bridge draws the matching thumbnail grid (row-major, same order) to the right via the public draw-list
+			// API (ImGui.Image can't draw the textures itself on win-arm64). The id list comes from the engine.
+			inspectIds.Clear();
 			if (showInspect)
 			{
 				if (ImGui.Begin("Resource viewer", ref showInspect))
 				{
-					// This window is the legend; the engine draws the matching thumbnail grid (row-major, same order)
-					// to the right. GetDebugTextureId returns non-zero for inspectable resources AND requests the
-					// thumbnail for this frame. (ImGui.Image can't draw the textures itself on win-arm64.)
 					ImGui.Text("Buffers (grid is row-major, same order):");
 					var slot = 0;
 					foreach (var r in engine.InspectableResources)
-						if (engine.GetDebugTextureId(r.Id) != 0)
-							ImGui.Text($"{slot++,2}  {r.Name}  ({r.Kind} {r.Format})");
+					{
+						inspectIds.Add(r.Id);
+						ImGui.Text($"{slot++,2}  {r.Name}  ({r.Kind} {r.Format})");
+					}
 				}
 				ImGui.End();
 			}
+			imguiPainter.SetThumbnails(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(inspectIds));
 
 			// M13 GPU profiler HUD: per-pass GPU ms + frame total from the most recently completed frame.
 			if (engine.GpuTimingEnabled)
@@ -459,8 +458,6 @@ internal static class Program
 			}
 
 			ImGui.Render();
-			unsafe { imguiDrawData = (nint)ImGui.GetDrawData().NativePtr; }
-#endif
 
 			// Swap the overlay content for the active demo, then drive the host: Tick drains queued pointer input →
 			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
@@ -500,7 +497,6 @@ internal static class Program
 				Cascades = cascadeViews,
 				CascadeSplits = cascadeSplits,
 				HoverId = hoverId,
-				ImGuiDrawData = imguiDrawData,
 			});
 
 			if (capturePath is not null && frame >= 62)
@@ -521,9 +517,7 @@ internal static class Program
 
 		window.Run();
 		engine.WaitIdle();
-#if LOOM_IMGUI
 		ImGui.DestroyContext();
-#endif
 	}
 
 	// Resolve which backend to run from the set actually compiled into this build (each is added under its own
@@ -719,55 +713,80 @@ internal static class Program
 	private static ModifierKeys GetModifiers(IKeyboard kb)
 	{
 		var m = ModifierKeys.None;
-		if (kb.IsKeyPressed(Key.ShiftLeft)   || kb.IsKeyPressed(Key.ShiftRight))   m |= ModifierKeys.Shift;
+		if (kb.IsKeyPressed(Key.ShiftLeft) || kb.IsKeyPressed(Key.ShiftRight)) m |= ModifierKeys.Shift;
 		if (kb.IsKeyPressed(Key.ControlLeft) || kb.IsKeyPressed(Key.ControlRight)) m |= ModifierKeys.Control;
-		if (kb.IsKeyPressed(Key.AltLeft)     || kb.IsKeyPressed(Key.AltRight))     m |= ModifierKeys.Alt;
+		if (kb.IsKeyPressed(Key.AltLeft) || kb.IsKeyPressed(Key.AltRight)) m |= ModifierKeys.Alt;
 		return m;
 	}
 
 	// Map a Silk.NET Key to the engine-neutral VirtualKey subset (returns None for unmapped keys).
 	private static VirtualKey ToVirtualKey(Key key) => key switch
 	{
-		Key.Backspace                          => VirtualKey.Back,
-		Key.Tab                                => VirtualKey.Tab,
-		Key.Enter or Key.KeypadEnter           => VirtualKey.Enter,
-		Key.ShiftLeft or Key.ShiftRight        => VirtualKey.Shift,
-		Key.ControlLeft or Key.ControlRight    => VirtualKey.Control,
-		Key.AltLeft or Key.AltRight            => VirtualKey.Alt,
-		Key.Escape                             => VirtualKey.Escape,
-		Key.Space                              => VirtualKey.Space,
-		Key.PageUp                             => VirtualKey.PageUp,
-		Key.PageDown                           => VirtualKey.PageDown,
-		Key.End                                => VirtualKey.End,
-		Key.Home                               => VirtualKey.Home,
-		Key.Left                               => VirtualKey.Left,
-		Key.Up                                 => VirtualKey.Up,
-		Key.Right                              => VirtualKey.Right,
-		Key.Down                               => VirtualKey.Down,
-		Key.Delete                             => VirtualKey.Delete,
-		Key.Number0 or Key.Keypad0             => VirtualKey.Number0,
-		Key.Number1 or Key.Keypad1             => VirtualKey.Number1,
-		Key.Number2 or Key.Keypad2             => VirtualKey.Number2,
-		Key.Number3 or Key.Keypad3             => VirtualKey.Number3,
-		Key.Number4 or Key.Keypad4             => VirtualKey.Number4,
-		Key.Number5 or Key.Keypad5             => VirtualKey.Number5,
-		Key.Number6 or Key.Keypad6             => VirtualKey.Number6,
-		Key.Number7 or Key.Keypad7             => VirtualKey.Number7,
-		Key.Number8 or Key.Keypad8             => VirtualKey.Number8,
-		Key.Number9 or Key.Keypad9             => VirtualKey.Number9,
-		Key.A => VirtualKey.A, Key.B => VirtualKey.B, Key.C => VirtualKey.C,
-		Key.D => VirtualKey.D, Key.E => VirtualKey.E, Key.F => VirtualKey.F,
-		Key.G => VirtualKey.G, Key.H => VirtualKey.H, Key.I => VirtualKey.I,
-		Key.J => VirtualKey.J, Key.K => VirtualKey.K, Key.L => VirtualKey.L,
-		Key.M => VirtualKey.M, Key.N => VirtualKey.N, Key.O => VirtualKey.O,
-		Key.P => VirtualKey.P, Key.Q => VirtualKey.Q, Key.R => VirtualKey.R,
-		Key.S => VirtualKey.S, Key.T => VirtualKey.T, Key.U => VirtualKey.U,
-		Key.V => VirtualKey.V, Key.W => VirtualKey.W, Key.X => VirtualKey.X,
-		Key.Y => VirtualKey.Y, Key.Z => VirtualKey.Z,
-		Key.F1  => VirtualKey.F1,  Key.F2  => VirtualKey.F2,  Key.F3  => VirtualKey.F3,
-		Key.F4  => VirtualKey.F4,  Key.F5  => VirtualKey.F5,  Key.F6  => VirtualKey.F6,
-		Key.F7  => VirtualKey.F7,  Key.F8  => VirtualKey.F8,  Key.F9  => VirtualKey.F9,
-		Key.F10 => VirtualKey.F10, Key.F11 => VirtualKey.F11, Key.F12 => VirtualKey.F12,
+		Key.Backspace => VirtualKey.Back,
+		Key.Tab => VirtualKey.Tab,
+		Key.Enter or Key.KeypadEnter => VirtualKey.Enter,
+		Key.ShiftLeft or Key.ShiftRight => VirtualKey.Shift,
+		Key.ControlLeft or Key.ControlRight => VirtualKey.Control,
+		Key.AltLeft or Key.AltRight => VirtualKey.Alt,
+		Key.Escape => VirtualKey.Escape,
+		Key.Space => VirtualKey.Space,
+		Key.PageUp => VirtualKey.PageUp,
+		Key.PageDown => VirtualKey.PageDown,
+		Key.End => VirtualKey.End,
+		Key.Home => VirtualKey.Home,
+		Key.Left => VirtualKey.Left,
+		Key.Up => VirtualKey.Up,
+		Key.Right => VirtualKey.Right,
+		Key.Down => VirtualKey.Down,
+		Key.Delete => VirtualKey.Delete,
+		Key.Number0 or Key.Keypad0 => VirtualKey.Number0,
+		Key.Number1 or Key.Keypad1 => VirtualKey.Number1,
+		Key.Number2 or Key.Keypad2 => VirtualKey.Number2,
+		Key.Number3 or Key.Keypad3 => VirtualKey.Number3,
+		Key.Number4 or Key.Keypad4 => VirtualKey.Number4,
+		Key.Number5 or Key.Keypad5 => VirtualKey.Number5,
+		Key.Number6 or Key.Keypad6 => VirtualKey.Number6,
+		Key.Number7 or Key.Keypad7 => VirtualKey.Number7,
+		Key.Number8 or Key.Keypad8 => VirtualKey.Number8,
+		Key.Number9 or Key.Keypad9 => VirtualKey.Number9,
+		Key.A => VirtualKey.A,
+		Key.B => VirtualKey.B,
+		Key.C => VirtualKey.C,
+		Key.D => VirtualKey.D,
+		Key.E => VirtualKey.E,
+		Key.F => VirtualKey.F,
+		Key.G => VirtualKey.G,
+		Key.H => VirtualKey.H,
+		Key.I => VirtualKey.I,
+		Key.J => VirtualKey.J,
+		Key.K => VirtualKey.K,
+		Key.L => VirtualKey.L,
+		Key.M => VirtualKey.M,
+		Key.N => VirtualKey.N,
+		Key.O => VirtualKey.O,
+		Key.P => VirtualKey.P,
+		Key.Q => VirtualKey.Q,
+		Key.R => VirtualKey.R,
+		Key.S => VirtualKey.S,
+		Key.T => VirtualKey.T,
+		Key.U => VirtualKey.U,
+		Key.V => VirtualKey.V,
+		Key.W => VirtualKey.W,
+		Key.X => VirtualKey.X,
+		Key.Y => VirtualKey.Y,
+		Key.Z => VirtualKey.Z,
+		Key.F1 => VirtualKey.F1,
+		Key.F2 => VirtualKey.F2,
+		Key.F3 => VirtualKey.F3,
+		Key.F4 => VirtualKey.F4,
+		Key.F5 => VirtualKey.F5,
+		Key.F6 => VirtualKey.F6,
+		Key.F7 => VirtualKey.F7,
+		Key.F8 => VirtualKey.F8,
+		Key.F9 => VirtualKey.F9,
+		Key.F10 => VirtualKey.F10,
+		Key.F11 => VirtualKey.F11,
+		Key.F12 => VirtualKey.F12,
 		_ => VirtualKey.None,
 	};
 

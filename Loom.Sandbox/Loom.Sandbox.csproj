@@ -30,9 +30,9 @@
   <ItemGroup>
     <PackageReference Include="Silk.NET.Windowing" />
     <PackageReference Include="Silk.NET.Input" />
-    <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel.
-         Gated on <UseImGui> (repo-wide); off compiles the host's ImGui control panel out entirely. -->
-    <PackageReference Include="ImGui.NET" Condition="'$(UseImGui)' == 'true'" />
+    <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel; the
+         optional Loom.UI.ImGui package renders it through the public draw-list API (no backend ImGui dependency). -->
+    <PackageReference Include="ImGui.NET" />
     <!-- Hermetic slangc for the SDK's shader compile (bundled in the package; win-x64 / win-arm64). -->
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
@@ -43,6 +43,7 @@
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
     <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
+    <ProjectReference Include="..\Loom.UI.ImGui\Loom.UI.ImGui.csproj" />
   </ItemGroup>
 
   <!-- Committed demo assets (brick textures + the glTF cube). The Loom SDK copies only shaders, so these are

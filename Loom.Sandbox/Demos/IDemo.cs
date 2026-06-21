@@ -49,7 +49,7 @@ internal interface IDemo
 
 	/// <summary>
 	/// Optional world-space debug line segments for this frame (M15-7) — pairs of endpoints the launcher projects
-	/// to screen and feeds <c>engine.SetDebugLines</c> (the M13 overlay). The skinning demo returns its skeleton
+	/// to screen and feeds the ImGui overlay painter's <c>SetDebugLines</c>. The skinning demo returns its skeleton
 	/// (bone segments + joint axis gizmos) here. Given the frame's effect <paramref name="time"/> so a demo can
 	/// resample its animation deterministically. Default none.
 	/// </summary>

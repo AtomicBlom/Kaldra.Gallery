@@ -82,9 +82,7 @@ internal sealed class SkinningDemo : IDemo
 
 	public void DrawDebugUI()
 	{
-#if LOOM_IMGUI
 		ImGuiNET.ImGui.Checkbox("Show skeleton", ref _showSkeleton);
-#endif
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
