@@ -1,7 +1,7 @@
 // Generalized GPU particle render (PlanningPhase2.md M14-4, Track A) — the TEXTURED, colour-over-life half of
 // the generalized particle system, and the one demo path that exercises the M14-0 textured DrawParticles verb.
 // Each particle the compute wrote is one INSTANCE of a billboard quad fabricated from SV_VertexID; the instance
-// stream is Loom.Core VertexLayout.Particle (binding 0, two IPARTICLE float4 rows). The quad is expanded in
+// stream is SandboxVertexLayouts.Particle (binding 0, two IPARTICLE float4 rows). The quad is expanded in
 // WORLD space (ortho-correct: size is in world px) about the particle's position. The fragment samples a 4-frame
 // spark atlas at a SUB-UV frame chosen from normalised life (a young spark is a tight bright core; an old one a
 // soft faint puff) and tints it by a warm ember colour-over-life ramp. Additive blend (.Blends, BlendMode.Additive)

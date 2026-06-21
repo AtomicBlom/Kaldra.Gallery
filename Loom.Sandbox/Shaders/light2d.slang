@@ -23,7 +23,7 @@ struct VsIn
 	[[vk::location(1)]] float3 normal : NORMAL;       // unused
 	[[vk::location(2)]] float2 quadUv : TEXCOORD0;    // unused
 	[[vk::location(3)]] float4 tangent : TANGENT;     // unused
-	// Per-instance Light2DInstance (binding 1 — VertexLayout.Light2D), locations 4..5:
+	// Per-instance Light2DInstance (binding 1 — SandboxVertexLayouts.Light2D), locations 4..5:
 	[[vk::location(4)]] float4 iPosRadInt : ILIGHT0;  // position.xy, radius, intensity
 	[[vk::location(5)]] float4 iColHeight : ILIGHT1;  // colour.rgb, height
 };

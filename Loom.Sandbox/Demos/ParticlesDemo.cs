@@ -1,3 +1,4 @@
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -19,7 +20,7 @@ internal sealed class ParticlesDemo : IDemo
 	{
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
-		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, ParticleInput: true));
+		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}
 

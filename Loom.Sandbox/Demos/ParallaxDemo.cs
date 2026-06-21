@@ -3,7 +3,6 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.Scene;
 
 namespace Loom.Sandbox.Demos;
 
@@ -47,7 +46,7 @@ internal sealed class ParallaxDemo : IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
-			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Sprite));
+			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 

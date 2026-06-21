@@ -17,7 +17,7 @@ internal sealed class FoliageDemo : IDemo
 {
 	public string Name => "Foliage + wind";
 
-	// One blade: world position + scale, then yaw + wind phase + bend stiffness (matches VertexLayout.Foliage).
+	// One blade: world position + scale, then yaw + wind phase + bend stiffness (matches SandboxVertexLayouts.Foliage).
 	private readonly record struct Blade(Vector4 PosScale, Vector4 YawPhaseStiffness);
 
 	private const int Grid = 48; // 48×48 blades
@@ -35,7 +35,7 @@ internal sealed class FoliageDemo : IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
-		engine.DefineTechnique("foliage", new TechniqueDescriptor("foliage", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Foliage));
+		engine.DefineTechnique("foliage", new TechniqueDescriptor("foliage", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Foliage));
 		engine.DefineTechnique("lighting_basic", new TechniqueDescriptor("lighting_basic"));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 

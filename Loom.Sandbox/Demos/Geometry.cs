@@ -8,7 +8,7 @@ internal static class Geometry
 {
 	// A unit quad in the XY plane, corners (0,0)..(1,1), facing +Z with a +X tangent (a TBN frame for normal
 	// mapping). It carries the standard Vertex layout so it uploads through the ordinary CreateMesh and instances
-	// with VertexLayout.Sprite (M14): the sprite vertex shader reads only POSITION + TEXCOORD and ignores the
+	// with SandboxVertexLayouts.Sprite (M14): the sprite vertex shader reads only POSITION + TEXCOORD and ignores the
 	// normal/tangent, expanding each corner into the quad the per-instance SpriteInstance describes. UV = corner,
 	// so (0,0) is the quad's bottom-left; the shader applies the atlas uv-rect (and the v-flip) per sprite.
 	public static (Vertex[] Vertices, uint[] Indices) BuildQuad()

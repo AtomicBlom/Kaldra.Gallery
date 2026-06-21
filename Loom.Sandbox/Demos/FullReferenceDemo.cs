@@ -1,3 +1,4 @@
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -25,7 +26,7 @@ internal sealed class FullReferenceDemo : IDemo
 		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", HasFragmentPush: true)); // 5-input deferred lighting + shadow + ao
 		engine.DefineTechnique("transparent", new TechniqueDescriptor("transparent", HasVertexInput: true, Blend: BlendMode.AlphaOver));
 		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
-		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, ParticleInput: true));
+		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
 		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed", HasFragmentPush: true));
 		engine.DefineTechnique("outline.jfa", new TechniqueDescriptor("outline_jfa", HasFragmentPush: true));
