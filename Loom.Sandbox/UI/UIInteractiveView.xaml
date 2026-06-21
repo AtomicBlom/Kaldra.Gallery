@@ -2,10 +2,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Loom.Sandbox.UI.UIInteractiveView"
         HorizontalAlignment="Left" VerticalAlignment="Top"
-        Width="360" Height="190" CornerRadius="16">
+        Width="380" Height="230" CornerRadius="16">
 	<StackPanel Orientation="Vertical">
-		<Button x:Name="ActionButton" HorizontalAlignment="Left" Width="200" Height="56"
-		        Content="Click me" Click="{x:Bind OnButtonClick}" />
-		<TextBlock x:Name="StatusLabel" FontSize="24" Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
+		<TextBlock x:Name="TitleLabel" FontSize="18" Text="MU3 — Focus + Styles" />
+		<TextBlock x:Name="StatusLabel" FontSize="22" Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
+		<Button x:Name="IncrementButton" HorizontalAlignment="Left" Width="160" Height="44"
+		        Content="Increment" Click="{x:Bind OnIncrementClick}" />
+		<Button x:Name="ResetButton" HorizontalAlignment="Left" Width="160" Height="44"
+		        Content="Reset" Click="{x:Bind OnResetClick}" />
 	</StackPanel>
 </Border>

@@ -16,6 +16,7 @@ using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
 using Loom.UI;
 using Loom.UI.Controls;
+using Loom.UI.Input;
 #if LOOM_VULKAN
 using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type (Planning.md §5)
 #endif
@@ -181,15 +182,40 @@ internal static class Program
 		var mouse = input.Mice.Count > 0 ? input.Mice[0] : null;
 		var keyboard = input.Keyboards.Count > 0 ? input.Keyboards[0] : null;
 		if (keyboard is not null)
-			keyboard.KeyDown += (_, key, _) =>
+		{
+			keyboard.KeyDown += (kb, key, _) =>
 			{
+				// When the interactive UI demo is active, route keys to the UI host first (for focus + keyboard
+				// activation). Tab is consumed by the UI for focus navigation and must not also switch demos.
+				if (currentDemo == interactiveIndex)
+				{
+					var vk = ToVirtualKey(key);
+					if (vk != VirtualKey.None)
+						uiHost.QueueKey(new KeyInput(vk, Down: true, Repeat: false, GetModifiers(kb), 0));
+					if (key == Key.Tab)
+						return;
+				}
 				if (key == Key.Tab)
 					SelectDemo((currentDemo + 1) % demos.Length);
 				else if (key >= Key.Number1 && key < Key.Number1 + demos.Length)
 					SelectDemo(key - Key.Number1);
 				else if (key == Key.F)
-					debugCam = !debugCam; // M13: toggle the detached debug camera + frustum freeze
+					debugCam = !debugCam;
 			};
+			keyboard.KeyUp += (kb, key, _) =>
+			{
+				if (currentDemo != interactiveIndex)
+					return;
+				var vk = ToVirtualKey(key);
+				if (vk != VirtualKey.None)
+					uiHost.QueueKey(new KeyInput(vk, Down: false, Repeat: false, GetModifiers(kb), 0));
+			};
+			keyboard.KeyChar += (_, ch) =>
+			{
+				if (currentDemo == interactiveIndex)
+					uiHost.QueueText(ch.ToString());
+			};
+		}
 
 		// MU2: translate raw mouse into neutral pointer events the UIHost routes (the host owns hit-test + routing).
 		// Independent of the ImGui/camera/pick mouse uses below — multiple handlers per Silk event are fine.
@@ -688,6 +714,62 @@ internal static class Program
 			Console.Error.WriteLine($"[loom] --demo '{query}' is ambiguous — matched: {string.Join(", ", matches.Select(i => demos[i].Name))}. Be more specific.");
 		return -1;
 	}
+
+	// Gather the currently-held modifier keys from a Silk.NET keyboard snapshot.
+	private static ModifierKeys GetModifiers(IKeyboard kb)
+	{
+		var m = ModifierKeys.None;
+		if (kb.IsKeyPressed(Key.ShiftLeft)   || kb.IsKeyPressed(Key.ShiftRight))   m |= ModifierKeys.Shift;
+		if (kb.IsKeyPressed(Key.ControlLeft) || kb.IsKeyPressed(Key.ControlRight)) m |= ModifierKeys.Control;
+		if (kb.IsKeyPressed(Key.AltLeft)     || kb.IsKeyPressed(Key.AltRight))     m |= ModifierKeys.Alt;
+		return m;
+	}
+
+	// Map a Silk.NET Key to the engine-neutral VirtualKey subset (returns None for unmapped keys).
+	private static VirtualKey ToVirtualKey(Key key) => key switch
+	{
+		Key.Backspace                          => VirtualKey.Back,
+		Key.Tab                                => VirtualKey.Tab,
+		Key.Enter or Key.KeypadEnter           => VirtualKey.Enter,
+		Key.ShiftLeft or Key.ShiftRight        => VirtualKey.Shift,
+		Key.ControlLeft or Key.ControlRight    => VirtualKey.Control,
+		Key.AltLeft or Key.AltRight            => VirtualKey.Alt,
+		Key.Escape                             => VirtualKey.Escape,
+		Key.Space                              => VirtualKey.Space,
+		Key.PageUp                             => VirtualKey.PageUp,
+		Key.PageDown                           => VirtualKey.PageDown,
+		Key.End                                => VirtualKey.End,
+		Key.Home                               => VirtualKey.Home,
+		Key.Left                               => VirtualKey.Left,
+		Key.Up                                 => VirtualKey.Up,
+		Key.Right                              => VirtualKey.Right,
+		Key.Down                               => VirtualKey.Down,
+		Key.Delete                             => VirtualKey.Delete,
+		Key.Number0 or Key.Keypad0             => VirtualKey.Number0,
+		Key.Number1 or Key.Keypad1             => VirtualKey.Number1,
+		Key.Number2 or Key.Keypad2             => VirtualKey.Number2,
+		Key.Number3 or Key.Keypad3             => VirtualKey.Number3,
+		Key.Number4 or Key.Keypad4             => VirtualKey.Number4,
+		Key.Number5 or Key.Keypad5             => VirtualKey.Number5,
+		Key.Number6 or Key.Keypad6             => VirtualKey.Number6,
+		Key.Number7 or Key.Keypad7             => VirtualKey.Number7,
+		Key.Number8 or Key.Keypad8             => VirtualKey.Number8,
+		Key.Number9 or Key.Keypad9             => VirtualKey.Number9,
+		Key.A => VirtualKey.A, Key.B => VirtualKey.B, Key.C => VirtualKey.C,
+		Key.D => VirtualKey.D, Key.E => VirtualKey.E, Key.F => VirtualKey.F,
+		Key.G => VirtualKey.G, Key.H => VirtualKey.H, Key.I => VirtualKey.I,
+		Key.J => VirtualKey.J, Key.K => VirtualKey.K, Key.L => VirtualKey.L,
+		Key.M => VirtualKey.M, Key.N => VirtualKey.N, Key.O => VirtualKey.O,
+		Key.P => VirtualKey.P, Key.Q => VirtualKey.Q, Key.R => VirtualKey.R,
+		Key.S => VirtualKey.S, Key.T => VirtualKey.T, Key.U => VirtualKey.U,
+		Key.V => VirtualKey.V, Key.W => VirtualKey.W, Key.X => VirtualKey.X,
+		Key.Y => VirtualKey.Y, Key.Z => VirtualKey.Z,
+		Key.F1  => VirtualKey.F1,  Key.F2  => VirtualKey.F2,  Key.F3  => VirtualKey.F3,
+		Key.F4  => VirtualKey.F4,  Key.F5  => VirtualKey.F5,  Key.F6  => VirtualKey.F6,
+		Key.F7  => VirtualKey.F7,  Key.F8  => VirtualKey.F8,  Key.F9  => VirtualKey.F9,
+		Key.F10 => VirtualKey.F10, Key.F11 => VirtualKey.F11, Key.F12 => VirtualKey.F12,
+		_ => VirtualKey.None,
+	};
 
 	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection (M13
 	// frustum wireframe). Returns false for points behind the camera (w ≤ 0), so edges that cross the near plane are

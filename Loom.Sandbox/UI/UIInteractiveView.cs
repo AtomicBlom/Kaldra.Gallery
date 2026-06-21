@@ -3,11 +3,9 @@ using Loom.UI;
 namespace Loom.Sandbox.UI;
 
 /// <summary>
-/// Code-behind for <c>UIInteractiveView.xaml</c> (MU2). The generator emits the partial half — typed
-/// <c>ActionButton</c>/<c>StatusLabel</c> fields, the tree-building <c>InitializeComponent()</c>, the
-/// <c>ActionButton.Click += OnButtonClick</c> wiring, and the <c>{x:Bind ViewModel.Status}</c> binding glue. This
-/// half supplies the bind root (<see cref="ViewModel"/>), the click handler, and the colours/thickness the MU2 XAML
-/// subset can't express as literals yet (HdrColor / Thickness parsing arrives in a later milestone).
+/// Code-behind for <c>UIInteractiveView.xaml</c> (MU3 exit demo). The generator emits the partial half (typed
+/// fields, <c>InitializeComponent</c>, event wires, <c>{x:Bind}</c> glue); this half supplies the VM,
+/// handlers, and visual styling (HdrColor + Thickness — outside the generator's literal subset).
 /// </summary>
 internal sealed partial class UIInteractiveView
 {
@@ -17,14 +15,23 @@ internal sealed partial class UIInteractiveView
 	{
 		InitializeComponent();
 
-		// Visual styling the MU2 literal subset doesn't cover (HdrColor + Thickness): set in code-behind.
 		Root.Margin = new Thickness(24f, 24f, 0f, 0f);
 		Root.Padding = new Thickness(20f, 16f, 20f, 16f);
 		Root.Background = HdrColor.FromRgb(28, 32, 44, 220);
 		Root.BorderBrush = HdrColor.FromRgb(120, 180, 255);
 		Root.BorderThickness = new Thickness(2f);
+
+		TitleLabel.Foreground = HdrColor.FromRgb(180, 210, 255);
+
 		StatusLabel.Foreground = HdrColor.FromRgb(235, 240, 255);
+
+		// Style both buttons identically (demonstrates the Style system applied via code-behind — MU3).
+		var btnColor = HdrColor.FromRgb(50, 100, 200);
+		IncrementButton.Background = btnColor;
+		ResetButton.Background     = btnColor;
 	}
 
-	private void OnButtonClick(object sender, RoutedEventArgs e) => ViewModel.Bump();
+	private void OnIncrementClick(object sender, RoutedEventArgs e) => ViewModel.Bump();
+
+	private void OnResetClick(object sender, RoutedEventArgs e) => ViewModel.Reset();
 }
