@@ -44,13 +44,15 @@ internal static class Cascades
 		var up = MathF.Abs(lightDir.Y) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
 		var range = far - near;
 
+		// Reused across slices — the 8 corners are fully overwritten each iteration before they are read.
+		Span<Vector3> slice = stackalloc Vector3[8];
+
 		for (var c = 0; c < count; c++)
 		{
 			var t0 = (splitDepths[c] - near) / range;
 			var t1 = (splitDepths[c + 1] - near) / range;
 
 			// The slice's 8 corners, and their bounding sphere (center = mean, radius = farthest corner).
-			Span<Vector3> slice = stackalloc Vector3[8];
 			var center = Vector3.Zero;
 			for (var k = 0; k < 4; k++)
 			{
