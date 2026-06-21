@@ -14,9 +14,11 @@ using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned
 #endif
 using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
-using Loom.UI;
-using Loom.UI.Controls;
-using Loom.UI.Input;
+using Loom.UI.SUIsei;
+using SUIsei;
+using SUIsei.Controls;
+using SUIsei.Drawing;
+using SUIsei.Input;
 #if LOOM_VULKAN
 using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type (Planning.md §5)
 #endif
@@ -63,7 +65,8 @@ internal static class Program
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(assets, "brick_normal.png"), TextureFormat.Rgba8Unorm)));
 		// The game-UI painter: registers the "ui" technique and uploads the white texel + default glyph atlas through
 		// the public API, then renders each composited overlay list. Created up front so the demo graphs capture it.
-		var uiPainter = UIPainter.Create(engine, FontAtlas.Default.Texture);
+		var uiHost = new UIHost();
+		var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
 		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter);
 
 		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
@@ -109,11 +112,9 @@ internal static class Program
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
 #endif
 
-		// A screen-space overlay surface driven by a UIHost — the per-window host that owns pointer input + the roots
-		// off the render graph. Its compositor lays glyphs out against the same default font (embedded Cascadia Code
-		// MTSDF) the painter uploaded, so UVs match. The single overlay surface carries one of two contents, swapped
-		// per active demo: the static panel (every other demo) and the interactive, data-bound page ("UI Interactive").
-		var uiHost = new UIHost();
+		// A screen-space overlay surface driven by the UIHost created above. Its compositor lays glyphs out against the
+		// same default font the painter uploaded, so UVs match. The single overlay surface carries one of two contents,
+		// swapped per active demo: the static panel (every other demo) and the interactive data-bound page.
 		var overlay = uiHost.CreateRoot(UIPlacement.Overlay(zLayer: 0, layoutScale: 1f));
 
 		// The static MU1 panel (unchanged) — the overlay content for every non-interactive demo.
@@ -477,7 +478,7 @@ internal static class Program
 				uiHost.QueuePointer(PointerInput.Release(click));
 			}
 
-			uiHost.Tick(delta, elapsed, camera, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
+			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
 
 			// M15-3: a demo that wants cascaded shadows fits cascades to the scripted camera + sun; threaded into
@@ -500,7 +501,6 @@ internal static class Program
 				CascadeSplits = cascadeSplits,
 				HoverId = hoverId,
 				ImGuiDrawData = imguiDrawData,
-				DrawLists = uiHost.DrawLists,
 			});
 
 			if (capturePath is not null && frame >= 62)

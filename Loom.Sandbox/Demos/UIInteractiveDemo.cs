@@ -1,7 +1,7 @@
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.UI;
+using SUIsei;
 
 namespace Loom.Sandbox.Demos;
 

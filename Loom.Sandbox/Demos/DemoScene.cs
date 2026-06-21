@@ -1,6 +1,7 @@
 using Loom.Core.Geometry;
 using Loom.Core.Materials;
-using Loom.UI;
+using Loom.UI.SUIsei;
+using SUIsei;
 
 namespace Loom.Sandbox.Demos;
 
