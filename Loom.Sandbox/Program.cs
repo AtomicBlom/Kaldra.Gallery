@@ -81,6 +81,9 @@ internal static class Program
 		// The interactive UI demo (MU2): when it is active the overlay shows the data-bound page + routes pointer
 		// input; otherwise the static MU1 panel. -1 if its techniques were dropped on this backend (then never shown).
 		var interactiveIndex = Array.FindIndex(demos, d => d.Name == "UI Interactive");
+		// The group-opacity demo (MU4): when active the overlay shows a faded container of overlapping translucent
+		// children, exercising the backend's render-to-texture layer composite.
+		var groupOpacityIndex = Array.FindIndex(demos, d => d.Name == "UI Group Opacity");
 
 		// --dump-graph=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the active graph on startup
 		// and every swap; the ImGui "Export graph" menu item writes the same on demand.
@@ -141,6 +144,32 @@ internal static class Program
 
 		// The MU2 interactive page: XAML → typed tree + {x:Bind} label + Click handler (UI/UIInteractiveView.*).
 		var interactivePage = new UIInteractiveView();
+
+		// The MU4 group-opacity content: a 50%-opacity container over a Canvas of two overlapping opaque fills. True
+		// group opacity composites the subtree once and fades the result, so the overlap stays the same colour as the
+		// non-overlap; folding the fade per child would darken the overlap. The backend renders this via its
+		// offscreen layer composite — the only UI path whose pixels depend on the backend, hence the parity gate.
+		var overlapCanvas = new Canvas { Width = 240f, Height = 180f };
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		Canvas.SetLeft(fillA, 0f);
+		Canvas.SetTop(fillA, 0f);
+		Canvas.SetLeft(fillB, 80f);
+		Canvas.SetTop(fillB, 50f);
+		overlapCanvas.Children.Add(fillA);
+		overlapCanvas.Children.Add(fillB);
+		UIElement groupOpacityPanel = new Border
+		{
+			Margin = new Thickness(48f, 48f, 0f, 0f),
+			HorizontalAlignment = HorizontalAlignment.Left,
+			VerticalAlignment = VerticalAlignment.Top,
+			Padding = new Thickness(24f),
+			Background = HdrColor.FromRgb(18, 22, 30),
+			CornerRadius = 14f,
+			Opacity = 0.5f,
+			Child = overlapCanvas,
+		};
+
 		overlay.Root.Content = mu1Panel;
 
 		engine.SetGraph(graphs[currentDemo]);
@@ -463,7 +492,9 @@ internal static class Program
 			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
 			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
 			// renders the list by id via the painter (scene.UI).
-			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage.Root : mu1Panel;
+			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage.Root
+				: currentDemo == groupOpacityIndex ? groupOpacityPanel
+				: mu1Panel;
 
 			// Deterministic capture: with no live mouse, inject one press+release over the page's button (Border at
 			// 24,24 + padding 20,16 → button at 44,40, sized 200x56 → centre 144,68) so the captured frame shows the
@@ -627,6 +658,7 @@ internal static class Program
 		[
 			new CubeLightingDemo(),
 			new UIInteractiveDemo(),
+			new UIGroupOpacityDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),
