@@ -1,4 +1,4 @@
-<Border xmlns="https://github.com/AtomicBlom/Loom/ui"
+<Border xmlns="https://github.com/AtomicBlom/SUIsei/ui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Loom.Sandbox.UI.UIInteractiveView"
         HorizontalAlignment="Left" VerticalAlignment="Top"
