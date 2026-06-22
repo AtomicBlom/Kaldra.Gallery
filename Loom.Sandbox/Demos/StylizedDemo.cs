@@ -46,12 +46,15 @@ internal sealed class StylizedDemo : IDemo
 	private DayNight.State _sun = DayNight.Compute(0.34f);
 	private readonly Camera[] _cascades = new Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
-	private readonly float[] _csmParams = new float[72];
+	private readonly float[] _csmParams = new float[68];
 	private readonly float[] _skyParams = new float[36];
 	private readonly float[] _wind = new float[8];
+	private IEngine _engine = null!;
+	private ConstantsHandle _csmSplits = null!;
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
@@ -112,6 +115,8 @@ internal sealed class StylizedDemo : IDemo
 	public (IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, Vector3 lightDir)
 	{
 		Cascades.Compute(camera, _sun.SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
+		// Splits ride a parameter buffer the lighting pass reads; the matrices stay on the closure push (clip-space flip).
+		_engine.Write(_csmSplits, new DemoGraph.CsmSplits(new Vector4(_splits[0], _splits[1], _splits[2], 0f)));
 		return (_cascades, _splits);
 	}
 
@@ -168,8 +173,10 @@ internal sealed class StylizedDemo : IDemo
 				ctx.DrawInstanced<Blade>(_card, _blade, "foliage", _field, _wind);
 			});
 
+		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2])
+			.Reads(_csmSplits)
 			.Writes(lit)
 			.Draw(ctx => ctx.FullScreen("lighting_toon", PackLighting(ctx), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
@@ -193,15 +200,15 @@ internal sealed class StylizedDemo : IDemo
 			var m = ctx.Cascades[c].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
-		p[48] = ctx.CascadeSplits[0]; p[49] = ctx.CascadeSplits[1]; p[50] = ctx.CascadeSplits[2]; p[51] = 0f;
+		// Splits ride the CsmSplits parameter buffer (written in GetCascades); the push carries matrices + camera/sun/ambient.
 		Matrix4x4.Invert(ctx.Camera.View, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
-		p[52] = eye.X; p[53] = eye.Y; p[54] = eye.Z; p[55] = 0f;
-		p[56] = forward.X; p[57] = forward.Y; p[58] = forward.Z; p[59] = 0f;
-		p[60] = _sun.SunDir.X; p[61] = _sun.SunDir.Y; p[62] = _sun.SunDir.Z; p[63] = _sun.Intensity;
-		p[64] = _sun.SunColor.X; p[65] = _sun.SunColor.Y; p[66] = _sun.SunColor.Z; p[67] = 0f;
-		p[68] = _sun.Ambient.X; p[69] = _sun.Ambient.Y; p[70] = _sun.Ambient.Z; p[71] = 0f;
+		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;
+		p[52] = forward.X; p[53] = forward.Y; p[54] = forward.Z; p[55] = 0f;
+		p[56] = _sun.SunDir.X; p[57] = _sun.SunDir.Y; p[58] = _sun.SunDir.Z; p[59] = _sun.Intensity;
+		p[60] = _sun.SunColor.X; p[61] = _sun.SunColor.Y; p[62] = _sun.SunColor.Z; p[63] = 0f;
+		p[64] = _sun.Ambient.X; p[65] = _sun.Ambient.Y; p[66] = _sun.Ambient.Z; p[67] = 0f;
 		return p;
 	}
 

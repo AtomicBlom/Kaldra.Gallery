@@ -483,15 +483,12 @@ internal static class Program
 			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
 
-			// M15-3: a demo that wants cascaded shadows fits cascades to the scripted camera + sun; threaded into
-			// FrameInputs so its depth passes + deferred lighting pull them. Other demos leave these empty.
+			// A demo that wants cascaded shadows fits cascades to the scripted camera + sun and writes its own split
+			// far-depths into a parameter buffer (in GetCascades); the cascade views thread into FrameInputs so its
+			// depth passes + deferred lighting pull them. Other demos leave these empty.
 			IReadOnlyList<Camera> cascadeViews = [];
-			IReadOnlyList<float> cascadeSplits = [];
 			if (demos[currentDemo].GetCascades(camera, lightDir) is { } cs)
-			{
 				cascadeViews = cs.Cascades;
-				cascadeSplits = cs.Splits;
-			}
 
 			engine.Render(new FrameInputs
 			{
@@ -500,7 +497,6 @@ internal static class Program
 				Camera = renderCamera,
 				SunView = sunCamera,
 				Cascades = cascadeViews,
-				CascadeSplits = cascadeSplits,
 			});
 
 			if (capturePath is not null && frame >= 62)

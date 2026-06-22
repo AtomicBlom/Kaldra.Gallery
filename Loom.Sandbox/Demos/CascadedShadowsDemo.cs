@@ -27,12 +27,15 @@ internal sealed class CascadedShadowsDemo : IDemo
 	private Mesh _ground;
 	private readonly Camera[] _cascades = new Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
-	private readonly float[] _csmParams = new float[72]; // 3×mat4 (48) + splits + eye + forward + sunDir + sunColor + ambient
+	private readonly float[] _csmParams = new float[68]; // 3×mat4 (48) + eye + forward + sunDir + sunColor + ambient
+	private IEngine _engine = null!;
+	private ConstantsHandle _csmSplits = null!;
 
 	public bool DebugTint { get; set; }
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("lighting_csm", new TechniqueDescriptor("lighting_csm"));
@@ -64,6 +67,9 @@ internal sealed class CascadedShadowsDemo : IDemo
 	public (IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, Vector3 lightDir)
 	{
 		Cascades.Compute(camera, SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
+		// The split far-depths + the cascade-tint flag ride a parameter buffer the lighting pass reads (the matrices
+		// stay on the closure push, where the backend's per-cascade clip-space flip applies).
+		_engine.Write(_csmSplits, new DemoGraph.CsmSplits(new Vector4(_splits[0], _splits[1], _splits[2], DebugTint ? 1f : 0f)));
 		return (_cascades, _splits);
 	}
 
@@ -78,6 +84,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
+		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 		var albedo = g.Screen.Color("albedo", Format.Rgba8Srgb);
 		var normal = g.Screen.Color("normal", Format.Rgba16F);
 		var position = g.Screen.Color("position", Format.Rgba16F);
@@ -116,6 +123,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2])
+			.Reads(_csmSplits)
 			.Writes(lit)
 			.Draw(ctx => ctx.FullScreen("lighting_csm", PackParams(ctx), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
@@ -134,19 +142,16 @@ internal sealed class CascadedShadowsDemo : IDemo
 			var m = ctx.Cascades[c].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
-		p[48] = ctx.CascadeSplits[0];
-		p[49] = ctx.CascadeSplits[1];
-		p[50] = ctx.CascadeSplits[2];
-		p[51] = DebugTint ? 1f : 0f;
-
+		// Splits + the cascade-tint flag now ride the CsmSplits parameter buffer (written in GetCascades); the push
+		// carries only the clip-space matrices + the camera/sun/ambient data the engine can't host-write.
 		Matrix4x4.Invert(ctx.Camera.View, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
-		p[52] = eye.X; p[53] = eye.Y; p[54] = eye.Z; p[55] = 0f;
-		p[56] = forward.X; p[57] = forward.Y; p[58] = forward.Z; p[59] = 0f;
-		p[60] = SunDir.X; p[61] = SunDir.Y; p[62] = SunDir.Z; p[63] = 1.8f; // sun dir + key intensity
-		p[64] = 1f; p[65] = 1f; p[66] = 1f; p[67] = 0f;                     // white sun light
-		p[68] = 0.15f; p[69] = 0.15f; p[70] = 0.15f; p[71] = 0f;            // flat grey ambient
+		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;
+		p[52] = forward.X; p[53] = forward.Y; p[54] = forward.Z; p[55] = 0f;
+		p[56] = SunDir.X; p[57] = SunDir.Y; p[58] = SunDir.Z; p[59] = 1.8f; // sun dir + key intensity
+		p[60] = 1f; p[61] = 1f; p[62] = 1f; p[63] = 0f;                     // white sun light
+		p[64] = 0.15f; p[65] = 0.15f; p[66] = 0.15f; p[67] = 0f;            // flat grey ambient
 		return p;
 	}
 }

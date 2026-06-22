@@ -11,17 +11,24 @@ static const int CASCADE_COUNT = 3;
 [[vk::binding(4, 0)]] Sampler2D cascade1;
 [[vk::binding(5, 0)]] Sampler2D cascade2;
 
+// The cascade split far-depths (.xyz) + cascade-tint flag (.w), an app-written parameter buffer the pass .Reads;
+// bound at uniform slot 0 (host data), ahead of the in-closure matrix push.
+struct CsmSplits
+{
+	float4 splits;
+};
+[[vk::binding(6, 0)]] ConstantBuffer<CsmSplits> csmSplits : register(b1);
+
 struct CsmParams
 {
 	float4x4 cascadeViewProj[CASCADE_COUNT];
-	float4 splits;       // far view-depths .xyz; .w = debug-tint flag
 	float4 eye;          // camera world position .xyz
 	float4 forward;      // camera forward .xyz
 	float4 sunDir;       // direction toward the sun .xyz, key intensity .w
 	float4 sunColor;     // sun light colour .rgb
 	float4 ambientColor; // ambient colour .rgb
 };
-[[vk::binding(6, 0)]] ConstantBuffer<CsmParams> csm : register(b1);
+[[vk::binding(7, 0)]] ConstantBuffer<CsmParams> csm : register(b2);
 
 struct VsOut
 {
@@ -68,9 +75,9 @@ float4 fragmentMain(VsOut input) : SV_Target
 
 	float viewDepth = dot(worldPos - csm.eye.xyz, csm.forward.xyz);
 	int cascade = 0;
-	if (viewDepth > csm.splits.x)
+	if (viewDepth > csmSplits.splits.x)
 		cascade = 1;
-	if (viewDepth > csm.splits.y)
+	if (viewDepth > csmSplits.splits.y)
 		cascade = 2;
 
 	float3 lightDir = normalize(csm.sunDir.xyz);
@@ -89,7 +96,7 @@ float4 fragmentMain(VsOut input) : SV_Target
 
 	float3 color = albedo * (csm.ambientColor.rgb + csm.sunColor.rgb * banded * csm.sunDir.w) + csm.sunColor.rgb * rim;
 
-	if (csm.splits.w > 0.5)
+	if (csmSplits.splits.w > 0.5)
 	{
 		float3 tint = cascade == 0 ? float3(1.0, 0.4, 0.4) : cascade == 1 ? float3(0.4, 1.0, 0.4) : float3(0.4, 0.4, 1.0);
 		color *= tint;
