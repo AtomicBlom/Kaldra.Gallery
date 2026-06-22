@@ -3,7 +3,6 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.Scene;
 
 namespace Loom.Sandbox.Demos;
 
@@ -34,12 +33,12 @@ internal sealed class Debug2DDemo : IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
-			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Sprite));
+			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
 		engine.DefineTechnique("light2d", new TechniqueDescriptor(
-			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Light2D));
+			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Light2D));
 		engine.DefineTechnique("gizmo2d", new TechniqueDescriptor(
-			"gizmo2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Light2D));
+			"gizmo2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Light2D));
 		engine.DefineTechnique("gbufview2d", new TechniqueDescriptor("gbufview2d"));
 
 		_atlas = BallAtlas.CreateMaterial(engine, out var sheet);

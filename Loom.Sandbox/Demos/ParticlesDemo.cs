@@ -1,3 +1,4 @@
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -19,7 +20,7 @@ internal sealed class ParticlesDemo : IDemo
 	{
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
-		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, ParticleInput: true));
+		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}
 
@@ -48,7 +49,7 @@ internal sealed class ParticlesDemo : IDemo
 		g.Pass("particles")
 			.Blends(lit)
 			.ReadsVertex(particles)
-			.Draw(ctx => ctx.DrawParticles(particles, particleCount, "particle.render"));
+			.Draw(ctx => ctx.DrawInstanced("particle.render", particles, vertexCount: 6, instanceCount: particleCount)); // 6 = a billboard quad fabricated per particle
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
 		DemoGraph.Hud(g, screen);

@@ -5,7 +5,7 @@
 // particle's age is a pure function of (index, time), integrated analytically as pos = spawn + v0·age +
 // ½·g·age², so no cross-frame buffer state is needed and a frozen capture reproduces bit-for-bit (the
 // cross-backend golden). The render pass reads this same buffer as the per-instance vertex stream
-// (Loom.Core VertexLayout.Particle, two IPARTICLE float4 rows); the graph derives the compute→vertex barrier.
+// (SandboxVertexLayouts.Particle, two IPARTICLE float4 rows); the graph derives the compute→vertex barrier.
 
 struct Particle
 {

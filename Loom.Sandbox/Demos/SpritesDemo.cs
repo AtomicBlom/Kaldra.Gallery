@@ -5,14 +5,13 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.Scene;
 
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
 /// Sprite batching + texture atlases (PlanningPhase2.md M14-1, Track A). One <c>ctx.DrawInstanced</c> places a
 /// whole field of quads — each a <see cref="SpriteInstance"/> in the per-instance stream (<see
-/// cref="VertexLayout.Sprite"/>) sharing one atlas material — into a low-res 2D deferred G-buffer
+/// cref="SandboxVertexLayouts.Sprite"/>) sharing one atlas material — into a low-res 2D deferred G-buffer
 /// (gbuffer_sprite.slang: albedo + tangent-space normal + emissive), which a compose pass lights and a nearest
 /// upscale blows up to the screen (the §9 pixelation). The camera is orthographic (<see cref="GetCamera"/>).
 /// <para>
@@ -35,7 +34,7 @@ internal sealed class SpritesDemo : IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
-			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Sprite));
+			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 

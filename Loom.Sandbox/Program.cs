@@ -373,23 +373,28 @@ internal static class Program
 
 			imguiPainter.SetDebugLines(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(debugSegments));
 
-			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
-			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
-			// a readback return 0 from SamplePick, so this is harmless for them.
-			uint hoverId;
-			if (capturePath is not null)
+			// Hover (Object Highlighting / Full): read the demo's object-id buffer back at the cursor (§7.4) and hand
+			// the hovered id to the demo, which writes it into the outline's parameter buffer (WriteHover). The cursor
+			// maps through the pick target's own resolution. In capture, force the cube hovered so the outline shows.
+			// A demo with no PickTarget skips this entirely — the engine carries no picking state of its own.
+			uint hoverId = 0u;
+			if (demos[currentDemo].PickTarget is { } pickTarget)
 			{
-				hoverId = 1u;
-			}
-			else if (mouse is not null)
-			{
-				var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * 320);
-				var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * 180);
-				hoverId = (uint)MathF.Round(engine.SamplePick(px, py));
-			}
-			else
-			{
-				hoverId = 0u;
+				if (capturePath is not null)
+				{
+					hoverId = 1u;
+				}
+				else if (mouse is not null)
+				{
+					var (pw, ph) = pickTarget.Resolve();
+					var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * pw);
+					var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * ph);
+					var pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(engine.Read(pickTarget));
+					var i = py * pw + px;
+					if ((uint)i < (uint)pixels.Length)
+						hoverId = (uint)MathF.Round((float)pixels[i]);
+				}
+				demos[currentDemo].WriteHover(engine, hoverId);
 			}
 
 			if (capturePath is not null && frame == 60)
@@ -509,15 +514,12 @@ internal static class Program
 			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
 
-			// M15-3: a demo that wants cascaded shadows fits cascades to the scripted camera + sun; threaded into
-			// FrameInputs so its depth passes + deferred lighting pull them. Other demos leave these empty.
+			// A demo that wants cascaded shadows fits cascades to the scripted camera + sun and writes its own split
+			// far-depths into a parameter buffer (in GetCascades); the cascade views thread into FrameInputs so its
+			// depth passes + deferred lighting pull them. Other demos leave these empty.
 			IReadOnlyList<Camera> cascadeViews = [];
-			IReadOnlyList<float> cascadeSplits = [];
 			if (demos[currentDemo].GetCascades(camera, lightDir) is { } cs)
-			{
 				cascadeViews = cs.Cascades;
-				cascadeSplits = cs.Splits;
-			}
 
 			engine.Render(new FrameInputs
 			{
@@ -526,8 +528,6 @@ internal static class Program
 				Camera = renderCamera,
 				SunView = sunCamera,
 				Cascades = cascadeViews,
-				CascadeSplits = cascadeSplits,
-				HoverId = hoverId,
 			});
 
 			if (capturePath is not null && frame >= 62)
@@ -659,6 +659,9 @@ internal static class Program
 			new CubeLightingDemo(),
 			new UIInteractiveDemo(),
 			new UIGroupOpacityDemo(),
+			new ConstantsDemo(),
+			new MultiUboDemo(),
+			new StorageBufferDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),

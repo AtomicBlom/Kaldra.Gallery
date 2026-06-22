@@ -1,3 +1,5 @@
+using System.Numerics;
+
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -14,13 +16,16 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class HighlightingDemo : IDemo
 {
+	private ColorHandle _ids = null!;
+	private ConstantsHandle _hoverParams = null!;
+
 	public string Name => "Object Highlighting";
 
 	public void DefineTechniques(IEngine engine)
 	{
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
-		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed", HasFragmentPush: true));
+		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed"));
 		engine.DefineTechnique("outline.jfa", new TechniqueDescriptor("outline_jfa", HasFragmentPush: true));
 		engine.DefineTechnique("outline.resolve", new TechniqueDescriptor("outline_resolve"));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
@@ -46,14 +51,19 @@ internal sealed class HighlightingDemo : IDemo
 				ctx.Draw(scene.Plane, "lit");
 			});
 
-		// Write the cube's object id (1), then read it back so the host can decide the hovered object (§7.4).
+		// Write the cube's object id (1), then read it back so the host can decide the hovered object (§7.4). The
+		// host hands the hovered id to the seed pass through this parameter buffer (WriteHover) — no engine-side
+		// picking state, just the general readback + parameter-buffer primitives.
+		_ids = ids;
+		_hoverParams = g.Constants<DemoGraph.OutlineParams>("outline.params");
 		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(scene.Cube, "id"));
 		g.Readback(ids);
 
 		g.Pass("outline.seed")
 			.Samples(ids)
+			.Reads(_hoverParams)
 			.Writes(seedA)
-			.Draw(ctx => ctx.FullScreen("outline.seed", [(float)ctx.HoverId], ids));
+			.Draw(ctx => ctx.FullScreen("outline.seed", ids));
 
 		var (read, write) = (seedA, seedB);
 		const int outlineReach = 4; // a 2-3px ring only needs distance out to its own width: steps 4→2→1
@@ -79,4 +89,9 @@ internal sealed class HighlightingDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	public ResourceHandle? PickTarget => _ids;
+
+	public void WriteHover(IEngine engine, uint hoveredId) =>
+		engine.Write(_hoverParams, new DemoGraph.OutlineParams(new Vector4(hoveredId, 0f, 0f, 0f)));
 }

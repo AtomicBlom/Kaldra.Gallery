@@ -41,4 +41,20 @@ internal static class DemoGraph
 	/// temporary, which lives to the end of the enclosing push call where it is read synchronously.
 	/// </summary>
 	public static ReadOnlySpan<float> Mat(in Matrix4x4 m) => MemoryMarshal.CreateReadOnlySpan(in m.M11, 16);
+
+	/// <summary>
+	/// The outline seed pass's parameters — the hovered object id (0 = nothing) in <c>P.X</c>. The host writes it
+	/// each frame from the picking readback (<c>IEngine.Read</c>) via the demo's <c>WriteHover</c>, and the seed
+	/// technique reads it from a <c>g.Constants</c> buffer it <c>.Reads</c>. A single float4 row — identical
+	/// std140/cbuffer layout on both backends.
+	/// </summary>
+	public readonly record struct OutlineParams(Vector4 P);
+
+	/// <summary>
+	/// The cascaded-shadow split parameters a CSM lighting pass <c>.Reads</c>: the three cascades' far view-depths
+	/// in <c>P.X/Y/Z</c> and a cascade-tint debug flag in <c>P.W</c>. The host writes it from its fitted cascades
+	/// (<c>IEngine.Write</c>); the lighting shader reads it from uniform slot 0, leaving the clip-space cascade
+	/// matrices on the in-closure push (slot 1) where the engine's per-cascade Y-flip can apply. A single float4 row.
+	/// </summary>
+	public readonly record struct CsmSplits(Vector4 P);
 }

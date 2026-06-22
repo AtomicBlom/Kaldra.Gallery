@@ -5,7 +5,6 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.Scene;
 
 namespace Loom.Sandbox.Demos;
 
@@ -50,22 +49,22 @@ internal sealed class PixelArtDemo : IDemo
 	private SpriteSheet _spinSheet = new(1, 1);
 
 	private const int GlowParticleCount = 512; // multiple of 64 (the compute workgroup size)
-	private const int ParticleStrideBytes = 32; // VertexLayout.Particle: two IPARTICLE float4 rows
+	private const int ParticleStrideBytes = 32; // SandboxVertexLayouts.Particle: two IPARTICLE float4 rows
 
 	public string Name => "Pixel Art";
 
 	public void DefineTechniques(IEngine engine)
 	{
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
-			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Sprite));
+			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("tilemap", new TechniqueDescriptor("tilemap", HasVertexInput: true, Layout: VertexLayout.MeshStandard));
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
 		engine.DefineTechnique("light2d", new TechniqueDescriptor(
-			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Light2D));
+			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Light2D));
 		engine.DefineTechnique("particle.glow.update", new TechniqueDescriptor(
 			"particle_glow_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("particle.glow.render", new TechniqueDescriptor(
-			"particle_glow_render", Blend: BlendMode.Additive, LinearFilter: true, ParticleInput: true, Instance: VertexLayout.Particle));
+			"particle_glow_render", Blend: BlendMode.Additive, LinearFilter: true, Instance: SandboxVertexLayouts.Particle));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
@@ -148,7 +147,7 @@ internal sealed class PixelArtDemo : IDemo
 		g.Pass("glow")
 			.Blends(lit)
 			.ReadsVertex(glow)
-			.Draw(ctx => ctx.DrawParticles(glow, GlowParticleCount, _sparks, "particle.glow.render"));
+			.Draw(ctx => ctx.DrawInstanced("particle.glow.render", _sparks, glow, vertexCount: 6, instanceCount: GlowParticleCount)); // 6 = a billboard quad fabricated per spark
 
 		// Bloom the HDR lit result (the light highlights + ember sparks glow), then nearest-upscale to the screen.
 		var bloomed = g.Bloom(lit, threshold: 1.0f, mips: 5, intensity: 0.8f);

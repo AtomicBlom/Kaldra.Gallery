@@ -1,5 +1,5 @@
 // 2D sprite G-buffer (PlanningPhase2.md M14, Track A). Instanced unit quads (per-vertex binding 0) expanded by
-// the per-instance SpriteInstance (binding 1, VertexLayout.Sprite) into the deferred 2D G-buffer: albedo
+// the per-instance SpriteInstance (binding 1, SandboxVertexLayouts.Sprite) into the deferred 2D G-buffer: albedo
 // (SV_Target0), encoded world normal (SV_Target1), emissive (SV_Target2). Sprites are flat quads facing +Z with
 // a fixed TBN (T=+X, B=+Y, N=+Z), so a tangent-space normal map gives them relief under the 2D light volumes
 // (light2d.slang, M14-3). Albedo (material slot 0) + normal map (slot 1) come from the atlas; the per-instance
@@ -28,7 +28,7 @@ struct VsIn
 	[[vk::location(1)]] float3 normal : NORMAL;         // unused (sprites use a fixed TBN)
 	[[vk::location(2)]] float2 quadUv : TEXCOORD0;      // == corner.xy (the quad's own uv)
 	[[vk::location(3)]] float4 tangent : TANGENT;       // unused
-	// Per-instance SpriteInstance (binding 1 — VertexLayout.Sprite), locations continue at 4..7:
+	// Per-instance SpriteInstance (binding 1 — SandboxVertexLayouts.Sprite), locations continue at 4..7:
 	[[vk::location(4)]] float4 iXformRot : ISPRITE0;    // position.xy, depth, rotation
 	[[vk::location(5)]] float4 iSizePivot : ISPRITE1;   // size.xy, pivot.xy
 	[[vk::location(6)]] float4 iUvRect : ISPRITE2;      // atlas rect: u0, v0, u1, v1

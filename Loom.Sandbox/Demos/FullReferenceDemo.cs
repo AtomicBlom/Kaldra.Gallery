@@ -1,3 +1,6 @@
+using System.Numerics;
+
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -14,6 +17,9 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class FullReferenceDemo : IDemo
 {
+	private ColorHandle _ids = null!;
+	private ConstantsHandle _hoverParams = null!;
+
 	public string Name => "Full reference frame";
 
 	public void DefineTechniques(IEngine engine)
@@ -25,9 +31,9 @@ internal sealed class FullReferenceDemo : IDemo
 		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", HasFragmentPush: true)); // 5-input deferred lighting + shadow + ao
 		engine.DefineTechnique("transparent", new TechniqueDescriptor("transparent", HasVertexInput: true, Blend: BlendMode.AlphaOver));
 		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
-		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, ParticleInput: true));
+		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
-		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed", HasFragmentPush: true));
+		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed"));
 		engine.DefineTechnique("outline.jfa", new TechniqueDescriptor("outline_jfa", HasFragmentPush: true));
 		engine.DefineTechnique("outline.resolve", new TechniqueDescriptor("outline_resolve"));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
@@ -101,20 +107,23 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Pass("particle.draw")
 			.Blends(lit)
 			.ReadsVertex(particles)
-			.Draw(ctx => ctx.DrawParticles(particles, particleCount, "particle.render"));
+			.Draw(ctx => ctx.DrawInstanced("particle.render", particles, vertexCount: 6, instanceCount: particleCount)); // 6 = a billboard quad fabricated per particle
 
 		var ids = world.Color("object_id", Format.R16F);
 		var seedA = world.Color("outline_a", Format.Rg16F);
 		var seedB = world.Color("outline_b", Format.Rg16F);
 		var outlined = world.Color("lit_outlined", Format.Rgba16F);
 
+		_ids = ids;
+		_hoverParams = g.Constants<DemoGraph.OutlineParams>("outline.params");
 		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(scene.Cube, "id"));
 		g.Readback(ids);
 
 		g.Pass("outline.seed")
 			.Samples(ids)
+			.Reads(_hoverParams)
 			.Writes(seedA)
-			.Draw(ctx => ctx.FullScreen("outline.seed", [(float)ctx.HoverId], ids));
+			.Draw(ctx => ctx.FullScreen("outline.seed", ids));
 
 		var (read, write) = (seedA, seedB);
 		for (var step = 4; step >= 1; step >>= 1)
@@ -155,4 +164,9 @@ internal sealed class FullReferenceDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	public ResourceHandle? PickTarget => _ids;
+
+	public void WriteHover(IEngine engine, uint hoveredId) =>
+		engine.Write(_hoverParams, new DemoGraph.OutlineParams(new Vector4(hoveredId, 0f, 0f, 0f)));
 }

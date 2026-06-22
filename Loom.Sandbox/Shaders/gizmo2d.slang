@@ -1,6 +1,6 @@
 // 2D light gizmo (PlanningPhase2.md M14-7, Track A — debug overlays). One additive ring per light, drawn over the
 // lit target to visualise each light's position (centre marker) and reach (the ring at its radius). Reuses the
-// Light2DInstance stream (VertexLayout.Light2D) the real lights use — the same data, drawn as a wireframe instead
+// Light2DInstance stream (SandboxVertexLayouts.Light2D) the real lights use — the same data, drawn as a wireframe instead
 // of shaded — so the gizmo can't drift from what's actually lighting the scene. Procedural (no texture): the
 // fragment derives the ring from the quad-local coordinate. Additive blend, so it glows over the scene without a
 // depth/occlusion test. Entry points vertexMain/fragmentMain so the build emits DXIL.
