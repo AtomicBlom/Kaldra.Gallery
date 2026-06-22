@@ -632,6 +632,7 @@ internal static class Program
 			new CubeLightingDemo(),
 			new UIInteractiveDemo(),
 			new ConstantsDemo(),
+			new MultiUboDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),
