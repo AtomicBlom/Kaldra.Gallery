@@ -41,4 +41,12 @@ internal static class DemoGraph
 	/// temporary, which lives to the end of the enclosing push call where it is read synchronously.
 	/// </summary>
 	public static ReadOnlySpan<float> Mat(in Matrix4x4 m) => MemoryMarshal.CreateReadOnlySpan(in m.M11, 16);
+
+	/// <summary>
+	/// The outline seed pass's parameters — the hovered object id (0 = nothing) in <c>P.X</c>. The host writes it
+	/// each frame from the picking readback (<c>IEngine.Read</c>) via the demo's <c>WriteHover</c>, and the seed
+	/// technique reads it from a <c>g.Constants</c> buffer it <c>.Reads</c>. A single float4 row — identical
+	/// std140/cbuffer layout on both backends.
+	/// </summary>
+	public readonly record struct OutlineParams(Vector4 P);
 }

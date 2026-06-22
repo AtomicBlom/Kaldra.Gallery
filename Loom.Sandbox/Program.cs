@@ -344,23 +344,28 @@ internal static class Program
 
 			imguiPainter.SetDebugLines(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(debugSegments));
 
-			// Hover (for Object Highlighting / Full): map the cursor into the 320×180 picking domain and read
-			// the object id back (§7.4). In capture, force the cube hovered so the outline shows. Demos without
-			// a readback return 0 from SamplePick, so this is harmless for them.
-			uint hoverId;
-			if (capturePath is not null)
+			// Hover (Object Highlighting / Full): read the demo's object-id buffer back at the cursor (§7.4) and hand
+			// the hovered id to the demo, which writes it into the outline's parameter buffer (WriteHover). The cursor
+			// maps through the pick target's own resolution. In capture, force the cube hovered so the outline shows.
+			// A demo with no PickTarget skips this entirely — the engine carries no picking state of its own.
+			uint hoverId = 0u;
+			if (demos[currentDemo].PickTarget is { } pickTarget)
 			{
-				hoverId = 1u;
-			}
-			else if (mouse is not null)
-			{
-				var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * 320);
-				var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * 180);
-				hoverId = (uint)MathF.Round(engine.SamplePick(px, py));
-			}
-			else
-			{
-				hoverId = 0u;
+				if (capturePath is not null)
+				{
+					hoverId = 1u;
+				}
+				else if (mouse is not null)
+				{
+					var (pw, ph) = pickTarget.Resolve();
+					var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * pw);
+					var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * ph);
+					var pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(engine.Read(pickTarget));
+					var i = py * pw + px;
+					if ((uint)i < (uint)pixels.Length)
+						hoverId = (uint)MathF.Round((float)pixels[i]);
+				}
+				demos[currentDemo].WriteHover(engine, hoverId);
 			}
 
 			if (capturePath is not null && frame == 60)
@@ -496,7 +501,6 @@ internal static class Program
 				SunView = sunCamera,
 				Cascades = cascadeViews,
 				CascadeSplits = cascadeSplits,
-				HoverId = hoverId,
 			});
 
 			if (capturePath is not null && frame >= 62)
@@ -627,6 +631,7 @@ internal static class Program
 		[
 			new CubeLightingDemo(),
 			new UIInteractiveDemo(),
+			new ConstantsDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),

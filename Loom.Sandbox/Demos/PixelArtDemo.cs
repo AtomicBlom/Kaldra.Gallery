@@ -147,7 +147,7 @@ internal sealed class PixelArtDemo : IDemo
 		g.Pass("glow")
 			.Blends(lit)
 			.ReadsVertex(glow)
-			.Draw(ctx => ctx.DrawParticles(glow, GlowParticleCount, _sparks, "particle.glow.render"));
+			.Draw(ctx => ctx.DrawInstanced("particle.glow.render", _sparks, glow, vertexCount: 6, instanceCount: GlowParticleCount)); // 6 = a billboard quad fabricated per spark
 
 		// Bloom the HDR lit result (the light highlights + ember sparks glow), then nearest-upscale to the screen.
 		var bloomed = g.Bloom(lit, threshold: 1.0f, mips: 5, intensity: 0.8f);

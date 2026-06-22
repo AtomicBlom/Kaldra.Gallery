@@ -49,7 +49,7 @@ internal sealed class ParticlesDemo : IDemo
 		g.Pass("particles")
 			.Blends(lit)
 			.ReadsVertex(particles)
-			.Draw(ctx => ctx.DrawParticles(particles, particleCount, "particle.render"));
+			.Draw(ctx => ctx.DrawInstanced("particle.render", particles, vertexCount: 6, instanceCount: particleCount)); // 6 = a billboard quad fabricated per particle
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
 		DemoGraph.Hud(g, screen);

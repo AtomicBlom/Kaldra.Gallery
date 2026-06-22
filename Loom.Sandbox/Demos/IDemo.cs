@@ -64,4 +64,14 @@ internal interface IDemo
 
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
+
+	/// <summary>
+	/// The object-id buffer this demo writes for cursor picking (Planning.md §7.4), or null if it doesn't pick. The
+	/// launcher reads it back at the cursor (<see cref="IEngine.Read"/>), decodes the hovered id, and hands it to
+	/// <see cref="WriteHover"/> — picking is app-owned, so the engine carries no picking concept of its own.
+	/// </summary>
+	ResourceHandle? PickTarget => null;
+
+	/// <summary>Write the hovered object id into the demo's outline parameter buffer (<see cref="IEngine.Write"/>). No-op unless the demo picks.</summary>
+	void WriteHover(IEngine engine, uint hoveredId) { }
 }
