@@ -633,6 +633,7 @@ internal static class Program
 			new UIInteractiveDemo(),
 			new ConstantsDemo(),
 			new MultiUboDemo(),
+			new StorageBufferDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),
