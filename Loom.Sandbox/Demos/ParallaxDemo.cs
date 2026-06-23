@@ -79,7 +79,7 @@ internal sealed class ParallaxDemo : IDemo
 			.Draw(ctx =>
 			{
 				var sprites = BuildLayers(ctx.Time);
-				ctx.DrawInstanced(scene.Quad, _atlas, "sprite", sprites.AsSpan());
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(sprites.AsSpan()) });
 			});
 
 		g.Pass("compose")

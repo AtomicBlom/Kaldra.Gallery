@@ -40,8 +40,8 @@ internal sealed class NormalMappingDemo : IDemo
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Sun]);
-				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
+				ctx.Draw(new DrawCall { Mesh = scene.Plane, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
 			});
 
 		// Deferred geometry, drawn with the brick material — the only difference from the plain deferred path.
@@ -50,8 +50,8 @@ internal sealed class NormalMappingDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, scene.NormalMapped, "gbuffer.nm");
-				ctx.Draw(scene.Plane, scene.NormalMapped, "gbuffer.nm");
+				ctx.Draw(new DrawCall { Mesh = scene.Cube, Material = scene.NormalMapped, Technique = "gbuffer.nm" });
+				ctx.Draw(new DrawCall { Mesh = scene.Plane, Material = scene.NormalMapped, Technique = "gbuffer.nm" });
 			});
 
 		g.Pass("lighting")

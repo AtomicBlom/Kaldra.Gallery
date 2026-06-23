@@ -64,8 +64,8 @@ internal sealed class FullReferenceDemo : IDemo
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Sun]);
-				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
+				ctx.Draw(new DrawCall { Mesh = scene.Plane, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
 			});
 
 		g.Pass("gbuffer")
@@ -73,8 +73,8 @@ internal sealed class FullReferenceDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "gbuffer");
-				ctx.Draw(scene.Plane, "gbuffer");
+				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "gbuffer"));
 			});
 
 		g.Pass("ssao")
@@ -95,7 +95,7 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Pass("transparent")
 			.Blends(lit)
 			.ReadsDepth(depth)
-			.Draw(ctx => ctx.Draw(scene.Cube, "transparent"));
+			.Draw(ctx => ctx.Draw(DrawCall.Create(scene.Cube, "transparent")));
 
 		const int particleCount = 4096;
 		var particles = g.Buffer("particles", particleCount * 16);
@@ -107,7 +107,7 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Pass("particle.draw")
 			.Blends(lit)
 			.ReadsVertex(particles)
-			.Draw(ctx => ctx.DrawInstanced("particle.render", particles, vertexCount: 6, instanceCount: particleCount)); // 6 = a billboard quad fabricated per particle
+			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.render", VertexCount = 6, Instances = DrawCall.Gpu(particles, particleCount) })); // 6 = a billboard quad fabricated per particle
 
 		var ids = world.Color("object_id", Format.R16F);
 		var seedA = world.Color("outline_a", Format.Rg16F);
@@ -116,7 +116,7 @@ internal sealed class FullReferenceDemo : IDemo
 
 		_ids = ids;
 		_hoverParams = g.Constants<DemoGraph.OutlineParams>("outline.params");
-		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(scene.Cube, "id"));
+		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(DrawCall.Create(scene.Cube, "id")));
 		g.Readback(ids);
 
 		g.Pass("outline.seed")

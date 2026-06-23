@@ -38,8 +38,8 @@ internal sealed class ShadowsDemo : IDemo
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Sun]);
-				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
+				ctx.Draw(new DrawCall { Mesh = scene.Plane, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
 			});
 
 		g.Pass("gbuffer")
@@ -47,8 +47,8 @@ internal sealed class ShadowsDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "gbuffer");
-				ctx.Draw(scene.Plane, "gbuffer");
+				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "gbuffer"));
 			});
 
 		// Deferred lighting + the shadow test; the sun's view-projection rides the fragment push (the same

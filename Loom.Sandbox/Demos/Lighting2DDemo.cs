@@ -77,7 +77,7 @@ internal sealed class Lighting2DDemo : IDemo
 		// 1. One instanced draw rasterises every sprite into the 2D G-buffer (clears, then alpha-tested quads).
 		g.Pass("sprites")
 			.Writes(albedo, normal, emissive)
-			.Draw(ctx => ctx.DrawInstanced(scene.Quad, _atlas, "sprite", _sprites.AsSpan()));
+			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
 		// 2. Base term: ambient·albedo + emissive seeds the (HDR) lit target before the lights accumulate.
 		g.Pass("ambient")
@@ -101,7 +101,7 @@ internal sealed class Lighting2DDemo : IDemo
 					Light2DInstance.At(centre + Orbit(t * 0.90f + 4.2f, 60f), 108f, new Vector3(0.45f, 0.95f, 0.40f), 1.4f, 44f),
 				];
 				ReadOnlySpan<ResourceHandle> gbuffer = [albedo, normal];
-				ctx.DrawInstanced(scene.Quad, "light2d", lights, gbuffer);
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From<Light2DInstance>(lights), Sampled = gbuffer });
 			});
 
 		// 4. Nearest upscale to the backbuffer — the §9 pixelation.

@@ -47,8 +47,8 @@ internal sealed class HighlightingDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "lit");
-				ctx.Draw(scene.Plane, "lit");
+				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
 			});
 
 		// Write the cube's object id (1), then read it back so the host can decide the hovered object (§7.4). The
@@ -56,7 +56,7 @@ internal sealed class HighlightingDemo : IDemo
 		// picking state, just the general readback + parameter-buffer primitives.
 		_ids = ids;
 		_hoverParams = g.Constants<DemoGraph.OutlineParams>("outline.params");
-		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(scene.Cube, "id"));
+		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(DrawCall.Create(scene.Cube, "id")));
 		g.Readback(ids);
 
 		g.Pass("outline.seed")

@@ -154,8 +154,8 @@ internal sealed class StylizedDemo : IDemo
 				.ReadsVertex(skinned)
 				.Draw(ctx =>
 				{
-					ctx.DrawSkinned(_char, skinned, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
-					ctx.Draw(_ground, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
+					ctx.Draw(new DrawCall { Mesh = _char, SkinnedVertices = skinned, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
+					ctx.Draw(new DrawCall { Mesh = _ground, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
 				});
 		}
 
@@ -166,11 +166,11 @@ internal sealed class StylizedDemo : IDemo
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				ctx.DrawSkinned(_char, skinned, "gbuffer");
-				ctx.Draw(_ground, "gbuffer");
+				ctx.Draw(new DrawCall { Mesh = _char, SkinnedVertices = skinned, Technique = "gbuffer" });
+				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
 				_wind[4] = 0.16f; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
-				ctx.DrawInstanced<Blade>(_card, _blade, "foliage", _field, _wind);
+				ctx.Draw(new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field), Uniforms = _wind });
 			});
 
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");

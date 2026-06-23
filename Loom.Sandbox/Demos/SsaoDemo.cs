@@ -38,8 +38,8 @@ internal sealed class SsaoDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "gbuffer");
-				ctx.Draw(scene.Plane, "gbuffer");
+				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "gbuffer"));
 			});
 
 		g.Pass("ssao.calculate")

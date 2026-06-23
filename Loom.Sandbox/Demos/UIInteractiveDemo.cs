@@ -29,8 +29,8 @@ internal sealed class UIInteractiveDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "lit");
-				ctx.Draw(scene.Plane, "lit");
+				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
 			});
 
 		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);

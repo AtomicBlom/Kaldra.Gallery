@@ -76,7 +76,7 @@ internal sealed class SpritesDemo : IDemo
 		// One instanced draw rasterises every sprite into the 2D G-buffer (clears, then alpha-tested quads).
 		g.Pass("sprites")
 			.Writes(albedo, normal, emissive)
-			.Draw(ctx => ctx.DrawInstanced(scene.Quad, _atlas, "sprite", _sprites.AsSpan()));
+			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
 		// Compose the G-buffer into a lit (HDR) target — a preview ahead of the real 2D light volumes (M14-3).
 		g.Pass("compose")

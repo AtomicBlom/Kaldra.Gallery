@@ -107,8 +107,8 @@ internal sealed class CascadedShadowsDemo : IDemo
 				.WritesDepth(cascadeMaps[cascade])
 				.Draw(ctx =>
 				{
-					ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
-					ctx.Draw(_ground, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
+					ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
+					ctx.Draw(new DrawCall { Mesh = _ground, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
 				});
 		}
 
@@ -117,8 +117,8 @@ internal sealed class CascadedShadowsDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "gbuffer");
-				ctx.Draw(_ground, "gbuffer");
+				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
+				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
 			});
 
 		g.Pass("lighting")

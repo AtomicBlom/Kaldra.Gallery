@@ -93,7 +93,7 @@ internal sealed class TilemapDemo : IDemo
 		// One draw rasterises the whole map into the 2D G-buffer (index texture → atlas → albedo/normal).
 		g.Pass("tilemap")
 			.Writes(albedo, normal, emissive)
-			.Draw(ctx => ctx.Draw(_mapQuad, _material, "tilemap"));
+			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = _mapQuad, Material = _material, Technique = "tilemap" }));
 
 		// Reuse the M14-1 fixed-key-light compose (the focus here is the tilemap; M14-8 composes the real lights).
 		g.Pass("compose")

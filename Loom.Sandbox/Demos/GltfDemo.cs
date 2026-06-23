@@ -56,8 +56,8 @@ internal sealed class GltfDemo : IDemo
 			.Draw(ctx =>
 			{
 				foreach (var (mesh, _) in _primitives)
-					ctx.Draw(mesh, "depthonly", ctx.Views[ViewKeys.Sun]);
-				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
+					ctx.Draw(new DrawCall { Mesh = mesh, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
+				ctx.Draw(new DrawCall { Mesh = scene.Plane, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
 			});
 
 		g.Pass("gbuffer")
@@ -66,8 +66,8 @@ internal sealed class GltfDemo : IDemo
 			.Draw(ctx =>
 			{
 				foreach (var (mesh, material) in _primitives)
-					ctx.Draw(mesh, material, "gbuffer.nm");
-				ctx.Draw(scene.Plane, scene.NormalMapped, "gbuffer.nm"); // the ground, brick-textured
+					ctx.Draw(new DrawCall { Mesh = mesh, Material = material, Technique = "gbuffer.nm" });
+				ctx.Draw(new DrawCall { Mesh = scene.Plane, Material = scene.NormalMapped, Technique = "gbuffer.nm" }); // the ground, brick-textured
 			});
 
 		g.Pass("lighting")

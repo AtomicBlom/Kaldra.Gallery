@@ -109,8 +109,8 @@ internal sealed class SkinningDemo : IDemo
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				ctx.DrawSkinned(_mesh, skinned, "lit");
-				ctx.Draw(scene.Plane, "lit");
+				ctx.Draw(new DrawCall { Mesh = _mesh, SkinnedVertices = skinned, Technique = "lit" });
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
 			});
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));

@@ -82,7 +82,7 @@ internal sealed class SpriteAnimationDemo : IDemo
 				Span<SpriteInstance> anim = stackalloc SpriteInstance[_sprites.Length];
 				for (var i = 0; i < _sprites.Length; i++)
 					anim[i] = _sprites[i] with { UvRect = _sheet.Uv(frame + i) }; // +i: per-sprite phase offset
-				ctx.DrawInstanced(scene.Quad, _atlas, "sprite", anim);
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(anim) });
 			});
 
 		// Reuse the M14-1 fixed-key-light compose (the focus here is the animation, not the lighting).

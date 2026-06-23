@@ -27,8 +27,8 @@ internal sealed class CubeLightingDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "lit");
-				ctx.Draw(scene.Plane, "lit");
+				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
 			});
 
 		// The game-UI overlay: the painter submits the composited HUD list through the public draw-list API, under

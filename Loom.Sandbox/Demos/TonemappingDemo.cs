@@ -38,8 +38,8 @@ internal sealed class TonemappingDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "lit");
-				ctx.Draw(scene.Plane, "lit");
+				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
 			});
 
 		// Meter the lit scene's luminance into the 1×1 persistent exposure (the rate rides the push).

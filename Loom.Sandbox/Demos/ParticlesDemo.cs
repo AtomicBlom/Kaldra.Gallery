@@ -38,8 +38,8 @@ internal sealed class ParticlesDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "lit");
-				ctx.Draw(scene.Plane, "lit");
+				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
 			});
 
 		g.Compute("particle.update")
@@ -49,7 +49,7 @@ internal sealed class ParticlesDemo : IDemo
 		g.Pass("particles")
 			.Blends(lit)
 			.ReadsVertex(particles)
-			.Draw(ctx => ctx.DrawInstanced("particle.render", particles, vertexCount: 6, instanceCount: particleCount)); // 6 = a billboard quad fabricated per particle
+			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.render", VertexCount = 6, Instances = DrawCall.Gpu(particles, particleCount) })); // 6 = a billboard quad fabricated per particle
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
 		DemoGraph.Hud(g, screen);

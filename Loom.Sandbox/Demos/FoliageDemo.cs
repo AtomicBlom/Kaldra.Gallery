@@ -117,11 +117,11 @@ internal sealed class FoliageDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(_ground, "gbuffer");
+				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
 				// time + wind params reach the vertex stage through the uniform seam (M15-0).
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f; // dir.xy, time
 				_wind[4] = 0.18f; _wind[5] = 2.2f; _wind[6] = 0f; _wind[7] = 0f;     // amplitude, frequency
-				ctx.DrawInstanced<Blade>(_card, _bladeMaterial, "foliage", _visible.AsSpan(0, _visibleCount), _wind);
+				ctx.Draw(new DrawCall { Mesh = _card, Material = _bladeMaterial, Technique = "foliage", Instances = DrawCall.From<Blade>(_visible.AsSpan(0, _visibleCount)), Uniforms = _wind });
 			});
 
 		g.Pass("lighting")

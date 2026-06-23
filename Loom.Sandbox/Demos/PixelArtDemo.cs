@@ -117,9 +117,9 @@ internal sealed class PixelArtDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.DrawInstanced(scene.Quad, _balls, "sprite", BuildBackground(ctx.Time));
-				ctx.Draw(_mapQuad, _tiles, "tilemap");
-				ctx.DrawInstanced(scene.Quad, _spinners, "sprite", BuildSprites(ctx.Time));
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _balls, Technique = "sprite", Instances = DrawCall.From(BuildBackground(ctx.Time).AsSpan()) });
+				ctx.Draw(new DrawCall { Mesh = _mapQuad, Material = _tiles, Technique = "tilemap" });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _spinners, Technique = "sprite", Instances = DrawCall.From(BuildSprites(ctx.Time).AsSpan()) });
 			});
 
 		// Ambient + emissive base, then the dynamic coloured lights accumulate additively (normal-mapped relief).
@@ -134,7 +134,7 @@ internal sealed class PixelArtDemo : IDemo
 			.Draw(ctx =>
 			{
 				ReadOnlySpan<ResourceHandle> gbuffer = [albedo, normal];
-				ctx.DrawInstanced(scene.Quad, "light2d", BuildLights(ctx.Time).AsSpan(), gbuffer);
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()), Sampled = gbuffer });
 			});
 
 		// Generalized GPU particles (M14-4): a compute fountain writes the wide particle stream (the demo pushes the
@@ -147,7 +147,7 @@ internal sealed class PixelArtDemo : IDemo
 		g.Pass("glow")
 			.Blends(lit)
 			.ReadsVertex(glow)
-			.Draw(ctx => ctx.DrawInstanced("particle.glow.render", _sparks, glow, vertexCount: 6, instanceCount: GlowParticleCount)); // 6 = a billboard quad fabricated per spark
+			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.glow.render", Material = _sparks, VertexCount = 6, Instances = DrawCall.Gpu(glow, GlowParticleCount) })); // 6 = a billboard quad fabricated per spark
 
 		// Bloom the HDR lit result (the light highlights + ember sparks glow), then nearest-upscale to the screen.
 		var bloomed = g.Bloom(lit, threshold: 1.0f, mips: 5, intensity: 0.8f);

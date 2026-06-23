@@ -74,7 +74,7 @@ internal sealed class Debug2DDemo : IDemo
 
 		g.Pass("sprites")
 			.Writes(albedo, normal, emissive)
-			.Draw(ctx => ctx.DrawInstanced(scene.Quad, _atlas, "sprite", _sprites.AsSpan()));
+			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
 		g.Pass("ambient")
 			.Samples(albedo, emissive)
@@ -88,13 +88,13 @@ internal sealed class Debug2DDemo : IDemo
 			{
 				var lights = BuildLights(ctx.Time);
 				ReadOnlySpan<ResourceHandle> gbuffer = [albedo, normal];
-				ctx.DrawInstanced(scene.Quad, "light2d", lights.AsSpan(), gbuffer);
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(lights.AsSpan()), Sampled = gbuffer });
 			});
 
 		// Gizmos: the same lights drawn as additive rings over the lit result (no textures, no G-buffer sample).
 		g.Pass("gizmos")
 			.Blends(lit)
-			.Draw(ctx => ctx.DrawInstanced(scene.Quad, "gizmo2d", BuildLights(ctx.Time).AsSpan()));
+			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "gizmo2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()) }));
 
 		// Terminal pass: tile the G-buffer channels + lit into four quadrants, upscaled to the screen.
 		g.Pass("inspect")

@@ -38,8 +38,8 @@ internal sealed class BloomDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Plane, "lit");      // a dim floor for context (below the bloom threshold)
-				ctx.Draw(scene.Cube, "emissive");  // the bright, glowing object
+				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));      // a dim floor for context (below the bloom threshold)
+				ctx.Draw(DrawCall.Create(scene.Cube, "emissive"));  // the bright, glowing object
 			});
 
 		var glow = g.Bloom(hdr, threshold: 1.0f, mips: 5, intensity: 1.0f);
