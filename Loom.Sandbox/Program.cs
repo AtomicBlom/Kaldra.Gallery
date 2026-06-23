@@ -338,7 +338,7 @@ internal static class Program
 				if (!debugCamInit)
 				{
 					debugCamInit = true;
-					frozenViewProjection = camera.ViewProjection;
+					frozenViewProjection = camera.ViewProjectionMatrix;
 					fly.PlaceLookingAt(new Vector3(6f, 4f, 6f), Vector3.Zero); // start outside the frozen frustum
 				}
 				// A fixed detached viewpoint under capture (deterministic); free-fly otherwise.
@@ -347,7 +347,7 @@ internal static class Program
 					: fly.Update(keyboard, mouse, (float)delta, aspect);
 
 				var corners = frozenViewProjection.GetFrustumCorners();
-				var vp = renderCamera.ViewProjection;
+				var vp = renderCamera.ViewProjectionMatrix;
 				var edges = Frustum.EdgeIndices;
 				for (var e = 0; e < edges.Length; e += 2)
 					if (ProjectToScreen(corners[edges[e]], vp, fbW, fbH, out var p0) &&
@@ -364,7 +364,7 @@ internal static class Program
 			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : elapsed);
 			if (demoLines.Count > 0)
 			{
-				var vp = renderCamera.ViewProjection;
+				var vp = renderCamera.ViewProjectionMatrix;
 				for (var i = 0; i < demoLines.Count; i++)
 					if (ProjectToScreen(demoLines[i].A, vp, fbW, fbH, out var a) &&
 						ProjectToScreen(demoLines[i].B, vp, fbW, fbH, out var b))

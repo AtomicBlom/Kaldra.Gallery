@@ -197,7 +197,7 @@ internal sealed class StylizedDemo : IDemo
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjection;
+			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjectionMatrix;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
 		// Splits ride the CsmSplits parameter buffer (written in GetCascades); the push carries matrices + camera/sun/ambient.
@@ -215,7 +215,7 @@ internal sealed class StylizedDemo : IDemo
 	private ReadOnlySpan<float> PackSky(IRenderContext ctx)
 	{
 		var p = _skyParams;
-		Matrix4x4.Invert(ctx.View.ViewProjection, out var invVp);
+		Matrix4x4.Invert(ctx.View.ViewProjectionMatrix, out var invVp);
 		MemoryMarshal.CreateReadOnlySpan(in invVp.M11, 16).CopyTo(p.AsSpan(0, 16));
 		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
 		var eye = invView.Translation;

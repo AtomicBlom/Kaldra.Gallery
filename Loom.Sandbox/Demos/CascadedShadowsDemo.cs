@@ -139,7 +139,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjection;
+			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjectionMatrix;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
 		// Splits + the cascade-tint flag now ride the CsmSplits parameter buffer (written in GetCascades); the push

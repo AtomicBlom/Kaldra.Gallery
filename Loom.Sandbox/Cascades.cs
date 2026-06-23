@@ -40,7 +40,7 @@ internal static class Cascades
 
 		// The full camera frustum's 8 world-space corners (near quad 0..3 at z=0, far quad 4..7 at z=1). A point
 		// at view-depth d on edge k is lerp(near[k], far[k], (d-near)/(far-near)) — both planes at fixed depths.
-		var corners = camera.ViewProjection.GetFrustumCorners();
+		var corners = camera.ViewProjectionMatrix.GetFrustumCorners();
 		var up = MathF.Abs(lightDir.Y) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
 		var range = far - near;
 
