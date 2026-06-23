@@ -35,6 +35,8 @@
     <PackageReference Include="ImGui.NET" />
     <!-- Hermetic slangc for the SDK's shader compile (bundled in the package; win-x64 / win-arm64). -->
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
+    <!-- Hermetic DXC for signing the app's DXIL shaders; same package every shader-compiling project references. -->
+    <PackageReference Include="Microsoft.Direct3D.DXC" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
   <!-- The neutral asset loaders (image + glTF) the M11 demos use to load committed textures/models, plus the
