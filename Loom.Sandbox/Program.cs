@@ -308,7 +308,7 @@ internal static class Program
 			// backends — captured at the same frame, the dynamic demos diff like the static ones.
 			const float captureTime = 1.0f;
 			const double captureDelta = 1.0 / 60.0;
-			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : 0.6f) : elapsed;
+			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed;
 			var eye = new Vector3(MathF.Sin(camTime) * 2.5f, 1.6f, MathF.Cos(camTime) * 2.5f);
 			var view = Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitY);
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
