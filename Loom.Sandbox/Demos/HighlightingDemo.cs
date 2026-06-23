@@ -7,12 +7,12 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Object highlighting (Planning.md §7.4 picking + §7.5 jump-flood outline). The cube writes its object id;
-/// the id buffer is read back to the CPU so the host knows which object the cursor is over; a seed pass marks
-/// the hovered object's pixels and a jump-flood ping-pong (steps 4→2→1) propagates the nearest seed; resolve
-/// turns nearest-seed distance into an emissive ring composited over the lit scene. The (read, write) handle
-/// swap is the §8 ping-pong — two physical buffers, swapped in a normal loop, and the graph follows the handles.
-/// Runs in a fixed 320×180 domain so the flood has concrete pixel dimensions and the cursor maps cleanly.
+/// Object highlighting (picking + jump-flood outline). The cube writes its object id; the id buffer is read
+/// back to the CPU so the host knows which object the cursor is over; a seed pass marks the hovered object's
+/// pixels and a jump-flood ping-pong (steps 4→2→1) propagates the nearest seed; resolve turns nearest-seed
+/// distance into an emissive ring composited over the lit scene. The (read, write) handle swap is the ping-pong
+/// idiom — two physical buffers, swapped in a normal loop, and the graph follows the handles. Runs in a fixed
+/// 320×180 domain so the flood has concrete pixel dimensions and the cursor maps cleanly.
 /// </summary>
 internal sealed class HighlightingDemo : IDemo
 {

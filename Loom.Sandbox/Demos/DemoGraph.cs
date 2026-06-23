@@ -18,7 +18,7 @@ internal static class DemoGraph
 	public static ImGuiPainter? Overlay { get; set; }
 
 	/// <summary>
-	/// Append the Dear ImGui overlay (§6/§9): a pass that <c>.Blends</c> the backbuffer (so the engine orders it
+	/// Append the Dear ImGui overlay: a pass that <c>.Blends</c> the backbuffer (so the engine orders it
 	/// after the present write and derives the barrier) and submits this frame's ImGui draw data through the public
 	/// draw-list API via <see cref="Overlay"/>. Every demo ends with this so the menu bar / Demo switcher / status
 	/// render on all of them. A no-op when no painter is set.

@@ -6,7 +6,7 @@ using SUIsei;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// MU2: the interactive, data-bound UI proof. The render graph is the same simple lit scene + overlay UI pass as
+/// The interactive, data-bound UI proof. The render graph is the same simple lit scene + overlay UI pass as
 /// <see cref="CubeLightingDemo"/>; what's new is host-side — when this demo is active the launcher swaps the overlay
 /// surface to a <c>UIInteractiveView</c> (a XAML page with a <c>Button</c> and an <c>{x:Bind}</c> label) driven by a
 /// real <c>UIHost</c> + pointer input, so clicking the button updates the bound text. The graph itself just declares

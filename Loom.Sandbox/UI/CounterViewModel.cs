@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace Loom.Sandbox.UI;
 
 /// <summary>
-/// The MU3 interactive demo's view model: a click counter exposed as a <see cref="Status"/> string that raises
+/// The interactive demo's view model: a click counter exposed as a <see cref="Status"/> string that raises
 /// <see cref="INotifyPropertyChanged"/>. The page binds <c>{x:Bind ViewModel.Status, Mode=OneWay}</c> so each
 /// <see cref="Bump"/> or <see cref="Reset"/> updates the label through the generated binding glue.
 /// </summary>

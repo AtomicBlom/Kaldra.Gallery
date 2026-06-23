@@ -5,7 +5,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// The bloom sub-graph (Planning.md §7.1) in isolation. The cube is drawn <em>emissive</em> — a bright HDR
+/// The bloom sub-graph in isolation. The cube is drawn <em>emissive</em> — a bright HDR
 /// source (~5×) — over a dim lit floor, so it visibly glows; <c>g.Bloom</c> (a reusable graph fragment:
 /// bright-pass → mip-chain downsample → additive upsample → composite) spreads a halo from the bright pixels
 /// and the floor (below threshold) does not. The whole pyramid's ordering, per-mip barriers, and dead-mip

@@ -6,7 +6,7 @@ using SUIsei;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// MU4 group-opacity proof. The graph is the same lit scene + overlay <c>ui</c> pass as the other UI demos; what it
+/// Group-opacity proof. The graph is the same lit scene + overlay <c>ui</c> pass as the other UI demos; what it
 /// exercises is the host-side overlay content (built in Program.cs): a faded container holding overlapping
 /// translucent children. True group opacity renders the whole subtree once at full strength and fades the result a
 /// single time — so the overlap region stays the same colour as the non-overlap. The backend proves this by rendering

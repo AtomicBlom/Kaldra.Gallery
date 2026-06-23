@@ -8,12 +8,12 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// The full reference frame (Planning.md §6) — every capability composed into one graph, the proof that the
-/// vocabulary all fits together. The whole 3D world renders into a small 320×180 domain (deferred g-buffer →
-/// shadows → SSAO → lighting → forward transparency → GPU particles → JFA hover outline → bloom → auto-exposure
-/// → tone-map), then a nearest upscale blows it up to the native screen — that upscale <em>is</em> the §9
-/// pixelation. The focused demos isolate each of these; this one shows them coexisting, with the engine deriving
-/// all ordering, the COLOR_ATTACHMENT↔SHADER_READ flips, depth states, load/store, transient aliasing, and present.
+/// The full reference frame — every capability composed into one graph, the proof that the vocabulary all fits
+/// together. The whole 3D world renders into a small 320×180 domain (deferred g-buffer → shadows → SSAO →
+/// lighting → forward transparency → GPU particles → JFA hover outline → bloom → auto-exposure → tone-map),
+/// then a nearest upscale blows it up to the native screen. The focused demos isolate each of these; this one
+/// shows them coexisting, with the engine deriving all ordering, the COLOR_ATTACHMENT↔SHADER_READ flips, depth
+/// states, load/store, transient aliasing, and present.
 /// </summary>
 internal sealed class FullReferenceDemo : IDemo
 {
@@ -159,7 +159,7 @@ internal sealed class FullReferenceDemo : IDemo
 			.Writes(graded)
 			.Draw(ctx => ctx.FullScreen("tonemap", [ctx.HdrOutput ? 1f : 0f], glow, exposure));
 
-		// Nearest upscale from the low-res world to the native screen — the §9 pixelation.
+		// Nearest upscale from the low-res world to the native screen.
 		g.Pass("upscale").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);

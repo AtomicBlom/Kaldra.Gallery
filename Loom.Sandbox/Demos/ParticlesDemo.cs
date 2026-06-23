@@ -6,7 +6,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// GPU particles (Planning.md §7.6) — the compute → vertex-buffer hand-off. A compute pass writes particle
+/// GPU particles — the compute → vertex-buffer hand-off. A compute pass writes particle
 /// positions into a storage <em>buffer</em> (a deterministic looping fountain driven by <c>ctx.Time</c>); the
 /// render pass reads that same buffer as per-instance vertex data and additively blends glowing sparks over the
 /// lit scene. Two edges — <c>.ReadWrites</c> then <c>.ReadsVertex</c> — and the engine derives the

@@ -5,7 +5,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Shadow mapping (Planning.md §7.2) — the novel "same draw, a different view" primitive. A depth-only pass
+/// Shadow mapping — the "same draw, a different view" primitive. A depth-only pass
 /// renders the casters from the <em>sun's</em> view into a shadow map (<c>ctx.Draw(mesh, "depthonly",
 /// ctx.Views[ViewKeys.Sun])</c>); a g-buffer pass renders them from the camera; the lighting pass projects each pixel into
 /// the sun's clip space and compares depth to decide shadow. The deferred split is what lets the camera

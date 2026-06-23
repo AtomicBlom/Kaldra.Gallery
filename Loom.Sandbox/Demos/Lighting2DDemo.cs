@@ -7,19 +7,18 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// 2D deferred normal-mapped lighting (PlanningPhase2.md M14-3, Track A — the showcase). The same batched ball
-/// sprites as <see cref="SpritesDemo"/> rasterise into the 2D G-buffer (gbuffer_sprite: albedo + tangent-space
-/// normal + emissive), then real, data-driven lights replace M14-1's fixed key light:
+/// 2D deferred normal-mapped lighting. The same batched ball sprites as <see cref="SpritesDemo"/> rasterise
+/// into the 2D G-buffer (gbuffer_sprite: albedo + tangent-space normal + emissive), then real, data-driven
+/// lights replace a fixed key light:
 /// <list type="number">
 /// <item>an <c>ambient2d</c> fullscreen base pass seeds the lit target with ambient·albedo + emissive;</item>
 /// <item>a single <c>light2d</c> instanced <em>additive</em> draw places one quad per <see cref="Light2DInstance"/>
 /// — each samples the G-buffer normal under its covered pixels and accumulates colour·intensity·N·L·attenuation,
-/// so the count is unbounded and fully dynamic and overdraw is bounded by the lights' reach (the resolved M14
-/// many-light decision).</item>
+/// so the count is unbounded and fully dynamic and overdraw is bounded by the lights' reach.</item>
 /// </list>
 /// The lights orbit (pulled from <c>ctx.Time</c>, not captured), so the spherical normal maps' relief shifts
 /// under them — the unmistakable read of real 2D normal-mapped lighting. Output is HDR (Rgba16F) and a nearest
-/// upscale blows the 320×180 world up to the screen (the §9 pixelation). Camera is orthographic.
+/// upscale blows the 320×180 world up to the screen. Camera is orthographic.
 /// </summary>
 internal sealed class Lighting2DDemo : IDemo
 {
@@ -104,7 +103,7 @@ internal sealed class Lighting2DDemo : IDemo
 				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From<Light2DInstance>(lights), Sampled = gbuffer });
 			});
 
-		// 4. Nearest upscale to the backbuffer — the §9 pixelation.
+		// 4. Nearest upscale to the backbuffer.
 		g.Pass("upscale")
 			.Samples(lit)
 			.Writes(screen)

@@ -9,13 +9,13 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// The Track-A pixel-art reference demo (PlanningPhase2.md M14-8) — the capstone that composes the whole 2D
-/// pipeline into one scene: a parallax background (M14-6), a tile-index tilemap ground (M14-2), animated sprites
-/// (M14-5), dynamic normal-mapped 2D point lights (M14-3), and generalized GPU ember particles (M14-4). The
-/// sprites/tilemap rasterise into a single depth-ordered 2D G-buffer, which is composed (ambient + additive light
-/// volumes); the particles' textured sub-UV sparks then blend additively over the lit result before it is bloomed
-/// (§7.1) and nearest-upscaled from the 320×180 world to the screen (§9 pixelation). Everything time-driven is
-/// pulled from <c>ctx.Time</c> (not captured), so a frozen capture is deterministic — the cross-backend golden.
+/// The pixel-art reference demo — the capstone that composes the whole 2D pipeline into one scene: a parallax
+/// background, a tile-index tilemap ground, animated sprites, dynamic normal-mapped 2D point lights, and
+/// generalized GPU ember particles. The sprites/tilemap rasterise into a single depth-ordered 2D G-buffer,
+/// which is composed (ambient + additive light volumes); the particles' textured sub-UV sparks then blend
+/// additively over the lit result before it is bloomed and nearest-upscaled from the 320×180 world to the
+/// screen. Everything time-driven is pulled from <c>ctx.Time</c> (not captured), so a frozen capture is
+/// deterministic — the cross-backend golden.
 /// </summary>
 internal sealed class PixelArtDemo : IDemo
 {
@@ -44,7 +44,7 @@ internal sealed class PixelArtDemo : IDemo
 	private Material _tiles;       // tilemap atlas + index
 	private Mesh _mapQuad;
 	private Material _spinners;    // animated sprites
-	private Material _sparks;      // textured glow-particle atlas (M14-4)
+	private Material _sparks;      // textured glow-particle atlas
 	private SpriteSheet _ballSheet = new(1, 1);
 	private SpriteSheet _spinSheet = new(1, 1);
 
@@ -137,7 +137,7 @@ internal sealed class PixelArtDemo : IDemo
 				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()), Sampled = gbuffer });
 			});
 
-		// Generalized GPU particles (M14-4): a compute fountain writes the wide particle stream (the demo pushes the
+		// Generalized GPU particles: a compute fountain writes the wide particle stream (the demo pushes the
 		// emitter params), then the textured render pass blends warm sub-UV ember sparks additively over lit so they
 		// bloom. Two edges — .ReadWrites then .ReadsVertex — and the engine derives the compute→vertex-input barrier.
 		g.Compute("particle.glow.update")

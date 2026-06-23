@@ -10,7 +10,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Toon/ramp lighting + colour grading (M15-6). The cascaded-shadow + day/night scene shaded with the cel
+/// Toon/ramp lighting + colour grading. The cascaded-shadow + day/night scene shaded with the cel
 /// <c>lighting_toon</c> technique (banded diffuse + rim, a drop-in sibling of <c>lighting_csm</c>), then graded
 /// by a fullscreen <c>grade</c> pass — here a warm, slightly-desaturated "autumn" look (the season-tint hook).
 /// </summary>

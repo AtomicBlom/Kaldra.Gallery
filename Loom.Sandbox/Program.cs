@@ -8,7 +8,7 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 #if LOOM_DIRECTX12
-using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type (Planning.md §5)
+using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type
 #endif
 using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
@@ -20,7 +20,7 @@ using SUIsei.Controls;
 using SUIsei.Drawing;
 using SUIsei.Input;
 #if LOOM_VULKAN
-using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type (Planning.md §5)
+using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type
 #endif
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -57,7 +57,7 @@ internal static class Program
 		var (cubeVerts, cubeIndices) = Geometry.BuildCube();
 		var (planeVerts, planeIndices) = Geometry.BuildPlane();
 		var (quadVerts, quadIndices) = Geometry.BuildQuad();
-		// The shared brick material — albedo + tangent-space normal map, decoded from committed PNGs (M11). The
+		// The shared brick material — albedo + tangent-space normal map, decoded from committed PNGs. The
 		// loaders live in Loom.Assets (neutral); the engine just uploads the resulting TextureData + mip chain.
 		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
 		var brick = engine.CreateMaterial(
@@ -78,10 +78,10 @@ internal static class Program
 		if (currentDemo < 0)
 			return;
 
-		// The interactive UI demo (MU2): when it is active the overlay shows the data-bound page + routes pointer
-		// input; otherwise the static MU1 panel. -1 if its techniques were dropped on this backend (then never shown).
+		// The interactive UI demo: when it is active the overlay shows the data-bound page + routes pointer
+		// input; otherwise the static panel. -1 if its techniques were dropped on this backend (then never shown).
 		var interactiveIndex = Array.FindIndex(demos, d => d.Name == "UI Interactive");
-		// The group-opacity demo (MU4): when active the overlay shows a faded container of overlapping translucent
+		// The group-opacity demo: when active the overlay shows a faded container of overlapping translucent
 		// children, exercising the backend's render-to-texture layer composite.
 		var groupOpacityIndex = Array.FindIndex(demos, d => d.Name == "UI Group Opacity");
 
@@ -99,7 +99,7 @@ internal static class Program
 			Console.WriteLine($"[loom] graph → {dot} + {json}");
 		}
 
-		// Dear ImGui (§6/§9 HUD). The host owns the context + input + the per-frame UI; the optional Loom.UI.ImGui
+		// Dear ImGui HUD. The host owns the context + input + the per-frame UI; the optional Loom.UI.ImGui
 		// bridge renders the draw data through the public draw-list API (no backend ImGui dependency). Inspection is
 		// enabled BEFORE the first SetGraph so the resource-viewer sample edges land in the initial graph too.
 		ImGui.CreateContext();
@@ -121,7 +121,7 @@ internal static class Program
 		// swapped per active demo: the static panel (every other demo) and the interactive data-bound page.
 		var overlay = uiHost.CreateRoot(UIPlacement.Overlay(zLayer: 0, layoutScale: 1f));
 
-		// The static MU1 panel (unchanged) — the overlay content for every non-interactive demo.
+		// The static panel — the overlay content for every non-interactive demo.
 		UIElement mu1Panel = new Border
 		{
 			Width = 360f,
@@ -142,10 +142,10 @@ internal static class Program
 			},
 		};
 
-		// The MU2 interactive page: XAML → typed tree + {x:Bind} label + Click handler (UI/UIInteractiveView.*).
+		// The interactive page: XAML → typed tree + {x:Bind} label + Click handler (UI/UIInteractiveView.*).
 		var interactivePage = new UIInteractiveView();
 
-		// The MU4 group-opacity content: a 50%-opacity container over a Canvas of two overlapping opaque fills. True
+		// The group-opacity content: a 50%-opacity container over a Canvas of two overlapping opaque fills. True
 		// group opacity composites the subtree once and fades the result, so the overlap stays the same colour as the
 		// non-overlap; folding the fade per child would darken the overlap. The backend renders this via its
 		// offscreen layer composite — the only UI path whose pixels depend on the backend, hence the parity gate.
@@ -188,7 +188,7 @@ internal static class Program
 		}
 
 		// The sun: a directional light, constant — built once and handed in every frame's inputs. Neutral
-		// projection (+Y up); the backend applies the Vulkan clip-space Y-flip on ingest (M7-B5).
+		// projection (+Y up); the backend applies the Vulkan clip-space Y-flip on ingest.
 		var lightDir = Vector3.Normalize(new Vector3(0.45f, 0.55f, -0.6f));
 		var sunView = Matrix4x4.CreateLookAt(lightDir * 7f, Vector3.Zero, Vector3.UnitY);
 		var sunProj = Matrix4x4.CreateOrthographic(9f, 9f, 0.1f, 14f);
@@ -198,14 +198,14 @@ internal static class Program
 		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
 		var pauseCamera = false;
 
-		// M13 detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
+		// Detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
 		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
 		// fly around and see exactly what that camera framed. --frustum enables it for a deterministic capture.
 		var fly = new FlyCamera();
 		var debugCam = opts.Frustum;
 		var debugCamInit = false;
 		var frozenViewProjection = Matrix4x4.Identity;
-		var debugSegments = new List<Vector4>(); // M13 frustum wireframe + M15-7 demo debug lines (skeleton)
+		var debugSegments = new List<Vector4>(); // frustum wireframe + demo debug lines (skeleton)
 
 		Console.WriteLine($"Loom - demo gallery (keys 1-{demos.Length} / Tab) on {engine.DeviceName} ({engine.BackendName}). On Object Highlighting / Full, hover the cube. Close the window to exit.");
 
@@ -248,7 +248,7 @@ internal static class Program
 			};
 		}
 
-		// MU2: translate raw mouse into neutral pointer events the UIHost routes (the host owns hit-test + routing).
+		// Translate raw mouse into neutral pointer events the UIHost routes (the host owns hit-test + routing).
 		// Independent of the ImGui/camera/pick mouse uses below — multiple handlers per Silk event are fine.
 		if (mouse is not null)
 		{
@@ -266,7 +266,7 @@ internal static class Program
 		// previous frame's contents) surfaces, which a frozen capture (identical frames) can't reveal.
 		var captureAnimate = opts.CaptureAnimate;
 
-		// M13 GPU profiler: in a headless smoke run, turn timing on so the final frame can dump per-pass numbers for
+		// GPU profiler: in a headless smoke run, turn timing on so the final frame can dump per-pass numbers for
 		// a cross-backend sanity check (no-op if the queue can't timestamp; the setter guards it).
 		if (smokeFrames > 0)
 			engine.GpuTimingEnabled = true;
@@ -315,8 +315,8 @@ internal static class Program
 			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
 			var camera = new Camera(view, projection);
 
-			// A demo may override the camera — a 2D/sprite demo (M14) returns an orthographic view here; otherwise
-			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax, M14-6).
+			// A demo may override the camera — a 2D/sprite demo returns an orthographic view here; otherwise
+			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax).
 			if (demos[currentDemo].GetCamera(aspect, camTime) is { } demoCamera)
 				camera = demoCamera;
 
@@ -326,7 +326,7 @@ internal static class Program
 			// while we fly the detached camera around to inspect what it framed.
 			demos[currentDemo].Update(camera);
 
-			// M13 detached debug camera: when active, render from a free-fly view and draw the FROZEN scripted-camera
+			// Detached debug camera: when active, render from a free-fly view and draw the FROZEN scripted-camera
 			// frustum as a yellow wireframe. Entering debug mode freezes the current view; the host projects the frozen
 			// frustum's 8 corners to screen pixels and hands the 12 edges to the engine's overlay.
 			var renderCamera = camera;
@@ -359,7 +359,7 @@ internal static class Program
 				debugCamInit = false;
 			}
 
-			// M15-7: the active demo's world-space debug lines (e.g. the skinning demo's skeleton), projected
+			// The active demo's world-space debug lines (e.g. the skinning demo's skeleton), projected
 			// against the render camera and merged with any frustum wireframe.
 			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : elapsed);
 			if (demoLines.Count > 0)
@@ -373,7 +373,7 @@ internal static class Program
 
 			imguiPainter.SetDebugLines(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(debugSegments));
 
-			// Hover (Object Highlighting / Full): read the demo's object-id buffer back at the cursor (§7.4) and hand
+			// Hover (Object Highlighting / Full): read the demo's object-id buffer back at the cursor and hand
 			// the hovered id to the demo, which writes it into the outline's parameter buffer (WriteHover). The cursor
 			// maps through the pick target's own resolution. In capture, force the cube hovered so the outline shows.
 			// A demo with no PickTarget skips this entirely — the engine carries no picking state of its own.
@@ -439,7 +439,7 @@ internal static class Program
 						DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph");
 					ImGui.EndMenu();
 				}
-				// M15-7: the active demo's own debug controls (skeleton overlay, cascade tint, time-of-day, …).
+				// The active demo's own debug controls (skeleton overlay, cascade tint, time-of-day, …).
 				if (ImGui.BeginMenu("Debug"))
 				{
 					demos[currentDemo].DrawDebugUI();
@@ -478,7 +478,7 @@ internal static class Program
 			}
 			imguiPainter.SetThumbnails(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(inspectIds));
 
-			// M13 GPU profiler HUD: per-pass GPU ms + frame total from the most recently completed frame.
+			// GPU profiler HUD: per-pass GPU ms + frame total from the most recently completed frame.
 			if (engine.GpuTimingEnabled)
 			{
 				if (ImGui.Begin("GPU Timing"))
@@ -535,7 +535,7 @@ internal static class Program
 				window.Close();
 			else if (smokeFrames > 0 && frame >= smokeFrames)
 			{
-				// M13: dump the last completed frame's GPU timings (cross-backend sanity: sum ≤ frame total ≤ wall).
+				// Dump the last completed frame's GPU timings (cross-backend sanity: sum ≤ frame total ≤ wall).
 				if (engine.GpuTimingEnabled && engine.LastFrameTimings.Count > 0)
 				{
 					Console.WriteLine($"[loom] GPU timing ({engine.BackendName}, {demos[currentDemo].Name}):");
@@ -610,7 +610,7 @@ internal static class Program
 				MaxFramesPerSecond = opts.MaxFps,
 				HdrOutput = opts.Hdr,
 				PreferredBackend = "Vulkan",
-				// M13 shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
+				// Shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
 				WatchShaderDirectory = opts.WatchShaders,
 			};
 			return Resolve(window.VkSurface, window, vk);
@@ -826,8 +826,8 @@ internal static class Program
 		_ => VirtualKey.None,
 	};
 
-	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection (M13
-	// frustum wireframe). Returns false for points behind the camera (w ≤ 0), so edges that cross the near plane are
+	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection
+	// (frustum wireframe). Returns false for points behind the camera (w ≤ 0), so edges that cross the near plane are
 	// dropped rather than drawn wrapped. The engine's overlay maps these pixels to clip space on either backend.
 	private static bool ProjectToScreen(Vector3 world, Matrix4x4 viewProjection, int width, int height, out Vector2 pixel)
 	{

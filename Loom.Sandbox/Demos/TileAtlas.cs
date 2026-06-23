@@ -5,7 +5,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// A procedurally-built 4×4 tile atlas for <see cref="TilemapDemo"/> (M14-2): 16 tiles of 16×16 texels, tile 0
+/// A procedurally-built 4×4 tile atlas for <see cref="TilemapDemo"/>: 16 tiles of 16×16 texels, tile 0
 /// left transparent (the "sky"/empty cell the tilemap shader discards) and the rest distinct solid materials with
 /// a beveled tangent-space normal map, so each cell reads as a slightly raised block under the 2D deferred light.
 /// The atlas grid (4×4) is the contract <c>tilemap.slang</c>'s <c>AtlasTiles</c> constant bakes. Deterministic

@@ -5,7 +5,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// The 4-frame spark atlas for the generalized GPU particle system (M14-4) — a 4×1 grid of soft white radial
+/// The 4-frame spark atlas for the generalized GPU particle system — a 4×1 grid of soft white radial
 /// glows that evolve left-to-right from a young, tight, bright core to an old, wide, faint puff. The render
 /// shader (<c>particle_glow_render.slang</c>) picks the frame from a particle's normalised life (sub-UV) and
 /// tints it with a warm ember colour-over-life ramp, additively blended for bloom. White luminance lives in

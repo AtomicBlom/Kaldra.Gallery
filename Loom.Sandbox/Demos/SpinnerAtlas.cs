@@ -7,7 +7,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// A procedurally-built sprite-sheet animation strip for <see cref="SpriteAnimationDemo"/> (M14-5): an
+/// A procedurally-built sprite-sheet animation strip for <see cref="SpriteAnimationDemo"/>: an
 /// 8-frame horizontal strip of a disc with a bright wedge that rotates 45° per frame, so cycling the frames
 /// reads as a spinning marker. Each frame also carries the same spherical tangent-space normal map as the ball
 /// atlas, so the disc still lights with 3D relief under the compose pass — the animation rides on top of the

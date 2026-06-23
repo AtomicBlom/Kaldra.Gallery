@@ -7,11 +7,11 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Tile-index-texture tilemap (PlanningPhase2.md M14-2, Track A — the resolved tilemap decision). A whole map is
-/// drawn as ONE quad: a per-cell tile-id texture (uploaded once) drives <c>tilemap.slang</c>, which maps each
-/// cell's id to a sub-rect of the shared <see cref="TileAtlas"/> and samples albedo + tangent normal into the 2D
-/// G-buffer — so the same deferred compose that lights sprites (M14-1) lights the map, with the tiles' beveled
-/// normal maps giving relief. Scales to large maps (an index texture, not a quad per tile). Uses the existing
+/// Tile-index-texture tilemap. A whole map is drawn as ONE quad: a per-cell tile-id texture (uploaded once)
+/// drives <c>tilemap.slang</c>, which maps each cell's id to a sub-rect of the shared <see cref="TileAtlas"/>
+/// and samples albedo + tangent normal into the 2D G-buffer — so the same deferred compose that lights sprites
+/// also lights the map, with the tiles' beveled normal maps giving relief. Scales to large maps (an index
+/// texture, not a quad per tile). Uses the existing
 /// <c>ctx.Draw(mesh, material, technique)</c> verb — no Phase-0 dependency.
 /// <para>
 /// The map grid (<see cref="MapCols"/>×<see cref="MapRows"/>) is the contract <c>tilemap.slang</c>'s
@@ -95,7 +95,7 @@ internal sealed class TilemapDemo : IDemo
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = _mapQuad, Material = _material, Technique = "tilemap" }));
 
-		// Reuse the M14-1 fixed-key-light compose (the focus here is the tilemap; M14-8 composes the real lights).
+		// Reuse the fixed-key-light compose (the focus here is the tilemap; the pixel-art demo composes the real lights).
 		g.Pass("compose")
 			.Samples(albedo, normal, emissive)
 			.Writes(lit)

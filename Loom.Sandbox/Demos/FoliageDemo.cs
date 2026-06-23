@@ -7,11 +7,11 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Foliage instancing + wind + alpha-test (M15-5). A dense field of grass blades, each an instanced yaw-rotated
-/// card swayed by a vertex-shader wind (read from the M15-0 uniform seam, height-weighted + per-instance phase),
-/// alpha-tested to its blade silhouette (a plain <c>discard</c> — no special pipeline state). The blades + ground
-/// write the deferred g-buffer and are shaded by a simple directional light. The field is frustum-culled on the
-/// CPU each frame (the M12 instancing path) and the drawn/total count is reported on the HUD.
+/// Foliage instancing + wind + alpha-test. A dense field of grass blades, each an instanced yaw-rotated
+/// card swayed by a vertex-shader wind (height-weighted + per-instance phase), alpha-tested to its blade
+/// silhouette (a plain <c>discard</c> — no special pipeline state). The blades + ground write the deferred
+/// g-buffer and are shaded by a simple directional light. The field is frustum-culled on the CPU each frame
+/// and the drawn/total count is reported on the HUD.
 /// </summary>
 internal sealed class FoliageDemo : IDemo
 {
@@ -81,7 +81,7 @@ internal sealed class FoliageDemo : IDemo
 		_visible = new Blade[_field.Length];
 	}
 
-	// CPU frustum cull each frame (M12): keep blades whose bounding sphere intersects the camera frustum.
+	// CPU frustum cull each frame: keep blades whose bounding sphere intersects the camera frustum.
 	public void Update(Camera camera)
 	{
 		var frustum = camera.ExtractFrustum();
@@ -118,7 +118,7 @@ internal sealed class FoliageDemo : IDemo
 			.Draw(ctx =>
 			{
 				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
-				// time + wind params reach the vertex stage through the uniform seam (M15-0).
+				// time + wind params reach the vertex stage through the uniform seam.
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f; // dir.xy, time
 				_wind[4] = 0.18f; _wind[5] = 2.2f; _wind[6] = 0f; _wind[7] = 0f;     // amplitude, frequency
 				ctx.Draw(new DrawCall { Mesh = _card, Material = _bladeMaterial, Technique = "foliage", Instances = DrawCall.From<Blade>(_visible.AsSpan(0, _visibleCount)), Uniforms = _wind });

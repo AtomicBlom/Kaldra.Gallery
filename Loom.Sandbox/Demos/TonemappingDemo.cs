@@ -6,7 +6,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Auto-exposure + tone-mapping (Planning.md §12 M5). The lit scene is HDR; a compute pass meters its average
+/// Auto-exposure + tone-mapping. The lit scene is HDR; a compute pass meters its average
 /// luminance and read-writes a 1×1 <em>persistent</em> exposure value (it carries across frames, so the
 /// adaptation is temporal); the tone-map then scales by that exposure and rolls the highlights off to the
 /// display. Shows the GPU→persistent→GPU loop and the compute→fragment hand-off the engine derives. (When HDR

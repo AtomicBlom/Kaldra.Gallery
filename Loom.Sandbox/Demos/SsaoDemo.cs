@@ -5,7 +5,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Screen-space ambient occlusion (Planning.md §7.6). A g-buffer pass writes world position + normal; the
+/// Screen-space ambient occlusion. A g-buffer pass writes world position + normal; the
 /// <c>ssao</c> pass samples them and writes a per-pixel occlusion term; <c>ssao.blur</c> smooths its rotation
 /// noise; <c>ssao_view</c> shows the albedo darkened by that term, so the contact shadows (where the cube meets
 /// the floor, in concave corners) read directly. Adding SSAO is just adding edges — gbuffer → ssao → ssao.blur →

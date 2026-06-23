@@ -38,10 +38,10 @@ internal sealed record LaunchOptions
 	/// <summary>Prefix for the DOT/JSON graph dump written on startup and every swap; null disables.</summary>
 	public string? DumpGraph { get; init; }
 
-	/// <summary>Open the M13 resource viewer on startup (handy for headless capture verification).</summary>
+	/// <summary>Open the resource viewer on startup (handy for headless capture verification).</summary>
 	public bool Inspect { get; init; }
 
-	/// <summary>Enable the M13 detached debug camera + frozen-frustum wireframe on startup.</summary>
+	/// <summary>Enable the detached debug camera + frozen-frustum wireframe on startup.</summary>
 	public bool Frustum { get; init; }
 
 	/// <summary>Headless: render N frames (cycling demos) then exit. 0 = run interactively.</summary>

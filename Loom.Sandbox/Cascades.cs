@@ -6,7 +6,7 @@ using Loom.Core.Geometry;
 namespace Loom.Sandbox;
 
 /// <summary>
-/// Host-side cascaded-shadow-map fitting (M15-3). The engine offers only the frustum primitive
+/// Host-side cascaded-shadow-map fitting. The engine offers only the frustum primitive
 /// (<see cref="Matrix4x4FrustumExtensions.GetFrustumCorners"/>); the policy of how many cascades and
 /// where to split lives here, in the app — matching the "you hand me the views" invariant (the engine never
 /// decides the light's framing). Produces, per cascade, a neutral ortho <see cref="Camera"/> fitted to a slice

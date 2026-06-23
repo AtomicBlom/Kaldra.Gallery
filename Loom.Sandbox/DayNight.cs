@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Loom.Sandbox;
 
 /// <summary>
-/// Time-of-day lighting policy (M15-4): maps a day phase (0..1, 0 = sunrise, 0.25 = noon, 0.5 = sunset,
+/// Time-of-day lighting policy: maps a day phase (0..1, 0 = sunrise, 0.25 = noon, 0.5 = sunset,
 /// 0.75 = midnight) to the sun direction + the colours the deferred lighting and sky passes consume — a warm
 /// low sun and orange horizon near dawn/dusk, a white sun and blue sky at noon, a dim blue night. Host-side
 /// art direction; the engine just receives the resulting matrices/colours each frame (pulled, not captured).

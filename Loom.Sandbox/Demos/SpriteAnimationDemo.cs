@@ -9,7 +9,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Sprite-sheet frame animation (PlanningPhase2.md M14-5, Track A — extends M14-1). The same batched-sprite 2D
+/// Sprite-sheet frame animation extending <see cref="SpritesDemo"/>. The same batched-sprite 2D
 /// deferred path as <see cref="SpritesDemo"/>, but the per-instance atlas uv-rect is advanced over time: the CPU
 /// picks the current frame from <c>ctx.Time</c> (fps × the <see cref="SpinnerAtlas"/> frame grid) and writes that
 /// frame's uv-rect into each <see cref="SpriteInstance"/> before the instanced draw. The instances are
@@ -18,7 +18,7 @@ namespace Loom.Sandbox.Demos;
 /// different angles at once — proof the frame is data-driven per instance, not a global uniform.
 /// <para>
 /// Frame selection is pulled from <c>ctx.Time</c> inside the pass closure (never captured), keeping the graph
-/// frame-independent (§8) — the same reason the M14-3 lights orbit from <c>ctx.Time</c>. Camera is orthographic.
+/// frame-independent (pulled from <c>ctx.Time</c>, not captured). Camera is orthographic.
 /// </para>
 /// </summary>
 internal sealed class SpriteAnimationDemo : IDemo
@@ -85,7 +85,7 @@ internal sealed class SpriteAnimationDemo : IDemo
 				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(anim) });
 			});
 
-		// Reuse the M14-1 fixed-key-light compose (the focus here is the animation, not the lighting).
+		// Reuse the fixed-key-light compose (the focus here is the animation, not the lighting).
 		g.Pass("compose")
 			.Samples(albedo, normal, emissive)
 			.Writes(lit)

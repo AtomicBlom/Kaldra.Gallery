@@ -8,12 +8,11 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Sky + day/night + dynamic ambient (M15-4). The cascaded-shadow scene under a time-of-day sun: the sun
-/// direction and the sun/ambient/sky colours all come from <see cref="DayNight"/> (warm low sun + orange
-/// horizon at golden hour, white sun + blue sky at noon, dim blue night), recomputed each frame and threaded
-/// through the M15-0 uniform seam. A sky pass fills the background with an analytic gradient + sun glow. The
-/// cascades are refit to the moving sun every frame; under <c>--capture</c> the frozen time pins a deterministic
-/// golden-hour pose.
+/// Sky + day/night + dynamic ambient. The cascaded-shadow scene under a time-of-day sun: the sun direction and
+/// the sun/ambient/sky colours all come from <see cref="DayNight"/> (warm low sun + orange horizon at golden
+/// hour, white sun + blue sky at noon, dim blue night), recomputed each frame and threaded through the per-frame
+/// uniform seam. A sky pass fills the background with an analytic gradient + sun glow. The cascades are refit
+/// to the moving sun every frame; under <c>--capture</c> the frozen time pins a deterministic golden-hour pose.
 /// </summary>
 internal sealed class SkyDayNightDemo : IDemo
 {
@@ -57,7 +56,7 @@ internal sealed class SkyDayNightDemo : IDemo
 
 	// GetCamera runs once per frame before GetCascades + Render, so it doubles as the per-frame sun update: the
 	// day phase advances with time (frozen under capture → a deterministic golden hour).
-	private float _phaseOverride = -1f; // M15-7: < 0 = advance with time; ≥ 0 = scrubbed time-of-day
+	private float _phaseOverride = -1f; // < 0 = advance with time; ≥ 0 = scrubbed time-of-day
 
 	public Camera? GetCamera(float aspect, float time)
 	{

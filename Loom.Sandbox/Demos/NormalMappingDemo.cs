@@ -5,7 +5,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Normal-mapped deferred lighting (PlanningPhase2.md M11). The same deferred path as <see cref="ShadowsDemo"/>
+/// Normal-mapped deferred lighting. The same deferred path as <see cref="ShadowsDemo"/>
 /// — shadow map → G-buffer → lighting — but the geometry is drawn with a <em>material</em>: the
 /// <c>gbuffer.nm</c> technique samples a brick albedo + tangent-space normal map and writes the perturbed world
 /// normal into the same G-buffer the existing lighting pass reads, so the relief lights and shadows correctly

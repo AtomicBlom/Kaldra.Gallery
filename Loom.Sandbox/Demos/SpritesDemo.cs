@@ -9,16 +9,15 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Sprite batching + texture atlases (PlanningPhase2.md M14-1, Track A). One <c>ctx.DrawInstanced</c> places a
-/// whole field of quads — each a <see cref="SpriteInstance"/> in the per-instance stream (<see
-/// cref="SandboxVertexLayouts.Sprite"/>) sharing one atlas material — into a low-res 2D deferred G-buffer
-/// (gbuffer_sprite.slang: albedo + tangent-space normal + emissive), which a compose pass lights and a nearest
-/// upscale blows up to the screen (the §9 pixelation). The camera is orthographic (<see cref="GetCamera"/>).
+/// Sprite batching + texture atlases. One <c>ctx.DrawInstanced</c> places a whole field of quads — each a
+/// <see cref="SpriteInstance"/> in the per-instance stream (<see cref="SandboxVertexLayouts.Sprite"/>) sharing
+/// one atlas material — into a low-res 2D deferred G-buffer (gbuffer_sprite.slang: albedo + tangent-space
+/// normal + emissive), which a compose pass lights and a nearest upscale blows up to the screen. The camera
+/// is orthographic (<see cref="GetCamera"/>).
 /// <para>
 /// The atlas is a procedurally-built 2×2 sheet of coloured balls with spherical normal maps, so the sprites read
-/// as lit 3D under the compose's fixed key light — the relief the real 2D light volumes (M14-3) will drive. The
-/// per-instance uv-rect (from a <see cref="SpriteSheet"/>) selects each ball's cell; animating it over time is
-/// sprite-sheet animation (M14-5), which extends this demo.
+/// as lit 3D under the compose's fixed key light. The per-instance uv-rect (from a <see cref="SpriteSheet"/>)
+/// selects each ball's cell; see <see cref="SpriteAnimationDemo"/> for frame animation.
 /// </para>
 /// </summary>
 internal sealed class SpritesDemo : IDemo
@@ -55,7 +54,7 @@ internal sealed class SpritesDemo : IDemo
 	}
 
 	// An orthographic view of the [0,WorldWidth]×[0,WorldHeight] world, centred on the camera (so the projection
-	// stays symmetric and the backend's clip-space Y-flip behaves), +Y up. Time-independent for now; M14-6 scrolls it.
+	// stays symmetric and the backend's clip-space Y-flip behaves), +Y up. Time-independent; see ParallaxDemo for scrolling.
 	public Camera? GetCamera(float aspect, float time)
 	{
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
@@ -78,13 +77,13 @@ internal sealed class SpritesDemo : IDemo
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
-		// Compose the G-buffer into a lit (HDR) target — a preview ahead of the real 2D light volumes (M14-3).
+		// Compose the G-buffer into a lit (HDR) target with a fixed key light.
 		g.Pass("compose")
 			.Samples(albedo, normal, emissive)
 			.Writes(lit)
 			.Draw(ctx => ctx.FullScreen("compose2d", albedo, normal, emissive));
 
-		// Nearest upscale to the backbuffer — the §9 pixelation.
+		// Nearest upscale to the backbuffer.
 		g.Pass("upscale")
 			.Samples(lit)
 			.Writes(screen)

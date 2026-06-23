@@ -8,11 +8,11 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Cascaded shadow maps (M15-3). A cube on a large ground, lit by the sun, shadowed by three cascades fitted to
+/// Cascaded shadow maps. A cube on a large ground, lit by the sun, shadowed by three cascades fitted to
 /// the camera frustum (near→far) so the shadow stays crisp across distance where a single map would smear. The
 /// deferred g-buffer feeds a <c>lighting_csm</c> pass that selects a cascade per pixel by view depth and samples
-/// that cascade's map; the cascade matrices/splits ride the M15-0 uniform seam. Press the debug toggle to tint
-/// pixels by cascade (red/green/blue) — the M15-7 cascade visualization.
+/// that cascade's map; the cascade matrices/splits ride the per-frame uniform seam. Press the debug toggle to tint
+/// pixels by cascade (red/green/blue).
 /// </summary>
 internal sealed class CascadedShadowsDemo : IDemo
 {

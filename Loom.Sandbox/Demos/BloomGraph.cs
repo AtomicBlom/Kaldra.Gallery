@@ -3,7 +3,7 @@ using Loom.Core.Graph;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// The bloom sub-graph (Planning.md §7.1) as an <em>extension method</em> on <see cref="GraphBuilder"/> —
+/// The bloom sub-graph as an <em>extension method</em> on <see cref="GraphBuilder"/> —
 /// the canonical example of a reusable graph fragment composing into a parent graph. It is an
 /// <em>application-side effect</em>, not engine API: it adds ordinary passes that name app-supplied shaders
 /// (<c>bloom.prefilter</c>/<c>bloom.down</c>/<c>bloom.up</c>/<c>bloom.composite</c>, living next to it in
@@ -16,23 +16,23 @@ namespace Loom.Sandbox.Demos;
 /// The <c>.Writes</c> vs <c>.Blends</c> distinction is load-bearing here: the upsample passes <c>.Blends</c>
 /// (read-modify-write, <c>LoadOp.Load</c> + additive) the larger mip, so the graph preserves the
 /// downsample's contents and accumulates onto them rather than clearing. A graph that only knew <c>.Writes</c>
-/// would lose the accumulation or miss the dependency (§7.1).
+/// would lose the accumulation or miss the dependency.
 /// </para>
 /// </summary>
 internal static class BloomGraph
 {
 	/// <summary>
 	/// Add the bloom passes for <paramref name="source"/> (an HDR colour target) and return the composited
-	/// "lit + glow" output. Runs entirely in the source's domain so the glow stays pixel-consistent (§9).
+	/// "lit + glow" output. Runs entirely in the source's domain so the glow stays pixel-consistent.
 	/// </summary>
 	/// <param name="g">The graph being authored.</param>
 	/// <param name="source">The HDR image to bloom (e.g. the lit result).</param>
 	/// <param name="threshold">Brightness above which a texel glows. Delivered to the prefilter shader through
-	/// the fragment push channel (M7-A3).</param>
-	/// <param name="mips">Pyramid depth. Near a ceiling at low resolution, not a quality knob (§9): ~5 is the
+	/// the fragment push channel.</param>
+	/// <param name="mips">Pyramid depth. Near a ceiling at low resolution, not a quality knob — ~5 is the
 	/// most a 480×270 world supports before mips become noise.</param>
 	/// <param name="intensity">How strongly the glow composites back. Delivered to the composite shader through
-	/// the fragment push channel (M7-A3).</param>
+	/// the fragment push channel.</param>
 	public static ColorHandle Bloom(this GraphBuilder g, ColorHandle source, float threshold = 1.0f, int mips = 5, float intensity = 0.7f)
 	{
 		ArgumentNullException.ThrowIfNull(g);

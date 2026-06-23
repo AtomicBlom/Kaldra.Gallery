@@ -11,7 +11,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Skeletal animation via GPU compute pre-skin (PlanningPhase2.md M15). Loads a committed rigged glTF (a 2-bone
+/// Skeletal animation via GPU compute pre-skin. Loads a committed rigged glTF (a 2-bone
 /// bar with a "bend" clip), then each frame: the CPU <see cref="AnimationSampler"/> samples the clip at
 /// <c>ctx.Time</c> into a bone palette, a compute pass skins the bind-pose vertices once into a transient buffer
 /// (<c>ctx.DispatchSkin</c>), and the scene pass draws that skinned output with the ordinary forward <c>lit</c>
@@ -29,7 +29,7 @@ internal sealed class SkinningDemo : IDemo
 	private AnimationClip _clip = null!;
 	private Matrix4x4[] _palette = [];
 	private Matrix4x4[] _jointWorld = [];
-	private bool _showSkeleton = true; // M15-7: skeleton overlay (bones + joint axes), on by default for the demo
+	private bool _showSkeleton = true; // skeleton overlay (bones + joint axes), on by default for the demo
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -53,7 +53,7 @@ internal sealed class SkinningDemo : IDemo
 		_palette = new Matrix4x4[_skeleton.JointCount];
 	}
 
-	// M15-7: the skeleton as world-space line segments — each bone (parent→joint) plus a small axis gizmo per
+	// The skeleton as world-space line segments — each bone (parent→joint) plus a small axis gizmo per
 	// joint. The launcher projects these to screen and draws them as the debug overlay.
 	public IReadOnlyList<(Vector3 A, Vector3 B)> DebugWorldLines(float time)
 	{

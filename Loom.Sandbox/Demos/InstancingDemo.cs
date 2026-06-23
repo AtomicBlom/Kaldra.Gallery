@@ -8,12 +8,12 @@ using Loom.Core.Scene;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// GPU instancing + CPU frustum culling (M12). A dense field of cubes — one mesh, one draw — each placed by a
+/// GPU instancing + CPU frustum culling. A dense field of cubes — one mesh, one draw — each placed by a
 /// per-instance world matrix carried in the per-instance vertex stream (<see cref="VertexLayout.Transform"/>),
 /// not baked into geometry. Each frame the demo extracts the camera's <see cref="Frustum"/>, culls the
 /// app-owned <see cref="Scene"/> against it on the CPU, and hands only the surviving transforms to
-/// <c>ctx.DrawInstanced</c>; the HUD reports drawn vs culled. This is the "you hand me draw lists" path —
-/// culling stays optional and app-owned (PlanningPhase2 §6); the engine just offers the Scene + cull helper.
+/// <c>ctx.DrawInstanced</c>; the HUD reports drawn vs culled. Culling stays optional and app-owned; the engine
+/// just offers the Scene + cull helper.
 /// </summary>
 internal sealed class InstancingDemo : IDemo
 {

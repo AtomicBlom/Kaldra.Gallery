@@ -25,14 +25,14 @@ internal interface IDemo
 
 	/// <summary>
 	/// Optional per-frame CPU update with the frame's camera, called by the launcher before <c>Render</c> — the
-	/// hook a demo uses for app-side work like CPU frustum culling (M12), where the surviving draw list must be
+	/// hook a demo uses for app-side work like CPU frustum culling, where the surviving draw list must be
 	/// ready before the pass closure runs. Default no-op; only the instancing demo overrides it.
 	/// </summary>
 	void Update(Camera camera) { }
 
 	/// <summary>
 	/// Optional camera override for this demo, given the frame's framebuffer <paramref name="aspect"/> and elapsed
-	/// <paramref name="time"/>. A 2D/sprite demo (M14) returns an orthographic view here and the launcher renders
+	/// <paramref name="time"/>. A 2D/sprite demo returns an orthographic view here and the launcher renders
 	/// from it instead of the default perspective orbit; default null keeps the orbit camera. Pulled each frame,
 	/// not captured (so a 2D camera can scroll), exactly like the other per-frame inputs.
 	/// </summary>
@@ -49,7 +49,7 @@ internal interface IDemo
 	(IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, System.Numerics.Vector3 lightDir) => null;
 
 	/// <summary>
-	/// Optional world-space debug line segments for this frame (M15-7) — pairs of endpoints the launcher projects
+	/// Optional world-space debug line segments for this frame — pairs of endpoints the launcher projects
 	/// to screen and feeds the ImGui overlay painter's <c>SetDebugLines</c>. The skinning demo returns its skeleton
 	/// (bone segments + joint axis gizmos) here. Given the frame's effect <paramref name="time"/> so a demo can
 	/// resample its animation deterministically. Default none.
@@ -57,7 +57,7 @@ internal interface IDemo
 	IReadOnlyList<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> DebugWorldLines(float time) => [];
 
 	/// <summary>
-	/// Optional Dear ImGui controls for this demo (M15-7) — drawn by the launcher inside a "Debug" menu/window so a
+	/// Optional Dear ImGui controls for this demo — drawn by the launcher inside a "Debug" menu/window so a
 	/// demo can expose its own toggles (cascade-tint, time-of-day scrubber, skeleton overlay, bind-vs-animated).
 	/// Default no-op. Only meaningful when ImGui is enabled.
 	/// </summary>
@@ -67,7 +67,7 @@ internal interface IDemo
 	string? HudStatus => null;
 
 	/// <summary>
-	/// The object-id buffer this demo writes for cursor picking (Planning.md §7.4), or null if it doesn't pick. The
+	/// The object-id buffer this demo writes for cursor picking, or null if it doesn't pick. The
 	/// launcher reads it back at the cursor (<see cref="IEngine.Read"/>), decodes the hovered id, and hands it to
 	/// <see cref="WriteHover"/> — picking is app-owned, so the engine carries no picking concept of its own.
 	/// </summary>

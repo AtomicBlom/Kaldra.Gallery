@@ -7,15 +7,15 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// 2D debug overlays (PlanningPhase2.md M14-7, Track A — every feature ships its debug view). Takes the M14-3
-/// lit ball scene and makes the deferred 2D pipeline legible:
+/// 2D debug overlays — the debug view for the deferred 2D pipeline. Takes the lit ball scene and makes the
+/// pipeline legible:
 /// <list type="bullet">
 /// <item><b>Light gizmos</b> — one additive ring per light (gizmo2d), drawn over the lit target from the <em>same</em>
 /// <see cref="Light2DInstance"/> stream the real lights use, so each light's position + reach is shown as a wireframe
 /// that can't drift from what's actually shading the scene.</item>
 /// <item><b>G-buffer channel inspector</b> — the terminal pass (gbufview2d) tiles albedo, the encoded normal (as RGB),
 /// the normal's facing (grayscale n.z), and the final lit result into four quadrants — the in-graph counterpart to
-/// the M13 resource viewer, focused on the 2D deferred targets.</item>
+/// the resource viewer, focused on the 2D deferred targets.</item>
 /// </list>
 /// Lights orbit from <c>ctx.Time</c> (pulled, not captured). Camera is orthographic. No host or backend changes —
 /// pure graph + two small shaders on the existing 2D deferred path.
@@ -108,7 +108,7 @@ internal sealed class Debug2DDemo : IDemo
 
 	public string HudStatus => "G-buffer quadrants + light gizmos";
 
-	// The same three orbiting lights as Lighting2DDemo (M14-3) — built per frame from ctx.Time.
+	// The same three orbiting lights as Lighting2DDemo — built per frame from ctx.Time.
 	private static Light2DInstance[] BuildLights(float t)
 	{
 		var centre = new Vector2(WorldWidth * 0.5f, WorldHeight * 0.5f);

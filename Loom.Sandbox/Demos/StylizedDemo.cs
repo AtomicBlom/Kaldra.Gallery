@@ -11,13 +11,12 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Track B — stylized 3D reference frame (M15-8). Composes the whole milestone end to end: a compute-pre-skinned
-/// animated glTF character (M15-1/2) in a windy alpha-tested foliage field (M15-5), under cascaded sun shadows
-/// (M15-3) and a day/night sky (M15-4), shaded with cel/toon deferred lighting (M15-6) and a warm season grade.
-/// Pass order: skin compute → N cascade depth (char + ground) → g-buffer (char + ground + foliage) → sky →
-/// toon lighting → grade → blit. The skinned buffer is produced once and read by every depth + g-buffer pass —
-/// the "skin once, read many" payoff the render graph derives. Frozen time pins a deterministic cross-backend
-/// golden (the M15-8 acceptance).
+/// Stylized 3D reference frame — composes every capability end to end: a compute-pre-skinned animated glTF
+/// character in a windy alpha-tested foliage field, under cascaded sun shadows and a day/night sky, shaded with
+/// cel/toon deferred lighting and a warm season grade. Pass order: skin compute → N cascade depth (char +
+/// ground) → g-buffer (char + ground + foliage) → sky → toon lighting → grade → blit. The skinned buffer is
+/// produced once and read by every depth + g-buffer pass — the "skin once, read many" payoff the render graph
+/// derives. Frozen time pins a deterministic cross-backend golden.
 /// </summary>
 internal sealed class StylizedDemo : IDemo
 {

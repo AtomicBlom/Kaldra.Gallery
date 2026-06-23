@@ -7,10 +7,10 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// The shared 2×2 atlas of coloured balls used by the Track-A 2D demos (<see cref="SpritesDemo"/> M14-1,
-/// <see cref="Lighting2DDemo"/> M14-3). Each cell is a filled circle (alpha 1 inside, 0 outside for alpha-test)
+/// The shared 2×2 atlas of coloured balls used by the Track-A 2D demos (<see cref="SpritesDemo"/>,
+/// <see cref="Lighting2DDemo"/>). Each cell is a filled circle (alpha 1 inside, 0 outside for alpha-test)
 /// with a spherical tangent-space normal map, so the sprites read as lit 3D balls under a 2D light — the relief
-/// the M14-3 light volumes drive. Row-major cell order matches <see cref="SpriteSheet.Uv"/>. The byte output is
+/// the light volumes drive. Row-major cell order matches <see cref="SpriteSheet.Uv"/>. The byte output is
 /// deterministic → safe for cross-backend golden images.
 /// </summary>
 internal static class BallAtlas

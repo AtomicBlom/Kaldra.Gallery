@@ -7,7 +7,7 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Parallax layers + 2D draw ordering (PlanningPhase2.md M14-6, Track A). Several depth layers of sprites scroll
+/// Parallax layers + 2D draw ordering. Several depth layers of sprites scroll
 /// at speeds scaled by their depth (far layers crawl, the foreground races) — the parallax read of 2D depth — and
 /// a depth target gives the 2D G-buffer real occlusion: nearer layers write smaller depth and occlude farther
 /// ones (the ordering convention), so a foreground sprite passing a background one draws over it. All layers ride
@@ -15,7 +15,7 @@ namespace Loom.Sandbox.Demos;
 /// each in its layer, and the depth test resolves who wins per pixel.
 /// <para>
 /// The scroll offset is pulled from <c>ctx.Time</c> (not captured), so the world scrolls while the camera stays
-/// fixed — content moves, not the ortho view (§8 frame-independence, like the M14-3 lights / M14-5 frames). With
+/// fixed — content moves, not the ortho view. With
 /// the eye at z=10 looking down −Z, a <em>larger</em> world z is nearer, so the foreground layer takes the largest
 /// <see cref="SpriteInstance.Depth"/> and the LessOrEqual depth test lets it occlude the rest.
 /// </para>
