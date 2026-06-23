@@ -40,8 +40,8 @@ internal sealed class NormalMappingDemo : IDemo
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "depthonly", ctx.SunView);
-				ctx.Draw(scene.Plane, "depthonly", ctx.SunView);
+				ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
 			});
 
 		// Deferred geometry, drawn with the brick material — the only difference from the plain deferred path.
@@ -57,7 +57,7 @@ internal sealed class NormalMappingDemo : IDemo
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, shadowMap)
 			.Writes(screen)
-			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap));
+			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(ctx.Views[ViewKeys.Sun].ViewProjection), albedo, normal, position, shadowMap));
 
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);

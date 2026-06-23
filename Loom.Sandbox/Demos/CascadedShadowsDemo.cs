@@ -107,8 +107,8 @@ internal sealed class CascadedShadowsDemo : IDemo
 				.WritesDepth(cascadeMaps[cascade])
 				.Draw(ctx =>
 				{
-					ctx.Draw(scene.Cube, "depthonly", ctx.Cascades[cascade]);
-					ctx.Draw(_ground, "depthonly", ctx.Cascades[cascade]);
+					ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
+					ctx.Draw(_ground, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
 				});
 		}
 
@@ -139,12 +139,12 @@ internal sealed class CascadedShadowsDemo : IDemo
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Cascades[c].ViewProjection;
+			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
 		// Splits + the cascade-tint flag now ride the CsmSplits parameter buffer (written in GetCascades); the push
 		// carries only the clip-space matrices + the camera/sun/ambient data the engine can't host-write.
-		Matrix4x4.Invert(ctx.Camera.View, out var invView);
+		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
 		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;

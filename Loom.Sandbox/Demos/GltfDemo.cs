@@ -56,8 +56,8 @@ internal sealed class GltfDemo : IDemo
 			.Draw(ctx =>
 			{
 				foreach (var (mesh, _) in _primitives)
-					ctx.Draw(mesh, "depthonly", ctx.SunView);
-				ctx.Draw(scene.Plane, "depthonly", ctx.SunView);
+					ctx.Draw(mesh, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
 			});
 
 		g.Pass("gbuffer")
@@ -73,7 +73,7 @@ internal sealed class GltfDemo : IDemo
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, shadowMap)
 			.Writes(screen)
-			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap));
+			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(ctx.Views[ViewKeys.Sun].ViewProjection), albedo, normal, position, shadowMap));
 
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);

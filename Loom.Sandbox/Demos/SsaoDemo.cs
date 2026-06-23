@@ -45,7 +45,7 @@ internal sealed class SsaoDemo : IDemo
 		g.Pass("ssao.calculate")
 			.Samples(position, normal)
 			.Writes(ao)
-			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.Camera.ViewProjection), position, normal));
+			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.View.ViewProjection), position, normal));
 
 		g.Pass("ssao.blur")
 			.Samples(ao)

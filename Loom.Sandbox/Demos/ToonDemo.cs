@@ -91,8 +91,8 @@ internal sealed class ToonDemo : IDemo
 				.WritesDepth(cascadeMaps[cascade])
 				.Draw(ctx =>
 				{
-					ctx.Draw(scene.Cube, "depthonly", ctx.Cascades[cascade]);
-					ctx.Draw(_ground, "depthonly", ctx.Cascades[cascade]);
+					ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
+					ctx.Draw(_ground, "depthonly", ctx.Views[ViewKeys.Cascade(cascade)]);
 				});
 		}
 
@@ -133,11 +133,11 @@ internal sealed class ToonDemo : IDemo
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Cascades[c].ViewProjection;
+			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
 		// Splits ride the CsmSplits parameter buffer (written in GetCascades); the push carries matrices + camera/sun/ambient.
-		Matrix4x4.Invert(ctx.Camera.View, out var invView);
+		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
 		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;
@@ -153,9 +153,9 @@ internal sealed class ToonDemo : IDemo
 	private ReadOnlySpan<float> PackSky(IRenderContext ctx)
 	{
 		var p = _skyParams;
-		Matrix4x4.Invert(ctx.Camera.ViewProjection, out var invVp);
+		Matrix4x4.Invert(ctx.View.ViewProjection, out var invVp);
 		MemoryMarshal.CreateReadOnlySpan(in invVp.M11, 16).CopyTo(p.AsSpan(0, 16));
-		Matrix4x4.Invert(ctx.Camera.View, out var invView);
+		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
 		var eye = invView.Translation;
 		p[16] = eye.X; p[17] = eye.Y; p[18] = eye.Z; p[19] = 0f;
 		p[20] = _sun.SunDir.X; p[21] = _sun.SunDir.Y; p[22] = _sun.SunDir.Z; p[23] = 0f;

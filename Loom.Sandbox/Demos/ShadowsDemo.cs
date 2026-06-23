@@ -7,7 +7,7 @@ namespace Loom.Sandbox.Demos;
 /// <summary>
 /// Shadow mapping (Planning.md §7.2) — the novel "same draw, a different view" primitive. A depth-only pass
 /// renders the casters from the <em>sun's</em> view into a shadow map (<c>ctx.Draw(mesh, "depthonly",
-/// ctx.SunView)</c>); a g-buffer pass renders them from the camera; the lighting pass projects each pixel into
+/// ctx.Views[ViewKeys.Sun])</c>); a g-buffer pass renders them from the camera; the lighting pass projects each pixel into
 /// the sun's clip space and compares depth to decide shadow. The deferred split is what lets the camera
 /// transform (g-buffer vertex push) and the sun transform (lighting fragment push) each be one matrix.
 /// </summary>
@@ -38,8 +38,8 @@ internal sealed class ShadowsDemo : IDemo
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "depthonly", ctx.SunView);
-				ctx.Draw(scene.Plane, "depthonly", ctx.SunView);
+				ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
 			});
 
 		g.Pass("gbuffer")
@@ -56,7 +56,7 @@ internal sealed class ShadowsDemo : IDemo
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, shadowMap)
 			.Writes(screen)
-			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap));
+			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(ctx.Views[ViewKeys.Sun].ViewProjection), albedo, normal, position, shadowMap));
 
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);

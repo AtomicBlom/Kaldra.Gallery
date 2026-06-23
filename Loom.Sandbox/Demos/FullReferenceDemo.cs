@@ -64,8 +64,8 @@ internal sealed class FullReferenceDemo : IDemo
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(scene.Cube, "depthonly", ctx.SunView);
-				ctx.Draw(scene.Plane, "depthonly", ctx.SunView);
+				ctx.Draw(scene.Cube, "depthonly", ctx.Views[ViewKeys.Sun]);
+				ctx.Draw(scene.Plane, "depthonly", ctx.Views[ViewKeys.Sun]);
 			});
 
 		g.Pass("gbuffer")
@@ -80,7 +80,7 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Pass("ssao")
 			.Samples(position, normal)
 			.Writes(ao)
-			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.Camera.ViewProjection), position, normal));
+			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.View.ViewProjection), position, normal));
 
 		g.Pass("ssao.blur")
 			.Samples(ao)
@@ -90,7 +90,7 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, shadowMap, aoBlur)
 			.Writes(lit)
-			.Draw(ctx => ctx.FullScreen("lighting", DemoGraph.Mat(ctx.SunView.ViewProjection), albedo, normal, position, shadowMap, aoBlur));
+			.Draw(ctx => ctx.FullScreen("lighting", DemoGraph.Mat(ctx.Views[ViewKeys.Sun].ViewProjection), albedo, normal, position, shadowMap, aoBlur));
 
 		g.Pass("transparent")
 			.Blends(lit)
