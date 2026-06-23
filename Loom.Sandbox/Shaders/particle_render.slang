@@ -19,7 +19,7 @@ struct VsOut
 };
 
 [shader("vertex")]
-VsOut vertexMain([[vk::location(0)]] float4 particle, uint vertexId : SV_VertexID)
+VsOut vertexMain([[vk::location(0)]] float4 particle : POSITION, uint vertexId : SV_VertexID)
 {
 	// Two triangles of a unit quad in local [-1,1].
 	const float2 corners[6] = {
