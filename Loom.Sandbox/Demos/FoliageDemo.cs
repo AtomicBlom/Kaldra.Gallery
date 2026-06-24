@@ -121,7 +121,7 @@ internal sealed class FoliageDemo : IDemo
 				// time + wind params reach the vertex stage through the uniform seam.
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f; // dir.xy, time
 				_wind[4] = 0.18f; _wind[5] = 2.2f; _wind[6] = 0f; _wind[7] = 0f;     // amplitude, frequency
-				ctx.Draw(new DrawCall { Mesh = _card, Material = _bladeMaterial, Technique = "foliage", Instances = DrawCall.From<Blade>(_visible.AsSpan(0, _visibleCount)), Uniforms = _wind });
+				ctx.Draw(new DrawCall { Mesh = _card, Material = _bladeMaterial, Technique = "foliage", Instances = DrawCall.From<Blade>(_visible.AsSpan(0, _visibleCount)), Uniforms = DrawCall.Bytes(_wind) });
 			});
 
 		g.Pass("lighting")

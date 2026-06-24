@@ -169,7 +169,7 @@ internal sealed class StylizedDemo : IDemo
 				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
 				_wind[4] = 0.16f; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
-				ctx.Draw(new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field), Uniforms = _wind });
+				ctx.Draw(new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field), Uniforms = DrawCall.Bytes(_wind) });
 			});
 
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");

@@ -6,7 +6,7 @@
 // row-vector convention the rest of Loom uses.
 
 struct ViewProj { float4x4 viewProj; };
-struct PerDraw  { float4x4 model; float4 misc; }; // misc.x = object id (unused here)
+struct PerDraw  { float4x4 model; uint objectId; }; // object id (unused here)
 
 // DX12 reserves b0 for the (still-firing, here-unused) root-constant MVP, so the CBVs start at b1; on Vulkan
 // there are no samplers ahead of them, so they own bindings 0,1. UniformBufferCount is reflection-derived.

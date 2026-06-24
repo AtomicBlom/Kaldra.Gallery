@@ -7,7 +7,7 @@
 #include "transform.module.slang"
 
 struct ViewProj { float4x4 viewProj; };           // the app's view-projection, clip-space-corrected
-struct PerDraw  { float4x4 model; float4 misc; };  // per-object model; misc.x = object id (unused here)
+struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused by emissive)
 
 // Bindings as in lit.slang: no samplers precede them, so Vulkan bindings 0,1; DX12 register(b1)/(b2).
 [[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
