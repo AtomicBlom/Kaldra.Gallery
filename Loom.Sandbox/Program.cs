@@ -667,6 +667,9 @@ internal static class Program
 			new FoliageDemo(),
 			new ToonDemo(),
 			new StylizedDemo(),
+			new NightGladeDemo(),
+			new RuinsDemo(),
+			new PixelArtCastleDemo(),
 		];
 
 		var live = new List<IDemo>();

@@ -33,10 +33,21 @@ internal static class BloomGraph
 	/// most a 480×270 world supports before mips become noise.</param>
 	/// <param name="intensity">How strongly the glow composites back. Delivered to the composite shader through
 	/// the fragment push channel.</param>
-	public static ColorHandle Bloom(this GraphBuilder g, ColorHandle source, float threshold = 1.0f, int mips = 5, float intensity = 0.7f)
+	public static ColorHandle Bloom(this GraphBuilder g, ColorHandle source, float threshold = 1.0f, int mips = 5, float intensity = 0.7f) =>
+		g.Bloom(source, () => threshold, () => intensity, mips);
+
+	/// <summary>
+	/// As <see cref="Bloom(GraphBuilder, ColorHandle, float, int, float)"/>, but the threshold and intensity are
+	/// pulled from <paramref name="threshold"/>/<paramref name="intensity"/> each frame inside the pass closures
+	/// rather than baked into the graph — so a demo can drive them from a live field (an ImGui slider) without
+	/// rebuilding the graph. The pyramid structure is identical; only the two parameterised passes read the delegates.
+	/// </summary>
+	public static ColorHandle Bloom(this GraphBuilder g, ColorHandle source, Func<float> threshold, Func<float> intensity, int mips = 5)
 	{
 		ArgumentNullException.ThrowIfNull(g);
 		ArgumentNullException.ThrowIfNull(source);
+		ArgumentNullException.ThrowIfNull(threshold);
+		ArgumentNullException.ThrowIfNull(intensity);
 		if (mips < 2)
 			throw new ArgumentOutOfRangeException(nameof(mips), "Bloom needs at least 2 mips (one downsample to upsample from).");
 
@@ -49,7 +60,7 @@ internal static class BloomGraph
 		g.Pass("bloom.prefilter")
 			.Samples(source)
 			.Writes(chain[0])
-			.Draw(ctx => ctx.FullScreen("bloom.prefilter", [threshold], source));
+			.Draw(ctx => ctx.FullScreen("bloom.prefilter", [threshold()], source));
 
 		// Downsample: each mip is the half-size, box-filtered version of the one above.
 		for (var i = 1; i < mips; i++)
@@ -81,7 +92,7 @@ internal static class BloomGraph
 		g.Pass("bloom.composite")
 			.Samples(source, mip0)
 			.Writes(output)
-			.Draw(ctx => ctx.FullScreen("bloom.composite", [intensity], source, mip0));
+			.Draw(ctx => ctx.FullScreen("bloom.composite", [intensity()], source, mip0));
 
 		return output;
 	}
