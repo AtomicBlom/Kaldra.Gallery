@@ -1,3 +1,6 @@
+using System.Numerics;
+
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -14,10 +17,15 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class ParticlesDemo : IDemo
 {
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
+
 	public string Name => "Particles";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
@@ -32,14 +40,16 @@ internal sealed class ParticlesDemo : IDemo
 
 		const int particleCount = 4096;
 		var particles = g.Buffer("particles", particleCount * 16); // float4 per particle
+		_view = new ViewConstants(g, "particles.viewproj");
 
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(lit)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
-				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
+				_submit.Draw(ctx, scene.Cube, "lit", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
 		g.Compute("particle.update")
@@ -55,4 +65,7 @@ internal sealed class ParticlesDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's view-projection for the lit scene pass (the particle render still rides the auto-push).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 }

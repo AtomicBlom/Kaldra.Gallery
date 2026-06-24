@@ -1,5 +1,7 @@
 using System.Numerics;
 
+using Loom.Concepts;
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -18,11 +20,15 @@ internal sealed class HighlightingDemo : IDemo
 {
 	private ColorHandle _ids = null!;
 	private ConstantsHandle _hoverParams = null!;
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public string Name => "Object Highlighting";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
 		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed"));
@@ -41,14 +47,16 @@ internal sealed class HighlightingDemo : IDemo
 		var seedA = world.Color("outline_a", Format.Rg16F);
 		var seedB = world.Color("outline_b", Format.Rg16F);
 		var outlined = world.Color("lit_outlined", Format.Rgba16F);
+		_view = new ViewConstants(g, "highlighting.viewproj");
 
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(lit)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
-				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
+				_submit.Draw(ctx, scene.Cube, "lit", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
 		// Write the cube's object id (1), then read it back so the host can decide the hovered object (§7.4). The
@@ -89,6 +97,9 @@ internal sealed class HighlightingDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's view-projection for the scene pass to read (the id pass still rides the auto-push).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public ResourceHandle? PickTarget => _ids;
 

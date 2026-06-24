@@ -1,6 +1,7 @@
 using System.Numerics;
 
 using Loom.Assets;
+using Loom.Concepts;
 using Loom.Core;
 using Loom.Core.Animation;
 using Loom.Core.Geometry;
@@ -30,9 +31,13 @@ internal sealed class SkinningDemo : IDemo
 	private Matrix4x4[] _palette = [];
 	private Matrix4x4[] _jointWorld = [];
 	private bool _showSkeleton = true; // skeleton overlay (bones + joint axes), on by default for the demo
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		// The Slang compute entry is `computeMain` (so the build's `-entry computeMain` DXIL emit finds it), but
 		// slangc renames a lone compute entry to "main" in the SPIR-V — so the Vulkan entry is "main", exactly as
 		// particle_update is declared.
@@ -91,6 +96,7 @@ internal sealed class SkinningDemo : IDemo
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var skinned = g.Buffer("skinned", _vertexCount * 48); // MeshStandard-shaped (48 bytes) compute output
+		_view = new ViewConstants(g, "skinning.viewproj");
 
 		// Pre-skin the bar once: sample the clip at this frame's time (looping) into the palette, then dispatch.
 		g.Compute("skin")
@@ -104,17 +110,21 @@ internal sealed class SkinningDemo : IDemo
 
 		// Draw the skinned output (forward lit) + the ground plane; the .ReadsVertex edge derives the barrier.
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(lit)
 			.WritesDepth(depth)
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				ctx.Draw(new DrawCall { Mesh = _mesh, SkinnedVertices = skinned, Technique = "lit" });
-				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
+				_submit.DrawSkinned(ctx, _mesh, skinned, "lit", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's view-projection for the scene pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 }

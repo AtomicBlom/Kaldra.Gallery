@@ -1,3 +1,7 @@
+using System.Numerics;
+
+using Loom.Concepts;
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -14,27 +18,39 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class UIInteractiveDemo : IDemo
 {
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
+
 	public string Name => "UI Interactive";
 
-	public void DefineTechniques(IEngine engine) =>
+	public void DefineTechniques(IEngine engine)
+	{
+		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
+	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
+		_view = new ViewConstants(g, "uiinteractive.viewproj");
 
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(screen)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
-				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
+				_submit.Draw(ctx, scene.Cube, "lit", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
 		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's view-projection for the scene pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 }

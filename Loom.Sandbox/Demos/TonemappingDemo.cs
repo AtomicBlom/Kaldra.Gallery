@@ -1,4 +1,8 @@
+using System.Numerics;
+
+using Loom.Concepts;
 using Loom.Core;
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -14,10 +18,15 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class TonemappingDemo : IDemo
 {
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
+
 	public string Name => "Tonemapping";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", HasFragmentPush: true));
@@ -32,14 +41,16 @@ internal sealed class TonemappingDemo : IDemo
 		var meter = g.Domain("meter", 1, 1);
 		var exposure = meter.Persistent("exposure", Format.R16F);
 		var graded = g.Screen.Color("graded", Format.Rgba16F);
+		_view = new ViewConstants(g, "tonemapping.viewproj");
 
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(lit)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "lit"));
-				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));
+				_submit.Draw(ctx, scene.Cube, "lit", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
 		// Meter the lit scene's luminance into the 1×1 persistent exposure (the rate rides the push).
@@ -58,4 +69,7 @@ internal sealed class TonemappingDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's view-projection for the scene pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 }

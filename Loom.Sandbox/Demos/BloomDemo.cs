@@ -1,3 +1,7 @@
+using System.Numerics;
+
+using Loom.Concepts;
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -13,10 +17,15 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class BloomDemo : IDemo
 {
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
+
 	public string Name => "Bloom";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("emissive", new TechniqueDescriptor("emissive", HasVertexInput: true)); // the glowing cube
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));           // the dim floor
 																									   // g.Bloom draws with these four (all linear-filtered; the upsample additively accumulates).
@@ -32,14 +41,16 @@ internal sealed class BloomDemo : IDemo
 		var screen = g.Backbuffer;
 		var hdr = g.Screen.Color("hdr", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
+		_view = new ViewConstants(g, "bloom.viewproj");
 
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(hdr)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Plane, "lit"));      // a dim floor for context (below the bloom threshold)
-				ctx.Draw(DrawCall.Create(scene.Cube, "emissive"));  // the bright, glowing object
+				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);       // a dim floor for context (below the bloom threshold)
+				_submit.Draw(ctx, scene.Cube, "emissive", Matrix4x4.Identity);   // the bright, glowing object
 			});
 
 		var glow = g.Bloom(hdr, threshold: 1.0f, mips: 5, intensity: 1.0f);
@@ -48,4 +59,7 @@ internal sealed class BloomDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's view-projection for the scene pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 }
