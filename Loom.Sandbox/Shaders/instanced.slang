@@ -1,15 +1,17 @@
-// Instanced forward lighting (M12) — the same single directional key + ambient shading as lit.slang, but the
+// Instanced forward lighting — the same single directional key + ambient shading as lit.slang, but the
 // per-object world matrix arrives as a PER-INSTANCE vertex stream (VertexLayout.Transform: four ITRANSFORM
 // rows at binding 1) instead of being baked into the geometry. One mesh, thousands of instances, one draw.
-// The camera's view-projection still rides in the 64-byte MVP push (shared with mesh.slang/lit.slang); the
-// instance matrix multiplies the local vertex into world space first.
+// The camera's view-projection arrives as a constants buffer the pass .Reads (the app composed the engine's
+// ClipSpaceCorrection into it); the instance matrix multiplies the local vertex into world space first.
 
-struct PushConstants
+#include "transform.module.slang"
+
+struct ViewProj
 {
-	float4x4 mvp; // Loom.Core.Camera.ViewProjection
+	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-[[vk::push_constant]] PushConstants pc;
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {
@@ -41,13 +43,13 @@ VsOut vertexMain(VsIn input)
 {
 	VsOut output;
 	// Rebuild the instance's world matrix from its four rows (HLSL float4x4(r0..r3) sets them as rows, matching
-	// the uploaded row-major Matrix4x4). Apply it row-vector style (world = local · model), then the MVP push
+	// the uploaded row-major Matrix4x4). Apply it row-vector style (world = local · model), then the view-proj constant
 	// the same column-form way lit.slang does (the uniform's column-major packing transposes it back to
 	// clip = world · VP) — so the same source renders identically on Vulkan and DX12.
 	float4x4 model = float4x4(input.itransform0, input.itransform1, input.itransform2, input.itransform3);
 	float4 world = mul(float4(input.position, 1.0), model);
-	output.position = mul(pc.mvp, world);
-	output.normal = mul(input.normal, (float3x3)model);
+	output.position = mul(view.viewProj, world);
+	output.normal = mul(input.normal, normalMatrixRow((float3x3)model));
 	output.uv = input.uv;
 	return output;
 }

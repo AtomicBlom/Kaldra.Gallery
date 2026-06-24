@@ -4,6 +4,7 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Core.Scene;
+using Loom.Concepts;
 
 namespace Loom.Sandbox.Demos;
 
@@ -25,12 +26,17 @@ internal sealed class InstancingDemo : IDemo
 	private Matrix4x4[] _visible = [];
 	private int _drawn;
 	private int _total;
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	public string Name => "Instancing + Cull";
 
-	public void DefineTechniques(IEngine engine) =>
+	public void DefineTechniques(IEngine engine)
+	{
+		_engine = engine;
 		engine.DefineTechnique("instanced", new TechniqueDescriptor(
 			"instanced", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: VertexLayout.Transform));
+	}
 
 	public RenderGraph Build(DemoScene scene)
 	{
@@ -60,8 +66,10 @@ internal sealed class InstancingDemo : IDemo
 		{
 			var screen = g.Backbuffer;
 			var depth = g.Screen.Depth("depth", Format.Depth32F);
+			_view = new ViewConstants(g, "instanced.viewproj");
 
 			g.Pass("instances")
+				.Reads(_view.Handle)
 				.Writes(screen)
 				.WritesDepth(depth)
 				// The app hands the engine the culled draw list — the visible transforms compacted in Update().
@@ -72,7 +80,11 @@ internal sealed class InstancingDemo : IDemo
 		});
 	}
 
-	public void Update(Camera camera) => _drawn = _group.Cull(camera.ExtractFrustum(), _visible);
+	public void Update(Camera camera)
+	{
+		_view.Publish(_engine, camera);
+		_drawn = _group.Cull(camera.ExtractFrustum(), _visible);
+	}
 
 	public string? HudStatus => $"instances {_drawn}/{_total} drawn ({_total - _drawn} culled)";
 }
