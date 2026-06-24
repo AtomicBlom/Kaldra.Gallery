@@ -43,6 +43,7 @@
        backend-neutral UI runtime (the host builds an overlay UIRoot + composites it each frame, MU1). -->
   <ItemGroup>
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
+    <ProjectReference Include="..\Loom.Concepts\Loom.Concepts.csproj" />
     <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.ImGui\Loom.UI.ImGui.csproj" />
