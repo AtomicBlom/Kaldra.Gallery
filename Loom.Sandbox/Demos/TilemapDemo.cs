@@ -1,4 +1,5 @@
 using System.Numerics;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -46,11 +47,14 @@ internal sealed class TilemapDemo : IDemo
 
 	private Material _material;
 	private Mesh _mapQuad;
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	public string Name => "Tilemap";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("tilemap", new TechniqueDescriptor("tilemap", HasVertexInput: true, Layout: VertexLayout.MeshStandard));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
@@ -89,9 +93,11 @@ internal sealed class TilemapDemo : IDemo
 		var normal = world.Color("tile_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("tile_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("tile_lit", Format.Rgba16F);
+		_view = new ViewConstants(g, "tilemap.viewproj");
 
 		// One draw rasterises the whole map into the 2D G-buffer (index texture → atlas → albedo/normal).
 		g.Pass("tilemap")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = _mapQuad, Material = _material, Technique = "tilemap" }));
 
@@ -109,6 +115,9 @@ internal sealed class TilemapDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's orthographic view-projection for the tilemap pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public string HudStatus => $"tilemap {MapCols}x{MapRows} (1 draw, index texture)";
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -40,11 +41,14 @@ internal sealed class ParallaxDemo : IDemo
 
 	private Material _atlas;
 	private Vector4[] _cellUvs = [];
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	public string Name => "Parallax";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
@@ -71,9 +75,11 @@ internal sealed class ParallaxDemo : IDemo
 		var emissive = world.Color("px_emissive", Format.Rgba8Srgb);
 		var depth = world.Depth("px_depth", Format.Depth32F);
 		var lit = world.Color("px_lit", Format.Rgba16F);
+		_view = new ViewConstants(g, "parallax.viewproj");
 
 		// One instanced draw rasterises every layer's sprites; the depth target resolves occlusion (near over far).
 		g.Pass("sprites")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, emissive)
 			.WritesDepth(depth)
 			.Draw(ctx =>
@@ -95,6 +101,9 @@ internal sealed class ParallaxDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's orthographic view-projection for the sprite pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public string HudStatus => $"{Layers.Length} parallax layers (1 depth-ordered draw)";
 

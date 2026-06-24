@@ -1,6 +1,7 @@
 using System.Numerics;
 
 using Loom.Assets;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -47,6 +48,8 @@ internal sealed class PixelArtDemo : IDemo
 	private Material _sparks;      // textured glow-particle atlas
 	private SpriteSheet _ballSheet = new(1, 1);
 	private SpriteSheet _spinSheet = new(1, 1);
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	private const int GlowParticleCount = 512; // multiple of 64 (the compute workgroup size)
 	private const int ParticleStrideBytes = 32; // SandboxVertexLayouts.Particle: two IPARTICLE float4 rows
@@ -55,6 +58,7 @@ internal sealed class PixelArtDemo : IDemo
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("tilemap", new TechniqueDescriptor("tilemap", HasVertexInput: true, Layout: VertexLayout.MeshStandard));
@@ -110,9 +114,11 @@ internal sealed class PixelArtDemo : IDemo
 		var depth = world.Depth("pa_depth", Format.Depth32F);
 		var lit = world.Color("pa_lit", Format.Rgba16F);
 		var glow = g.Buffer("pa_glow", GlowParticleCount * ParticleStrideBytes);
+		_view = new ViewConstants(g, "pixelart.viewproj");
 
 		// One depth-ordered G-buffer pass: parallax background (far) → tilemap ground (mid) → animated sprites (near).
 		g.Pass("scene")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, emissive)
 			.WritesDepth(depth)
 			.Draw(ctx =>
@@ -129,6 +135,7 @@ internal sealed class PixelArtDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("ambient2d", albedo, emissive));
 
 		g.Pass("lights")
+			.Reads(_view.Handle)
 			.Samples(albedo, normal)
 			.Blends(lit)
 			.Draw(ctx =>
@@ -160,6 +167,10 @@ internal sealed class PixelArtDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's orthographic view-projection for the scene + light passes to read. (The glow particle
+	// pass still rides the engine's auto-pushed view-projection — it isn't on the constants path.)
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public string HudStatus => "pixel-art reference: parallax + tilemap + anim + 2D lights + bloom";
 

@@ -9,12 +9,13 @@
 [[vk::binding(0, 0)]] Sampler2D albedoTex; // 2D G-buffer albedo (slot 0)
 [[vk::binding(1, 0)]] Sampler2D normalTex; // 2D G-buffer encoded world normal (slot 1)
 
-struct PushConstants
+struct ViewProj
 {
-	float4x4 mvp; // camera view-projection (the instanced path's only push, vertex stage) — same as the sprite pass
+	float4x4 viewProj; // camera view-projection, clip-space-corrected — the app composes it; same view the sprite pass reads
 };
 
-[[vk::push_constant]] PushConstants pc;
+// The view-proj UBO follows the two G-buffer samplers (binding 2); register(b1) — b0 is the unused root-constant slot.
+[[vk::binding(2, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {
@@ -48,7 +49,7 @@ VsOut vertexMain(VsIn input)
 	float3 world = float3(center + local, 0.0);
 
 	VsOut output;
-	output.position = mul(pc.mvp, float4(world, 1.0));
+	output.position = mul(view.viewProj, float4(world, 1.0));
 	output.clip = output.position;
 	output.worldXY = world.xy;
 	output.lightPosRadInt = input.iPosRadInt;
@@ -62,7 +63,7 @@ float4 fragmentMain(VsOut input) : SV_Target
 	// Reconstruct this fragment's G-buffer uv from its framebuffer position. SV_Position.xy is window-space pixel
 	// coordinates with a top-left origin on BOTH backends, so it indexes the G-buffer texel directly — immune to
 	// the projection Y-flip the backends bake in differently (the trap that once cost a long matrix hunt). The
-	// framebuffer size isn't available as a push here (the instanced path's only push is the vertex MVP), so derive
+	// framebuffer size isn't available here, so derive
 	// 1/size from the clip-space gradient: screen.x = ndc.x·0.5+0.5 == px/W, so |ddx(screen.x)| == 1/W. This is the
 	// same ddx-for-texel-size idiom ssao_blur.slang uses — dxc accepts it on DXIL where Sampler2D.GetDimensions does not.
 	float2 ndc = input.clip.xy / input.clip.w;

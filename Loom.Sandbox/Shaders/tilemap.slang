@@ -8,19 +8,20 @@
 //
 // The map cell grid (MapSize) and the atlas tile grid (AtlasTiles) are compile-time constants — the demo↔shader
 // contract for this tilemap (the demo builds a MapSize index texture against an AtlasTiles atlas). A fully general
-// tilemap would pass them as a per-pass uniform, but the mesh-draw path spends its one push range on the vertex
-// MVP and has no fragment push, so a focused demo bakes them. The tile *data* is fully dynamic (the index texture).
+// tilemap would pass them as a per-pass uniform; a focused demo bakes them. The tile *data* is fully dynamic (the
+// index texture). The camera's view-projection arrives as a constants buffer the pass .Reads (clip-space-corrected).
 
 [[vk::binding(0, 0)]] Sampler2D indexTex;  // per-cell tile id in .r (Rgba8Unorm, NOT sRGB — exact byte), nearest
 [[vk::binding(1, 0)]] Sampler2D albedoTex; // tile atlas albedo (sRGB)
 [[vk::binding(2, 0)]] Sampler2D normalTex; // tile atlas tangent-space normal map (linear)
 
-struct PushConstants
+struct ViewProj
 {
-	float4x4 mvp;
+	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-[[vk::push_constant]] PushConstants pc;
+// The view-proj UBO follows the three samplers (binding 3); register(b1) — b0 is the unused root-constant slot.
+[[vk::binding(3, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {
@@ -47,7 +48,7 @@ struct GBuffer
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	output.position = mul(view.viewProj, float4(input.position, 1.0));
 	output.uv = input.uv;
 	return output;
 }

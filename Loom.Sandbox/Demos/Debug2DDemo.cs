@@ -1,4 +1,5 @@
 using System.Numerics;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -27,11 +28,14 @@ internal sealed class Debug2DDemo : IDemo
 
 	private Material _atlas;
 	private SpriteInstance[] _sprites = [];
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	public string Name => "2D Debug";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
@@ -71,8 +75,10 @@ internal sealed class Debug2DDemo : IDemo
 		var normal = world.Color("dbg_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("dbg_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("dbg_lit", Format.Rgba16F);
+		_view = new ViewConstants(g, "debug2d.viewproj");
 
 		g.Pass("sprites")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
@@ -82,6 +88,7 @@ internal sealed class Debug2DDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("ambient2d", albedo, emissive));
 
 		g.Pass("lights")
+			.Reads(_view.Handle)
 			.Samples(albedo, normal)
 			.Blends(lit)
 			.Draw(ctx =>
@@ -93,6 +100,7 @@ internal sealed class Debug2DDemo : IDemo
 
 		// Gizmos: the same lights drawn as additive rings over the lit result (no textures, no G-buffer sample).
 		g.Pass("gizmos")
+			.Reads(_view.Handle)
 			.Blends(lit)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "gizmo2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()) }));
 
@@ -105,6 +113,9 @@ internal sealed class Debug2DDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's orthographic view-projection for the sprite + light + gizmo passes to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public string HudStatus => "G-buffer quadrants + light gizmos";
 

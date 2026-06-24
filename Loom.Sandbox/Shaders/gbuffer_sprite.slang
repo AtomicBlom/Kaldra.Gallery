@@ -7,18 +7,20 @@
 // Entry points vertexMain/fragmentMain so the Loom build emits DXIL.
 //
 // The per-instance stream arrives as four ISPRITE rows (ISPRITE0..3) — a single repeated semantic with an index,
-// exactly like VertexLayout.Transform's ITRANSFORM, so DX12's semantic-name binding picks them up. mul(pc.mvp, v)
-// works identically on both backends (the ortho camera is just the demo's GetCamera; no matrix-layout special-casing).
+// exactly like VertexLayout.Transform's ITRANSFORM, so DX12's semantic-name binding picks them up. The camera's
+// view-projection arrives as a constants buffer the pass .Reads (the app composed the engine's ClipSpaceCorrection
+// into it); it is read the same column-form way on both backends, with no matrix-layout special-casing.
 
 [[vk::binding(0, 0)]] Sampler2D albedoTex; // atlas albedo (sRGB)
 [[vk::binding(1, 0)]] Sampler2D normalTex; // atlas tangent-space normal map (linear)
 
-struct PushConstants
+struct ViewProj
 {
-	float4x4 mvp;
+	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-[[vk::push_constant]] PushConstants pc;
+// The view-proj UBO follows the two samplers (binding 2); register(b1) — b0 is the unused root-constant slot.
+[[vk::binding(2, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {
@@ -65,7 +67,7 @@ VsOut vertexMain(VsIn input)
 	float3 world = float3(position + rotated, depth);
 
 	VsOut output;
-	output.position = mul(pc.mvp, float4(world, 1.0));
+	output.position = mul(view.viewProj, float4(world, 1.0));
 	// Map the quad corner into the atlas cell; flip v so the cell's top row lands at the quad's top (+Y up world).
 	float2 t = float2(input.quadUv.x, 1.0 - input.quadUv.y);
 	output.uv = lerp(input.iUvRect.xy, input.iUvRect.zw, t);

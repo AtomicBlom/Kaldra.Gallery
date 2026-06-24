@@ -1,4 +1,5 @@
 using System.Numerics;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -27,11 +28,14 @@ internal sealed class Lighting2DDemo : IDemo
 
 	private Material _atlas;
 	private SpriteInstance[] _sprites = [];
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	public string Name => "2D Lights";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
@@ -72,9 +76,11 @@ internal sealed class Lighting2DDemo : IDemo
 		var normal = world.Color("l2d_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("l2d_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("l2d_lit", Format.Rgba16F);
+		_view = new ViewConstants(g, "light2d.viewproj");
 
 		// 1. One instanced draw rasterises every sprite into the 2D G-buffer (clears, then alpha-tested quads).
 		g.Pass("sprites")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
@@ -87,6 +93,7 @@ internal sealed class Lighting2DDemo : IDemo
 		// 3. The lights: one instanced additive draw, each quad a light sampling the G-buffer normal it covers.
 		//    Light data is built per-frame from ctx.Time (pulled, not captured) so the lights orbit the field.
 		g.Pass("lights")
+			.Reads(_view.Handle)
 			.Samples(albedo, normal)
 			.Blends(lit)
 			.Draw(ctx =>
@@ -112,6 +119,9 @@ internal sealed class Lighting2DDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's orthographic view-projection for the sprite + light passes to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public string HudStatus => $"3 lights · {_sprites.Length} sprites (1 instanced additive draw)";
 

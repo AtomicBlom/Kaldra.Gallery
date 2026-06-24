@@ -5,12 +5,13 @@
 // fragment derives the ring from the quad-local coordinate. Additive blend, so it glows over the scene without a
 // depth/occlusion test. Entry points vertexMain/fragmentMain so the build emits DXIL.
 
-struct PushConstants
+struct ViewProj
 {
-	float4x4 mvp;
+	float4x4 viewProj; // camera view-projection, clip-space-corrected — the app composes it; same view the lights read
 };
 
-[[vk::push_constant]] PushConstants pc;
+// No samplers, so the view-proj UBO is the first binding (0); register(b1) — b0 is the unused root-constant slot.
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {
@@ -39,7 +40,7 @@ VsOut vertexMain(VsIn input)
 	float3 world = float3(center + local * radius, 0.0);
 
 	VsOut output;
-	output.position = mul(pc.mvp, float4(world, 1.0));
+	output.position = mul(view.viewProj, float4(world, 1.0));
 	output.local = local;
 	output.color = input.iColHeight.rgb;
 	return output;

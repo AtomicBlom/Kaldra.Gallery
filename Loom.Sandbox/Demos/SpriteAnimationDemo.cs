@@ -1,6 +1,7 @@
 using System.Numerics;
 
 using Loom.Assets;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -30,11 +31,14 @@ internal sealed class SpriteAnimationDemo : IDemo
 	private Material _atlas;
 	private SpriteSheet _sheet = new(1, 1);
 	private SpriteInstance[] _sprites = [];
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
 
 	public string Name => "Sprite Animation";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
@@ -72,9 +76,11 @@ internal sealed class SpriteAnimationDemo : IDemo
 		var normal = world.Color("anim_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("anim_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("anim_lit", Format.Rgba16F);
+		_view = new ViewConstants(g, "anim.viewproj");
 
 		// One instanced draw — but the uv-rects are re-stamped from ctx.Time each frame, so the sprites animate.
 		g.Pass("sprites")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx =>
 			{
@@ -99,6 +105,9 @@ internal sealed class SpriteAnimationDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's orthographic view-projection for the sprite pass to read.
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public string HudStatus => $"{_sprites.Length} animated sprites @ {Fps:0}fps ({SpinnerAtlas.Frames} frames)";
 }
