@@ -657,6 +657,7 @@ internal static class Program
 	{
 		IDemo[] all =
 		[
+			new SpikeDemo(),
 			new CubeLightingDemo(),
 			new UIInteractiveDemo(),
 			new UIGroupOpacityDemo(),
