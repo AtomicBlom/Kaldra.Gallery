@@ -1,7 +1,6 @@
 using System.Numerics;
 
 using Loom.Assets;
-using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -29,13 +28,15 @@ internal sealed class SpritesDemo : IDemo
 	private Material _atlas;
 	private SpriteInstance[] _sprites = [];
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
+	private Concepts.Camera _cam = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "Sprites + Atlas";
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
@@ -59,12 +60,10 @@ internal sealed class SpritesDemo : IDemo
 
 	// An orthographic view of the [0,WorldWidth]×[0,WorldHeight] world, centred on the camera (so the projection
 	// stays symmetric and the backend's clip-space Y-flip behaves), +Y up. Time-independent; see ParallaxDemo for scrolling.
-	public Camera? GetCamera(float aspect, float time)
+	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
-		var view = Matrix4x4.CreateLookAt(eye, eye with { Z = 0f }, Vector3.UnitY);
-		var projection = Matrix4x4.CreateOrthographic(WorldWidth, WorldHeight, 0.1f, 100f);
-		return new Camera(view, projection);
+		return _cam.Orthographic(WorldWidth, WorldHeight, 0.1f, 100f).LookAt(eye, eye with { Z = 0f });
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -75,11 +74,11 @@ internal sealed class SpritesDemo : IDemo
 		var normal = world.Color("sprite_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("sprite_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("sprite_lit", Format.Rgba16F);
-		_view = new ViewConstants(g, "sprites.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("sprites.viewproj");
 
 		// One instanced draw rasterises every sprite into the 2D G-buffer (clears, then alpha-tested quads).
 		g.Pass("sprites")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
@@ -100,7 +99,7 @@ internal sealed class SpritesDemo : IDemo
 	});
 
 	// Publish this frame's orthographic view-projection for the sprite pass to read (the engine no longer pushes it).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 
 	public string HudStatus => $"sprites {_sprites.Length} (1 batched draw)";
 }

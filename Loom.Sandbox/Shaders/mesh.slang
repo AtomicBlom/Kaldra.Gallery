@@ -1,15 +1,17 @@
-// Geometry technique (Planning.md §12 M5) — the counterpart to the fullscreen techniques: it reads a
-// real vertex buffer instead of fabricating verts from SV_VertexID. The vertex layout mirrors
-// Loom.Core.Vertex (position, normal, uv) and binds by explicit location (0/1/2), matching the backend's
-// VertexInputAttributeDescription. Object-space positions are transformed by the MVP push constant
-// (Loom.Core.Camera.ViewProjection × model); the fragment shades by world-ish normal so faces read as 3D.
+// Geometry technique — the counterpart to the fullscreen techniques: it reads a real vertex buffer instead of
+// fabricating verts from SV_VertexID. The vertex layout mirrors Loom.Core.Vertex (position, normal, uv, tangent)
+// and binds by explicit location, matching the backend's VertexInputAttributeDescription. Object-space positions
+// are transformed by the view-projection the pass .Reads and the per-object model; the fragment shades by the
+// world normal so faces read as 3D.
 
-struct PushConstants
-{
-	float4x4 mvp;
-};
+#include "transform.module.slang"
 
-[[vk::push_constant]] PushConstants pc;
+struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
+struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
+
+// No samplers precede them, so the UBOs own bindings 0,1 (register b1/b2; b0 is the unused root-constant slot).
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {
@@ -24,7 +26,7 @@ struct VsIn
 struct VsOut
 {
 	float4 position : SV_Position;
-	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout (M12 retires this)
+	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD0;
 };
@@ -33,9 +35,10 @@ struct VsOut
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	float4 world = mul(draw.model, float4(input.position, 1.0));
+	output.position = mul(view.viewProj, world);
 	output.tangent = input.tangent;
-	output.normal = input.normal;
+	output.normal = mul(input.normal, inverse3x3((float3x3)draw.model));
 	output.uv = input.uv;
 	return output;
 }

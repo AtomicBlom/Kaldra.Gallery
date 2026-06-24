@@ -1,7 +1,5 @@
 using System.Numerics;
 
-using Loom.Concepts;
-using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -18,8 +16,8 @@ namespace Loom.Sandbox.Demos;
 internal sealed class SsaoDemo : IDemo
 {
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private Concepts.Camera _cam = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "SSAO";
 
@@ -41,22 +39,22 @@ internal sealed class SsaoDemo : IDemo
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var ao = g.Screen.Color("ao", Format.R16F);
 		var aoBlur = g.Screen.Color("ao_blur", Format.R16F);
-		_view = new ViewConstants(g, "ssao.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("ssao.viewproj");
 
 		g.Pass("gbuffer")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
-				_submit.Draw(ctx, scene.Plane, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Plane, "gbuffer", Matrix4x4.Identity);
 			});
 
 		g.Pass("ssao.calculate")
 			.Samples(position, normal)
 			.Writes(ao)
-			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.View.ViewProjectionMatrix), position, normal));
+			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(_cam.ViewProjection), position, normal));
 
 		g.Pass("ssao.blur")
 			.Samples(ao)
@@ -72,6 +70,11 @@ internal sealed class SsaoDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's camera view-projection for the g-buffer pass to read.
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	// Publish this frame's camera view-projection for the g-buffer pass and the SSAO pass (which projects world
+	// positions back to screen with it).
+	public void Update(Concepts.Camera camera)
+	{
+		_cam = camera;
+		_engine.Write(_viewproj, camera.ViewProjection);
+	}
 }

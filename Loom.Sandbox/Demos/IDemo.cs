@@ -1,5 +1,4 @@
-using Loom.Core;
-using Loom.Core.Geometry;
+using Loom.Concepts;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 
@@ -24,29 +23,20 @@ internal interface IDemo
 	RenderGraph Build(DemoScene scene);
 
 	/// <summary>
-	/// Optional per-frame CPU update with the frame's camera, called by the launcher before <c>Render</c> — the
-	/// hook a demo uses for app-side work like CPU frustum culling, where the surviving draw list must be
-	/// ready before the pass closure runs. Default no-op; only the instancing demo overrides it.
+	/// Optional per-frame CPU update with the frame's <see cref="Camera"/>, called by the launcher before
+	/// <c>Render</c>. This is where a demo publishes its view-projection(s) into the <c>g.Constants</c> buffers its
+	/// passes read (<c>engine.Write(handle, camera.ViewProjection)</c>), fits its shadow cascades, and does any
+	/// app-side work like CPU frustum culling — all before the pass closures run. Default no-op.
 	/// </summary>
 	void Update(Camera camera) { }
 
 	/// <summary>
 	/// Optional camera override for this demo, given the frame's framebuffer <paramref name="aspect"/> and elapsed
-	/// <paramref name="time"/>. A 2D/sprite demo returns an orthographic view here and the launcher renders
-	/// from it instead of the default perspective orbit; default null keeps the orbit camera. Pulled each frame,
-	/// not captured (so a 2D camera can scroll), exactly like the other per-frame inputs.
+	/// <paramref name="time"/>. A 2D/sprite demo returns an orthographic <see cref="Camera"/> here and the launcher
+	/// renders from it instead of the default perspective orbit; default null keeps the orbit camera. Pulled each
+	/// frame, not captured (so a 2D camera can scroll), exactly like the other per-frame inputs.
 	/// </summary>
 	Camera? GetCamera(float aspect, float time) => null;
-
-	/// <summary>
-	/// Optional cascaded-shadow-map views for this frame. A demo that wants CSM fits N cascades to its own camera
-	/// frustum + the sun <paramref name="lightDir"/> (it knows its camera's near/far) and returns the per-cascade
-	/// ortho cameras + their far view-depths; the launcher threads the cameras into <c>FrameInputs.Views</c> under the
-	/// per-cascade keys (<see cref="ViewKeys.Cascade"/>) so the depth passes and deferred lighting pull them, while the
-	/// demo writes the splits into its own parameter buffer. Default null — the demo uses a single shadow view (or
-	/// none). Pulled each frame, not captured, like <see cref="GetCamera"/>.
-	/// </summary>
-	(IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, System.Numerics.Vector3 lightDir) => null;
 
 	/// <summary>
 	/// Optional world-space debug line segments for this frame — pairs of endpoints the launcher projects
@@ -73,6 +63,6 @@ internal interface IDemo
 	/// </summary>
 	ResourceHandle? PickTarget => null;
 
-	/// <summary>Write the hovered object id into the demo's outline parameter buffer (<see cref="IEngine.Write"/>). No-op unless the demo picks.</summary>
+	/// <summary>Write the hovered object id into the demo's outline parameter buffer (<see cref="IEngine.Write{T}(ConstantsHandle, in T)"/>). No-op unless the demo picks.</summary>
 	void WriteHover(IEngine engine, uint hoveredId) { }
 }

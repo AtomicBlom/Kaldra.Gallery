@@ -1,5 +1,4 @@
 using System.Numerics;
-using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -33,12 +32,13 @@ internal sealed class FoliageDemo : IDemo
 	private int _visibleCount;
 	private readonly float[] _wind = new float[8];
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private Concepts.Camera _cam = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("foliage", new TechniqueDescriptor("foliage", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Foliage));
 		engine.DefineTechnique("lighting_basic", new TechniqueDescriptor("lighting_basic"));
@@ -87,9 +87,9 @@ internal sealed class FoliageDemo : IDemo
 	}
 
 	// CPU frustum cull each frame + publish the camera view-projection the g-buffer/foliage passes read.
-	public void Update(Camera camera)
+	public void Update(Concepts.Camera camera)
 	{
-		_view.Publish(_engine, camera);
+		_engine.Write(_viewproj, camera.ViewProjection);
 		var frustum = camera.ExtractFrustum();
 		_visibleCount = 0;
 		foreach (var blade in _field)
@@ -100,12 +100,8 @@ internal sealed class FoliageDemo : IDemo
 		}
 	}
 
-	public Camera? GetCamera(float aspect, float time)
-	{
-		var view = Matrix4x4.CreateLookAt(new Vector3(0f, 2.2f, 11f), new Vector3(0f, 0.8f, 0f), Vector3.UnitY);
-		var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 60f);
-		return new Camera(view, projection);
-	}
+	public Concepts.Camera? GetCamera(float aspect, float time) =>
+		_cam.Perspective(MathF.PI / 3f, aspect, 0.1f, 60f).LookAt(new Vector3(0f, 2.2f, 11f), new Vector3(0f, 0.8f, 0f));
 
 	public string HudStatus => $"foliage: {_visibleCount}/{_field.Length} blades drawn";
 
@@ -117,15 +113,15 @@ internal sealed class FoliageDemo : IDemo
 		var position = g.Screen.Color("position", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
-		_view = new ViewConstants(g, "foliage.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("foliage.viewproj");
 
 		g.Pass("gbuffer")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 				// time + wind params reach the vertex stage through the uniform seam.
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f; // dir.xy, time
 				_wind[4] = 0.18f; _wind[5] = 2.2f; _wind[6] = 0f; _wind[7] = 0f;     // amplitude, frequency

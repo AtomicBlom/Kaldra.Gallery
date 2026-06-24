@@ -1,7 +1,5 @@
 using System.Numerics;
 
-using Loom.Concepts;
-using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -21,14 +19,17 @@ internal sealed class FullReferenceDemo : IDemo
 	private ColorHandle _ids = null!;
 	private ConstantsHandle _hoverParams = null!;
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private Concepts.Camera _cam = null!;
+	private Concepts.Camera _sunCam = null!;
+	private ConstantsHandle _viewproj = null!;
+	private ConstantsHandle _sunViewproj = null!;
 
 	public string Name => "Full reference frame";
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_sunCam = DemoSun.View(engine);
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", HasFragmentPush: true));
@@ -64,30 +65,32 @@ internal sealed class FullReferenceDemo : IDemo
 
 		var sun = g.Domain("sun_shadow", 1024, 1024);
 		var shadowMap = sun.Depth("sun_depth", Format.Depth32F);
-		_view = new ViewConstants(g, "fullref.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("fullref.viewproj");
+		_sunViewproj = g.Constants<Matrix4x4>("fullref.sun.viewproj");
 
 		g.Pass("shadow")
+			.Reads(_sunViewproj)
 			.WritesDepth(shadowMap)
 			.Draw(ctx =>
 			{
-				ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
-				ctx.Draw(new DrawCall { Mesh = scene.Plane, Technique = "depthonly", View = ctx.Views[ViewKeys.Sun] });
+				DemoDraw.Mesh(ctx, scene.Cube, "depthonly", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Plane, "depthonly", Matrix4x4.Identity);
 			});
 
 		g.Pass("gbuffer")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
-				_submit.Draw(ctx, scene.Plane, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Plane, "gbuffer", Matrix4x4.Identity);
 			});
 
 		g.Pass("ssao")
 			.Samples(position, normal)
 			.Writes(ao)
-			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(ctx.View.ViewProjectionMatrix), position, normal));
+			.Draw(ctx => ctx.FullScreen("ssao", DemoGraph.Mat(_cam.ViewProjection), position, normal));
 
 		g.Pass("ssao.blur")
 			.Samples(ao)
@@ -97,12 +100,13 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, shadowMap, aoBlur)
 			.Writes(lit)
-			.Draw(ctx => ctx.FullScreen("lighting", DemoGraph.Mat(ctx.Views[ViewKeys.Sun].ViewProjectionMatrix), albedo, normal, position, shadowMap, aoBlur));
+			.Draw(ctx => ctx.FullScreen("lighting", DemoGraph.Mat(_sunCam.ViewProjection), albedo, normal, position, shadowMap, aoBlur));
 
 		g.Pass("transparent")
+			.Reads(_viewproj)
 			.Blends(lit)
 			.ReadsDepth(depth)
-			.Draw(ctx => ctx.Draw(DrawCall.Create(scene.Cube, "transparent")));
+			.Draw(ctx => DemoDraw.Mesh(ctx, scene.Cube, "transparent", Matrix4x4.Identity));
 
 		const int particleCount = 4096;
 		var particles = g.Buffer("particles", particleCount * 16);
@@ -112,6 +116,7 @@ internal sealed class FullReferenceDemo : IDemo
 			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [ctx.Time], [], [particles]));
 
 		g.Pass("particle.draw")
+			.Reads(_viewproj)
 			.Blends(lit)
 			.ReadsVertex(particles)
 			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.render", VertexCount = 6, Instances = DrawCall.Gpu(particles, particleCount) })); // 6 = a billboard quad fabricated per particle
@@ -123,7 +128,7 @@ internal sealed class FullReferenceDemo : IDemo
 
 		_ids = ids;
 		_hoverParams = g.Constants<DemoGraph.OutlineParams>("outline.params");
-		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(DrawCall.Create(scene.Cube, "id")));
+		g.Pass("id").Reads(_viewproj).Writes(ids).Draw(ctx => DemoDraw.Mesh(ctx, scene.Cube, "id", Matrix4x4.Identity, 1));
 		g.Readback(ids);
 
 		g.Pass("outline.seed")
@@ -172,8 +177,14 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's camera view-projection for the g-buffer pass (shadow/id/transparent still ride the auto-push).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	// Publish the camera view-projection (g-buffer / SSAO / transparent / particles / id) and the sun's (shadow
+	// depth pass + the lighting shadow test).
+	public void Update(Concepts.Camera camera)
+	{
+		_cam = camera;
+		_engine.Write(_viewproj, camera.ViewProjection);
+		_engine.Write(_sunViewproj, _sunCam.ViewProjection);
+	}
 
 	public ResourceHandle? PickTarget => _ids;
 

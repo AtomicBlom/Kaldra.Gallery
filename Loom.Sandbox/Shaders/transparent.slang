@@ -1,17 +1,17 @@
-// Transparent forward technique (Planning.md §12 M5) — the .Blends counterpart to the opaque g-buffer
-// pass. It draws the same cube geometry again, but instead of producing colour it *accumulates* a
-// translucent tint onto the already-lit target (the pass .Blends(lit)). It .ReadsDepth(depth): the depth
-// buffer the opaque pass wrote is bound read-only, so this draw is depth-tested against the solid cube
-// (no z-fighting, no writes), and the alpha blend (src-alpha over) the backend enables for a Blend
-// technique lays the tint over the lit surface. The vertex stage matches mesh.slang (MVP push constant,
-// Loom.Core.Vertex layout at locations 0/1/2).
+// Transparent forward technique — the .Blends counterpart to the opaque g-buffer pass. It draws the same cube
+// geometry again, but instead of producing colour it *accumulates* a translucent tint onto the already-lit target
+// (the pass .Blends(lit)). It .ReadsDepth(depth): the depth buffer the opaque pass wrote is bound read-only, so
+// this draw is depth-tested against the solid cube (no z-fighting, no writes), and the alpha blend (src-alpha over)
+// the backend enables for a Blend technique lays the tint over the lit surface.
 
-struct PushConstants
-{
-	float4x4 mvp;
-};
+#include "transform.module.slang"
 
-[[vk::push_constant]] PushConstants pc;
+struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
+struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
+
+// No samplers precede them, so the UBOs own bindings 0,1 (register b1/b2; b0 is the unused root-constant slot).
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {
@@ -26,7 +26,7 @@ struct VsIn
 struct VsOut
 {
 	float4 position : SV_Position;
-	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout (M12 retires this)
+	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD0;
 };
@@ -35,9 +35,10 @@ struct VsOut
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	float4 world = mul(draw.model, float4(input.position, 1.0));
+	output.position = mul(view.viewProj, world);
 	output.tangent = input.tangent;
-	output.normal = input.normal;
+	output.normal = mul(input.normal, inverse3x3((float3x3)draw.model));
 	output.uv = input.uv; // passed through so the vertex stage consumes the uv attribute (location 2)
 	return output;
 }

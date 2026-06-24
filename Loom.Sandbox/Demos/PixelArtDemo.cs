@@ -1,7 +1,6 @@
 using System.Numerics;
 
 using Loom.Assets;
-using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -49,7 +48,8 @@ internal sealed class PixelArtDemo : IDemo
 	private SpriteSheet _ballSheet = new(1, 1);
 	private SpriteSheet _spinSheet = new(1, 1);
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
+	private Concepts.Camera _cam = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	private const int GlowParticleCount = 512; // multiple of 64 (the compute workgroup size)
 	private const int ParticleStrideBytes = 32; // SandboxVertexLayouts.Particle: two IPARTICLE float4 rows
@@ -59,6 +59,7 @@ internal sealed class PixelArtDemo : IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("tilemap", new TechniqueDescriptor("tilemap", HasVertexInput: true, Layout: VertexLayout.MeshStandard));
@@ -96,12 +97,10 @@ internal sealed class PixelArtDemo : IDemo
 		_mapQuad = engine.CreateMesh(verts, [0, 1, 2, 0, 2, 3]);
 	}
 
-	public Camera? GetCamera(float aspect, float time)
+	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
-		var view = Matrix4x4.CreateLookAt(eye, eye with { Z = 0f }, Vector3.UnitY);
-		var projection = Matrix4x4.CreateOrthographic(WorldWidth, WorldHeight, 0.1f, 100f);
-		return new Camera(view, projection);
+		return _cam.Orthographic(WorldWidth, WorldHeight, 0.1f, 100f).LookAt(eye, eye with { Z = 0f });
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -114,11 +113,11 @@ internal sealed class PixelArtDemo : IDemo
 		var depth = world.Depth("pa_depth", Format.Depth32F);
 		var lit = world.Color("pa_lit", Format.Rgba16F);
 		var glow = g.Buffer("pa_glow", GlowParticleCount * ParticleStrideBytes);
-		_view = new ViewConstants(g, "pixelart.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("pixelart.viewproj");
 
 		// One depth-ordered G-buffer pass: parallax background (far) → tilemap ground (mid) → animated sprites (near).
 		g.Pass("scene")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, emissive)
 			.WritesDepth(depth)
 			.Draw(ctx =>
@@ -135,7 +134,7 @@ internal sealed class PixelArtDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("ambient2d", albedo, emissive));
 
 		g.Pass("lights")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Samples(albedo, normal)
 			.Blends(lit)
 			.Draw(ctx =>
@@ -152,6 +151,7 @@ internal sealed class PixelArtDemo : IDemo
 			.Dispatch(ctx => ctx.Dispatch("particle.glow.update", ((uint)(GlowParticleCount / 64), 1, 1), GlowEmitter(ctx.Time), [], [glow]));
 
 		g.Pass("glow")
+			.Reads(_viewproj)
 			.Blends(lit)
 			.ReadsVertex(glow)
 			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.glow.render", Material = _sparks, VertexCount = 6, Instances = DrawCall.Gpu(glow, GlowParticleCount) })); // 6 = a billboard quad fabricated per spark
@@ -168,9 +168,8 @@ internal sealed class PixelArtDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's orthographic view-projection for the scene + light passes to read. (The glow particle
-	// pass still rides the engine's auto-pushed view-projection — it isn't on the constants path.)
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	// Publish this frame's orthographic view-projection for the scene + light + glow-particle passes to read.
+	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 
 	public string HudStatus => "pixel-art reference: parallax + tilemap + anim + 2D lights + bloom";
 

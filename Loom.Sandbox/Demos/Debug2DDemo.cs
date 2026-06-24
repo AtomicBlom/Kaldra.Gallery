@@ -1,5 +1,4 @@
 using System.Numerics;
-using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -29,13 +28,15 @@ internal sealed class Debug2DDemo : IDemo
 	private Material _atlas;
 	private SpriteInstance[] _sprites = [];
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
+	private Concepts.Camera _cam = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "2D Debug";
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
@@ -59,12 +60,10 @@ internal sealed class Debug2DDemo : IDemo
 		_sprites = sprites;
 	}
 
-	public Camera? GetCamera(float aspect, float time)
+	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
-		var view = Matrix4x4.CreateLookAt(eye, eye with { Z = 0f }, Vector3.UnitY);
-		var projection = Matrix4x4.CreateOrthographic(WorldWidth, WorldHeight, 0.1f, 100f);
-		return new Camera(view, projection);
+		return _cam.Orthographic(WorldWidth, WorldHeight, 0.1f, 100f).LookAt(eye, eye with { Z = 0f });
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -75,10 +74,10 @@ internal sealed class Debug2DDemo : IDemo
 		var normal = world.Color("dbg_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("dbg_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("dbg_lit", Format.Rgba16F);
-		_view = new ViewConstants(g, "debug2d.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("debug2d.viewproj");
 
 		g.Pass("sprites")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(_sprites.AsSpan()) }));
 
@@ -88,7 +87,7 @@ internal sealed class Debug2DDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("ambient2d", albedo, emissive));
 
 		g.Pass("lights")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Samples(albedo, normal)
 			.Blends(lit)
 			.Draw(ctx =>
@@ -100,7 +99,7 @@ internal sealed class Debug2DDemo : IDemo
 
 		// Gizmos: the same lights drawn as additive rings over the lit result (no textures, no G-buffer sample).
 		g.Pass("gizmos")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Blends(lit)
 			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "gizmo2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()) }));
 
@@ -115,7 +114,7 @@ internal sealed class Debug2DDemo : IDemo
 	});
 
 	// Publish this frame's orthographic view-projection for the sprite + light + gizmo passes to read.
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 
 	public string HudStatus => "G-buffer quadrants + light gizmos";
 

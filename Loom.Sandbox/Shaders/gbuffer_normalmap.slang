@@ -1,20 +1,21 @@
-// Normal-mapped G-buffer technique (PlanningPhase2.md M11). Like gbuffer.slang it writes the deferred targets
-// — albedo (SV_Target0), encoded world normal (SV_Target1), world position (SV_Target2) — so the existing
-// deferred lighting (lighting.slang / light_shadow.slang) consumes it unchanged. The difference is the surface:
-// albedo comes from a material texture (slot 0) and the per-pixel normal from a tangent-space normal map
-// (slot 1), rotated into world space by the TBN frame built from the interpolated normal + vertex tangent.
-// UVs are scaled by TILES so the demo's [0,1]-mapped geometry tiles the texture — which exercises the Repeat
-// sampler address mode and the mip chain. Entry points are vertexMain/fragmentMain so the Loom build emits DXIL.
+// Normal-mapped G-buffer technique. Like gbuffer.slang it writes the deferred targets — albedo (SV_Target0),
+// encoded world normal (SV_Target1), world position (SV_Target2) — so the existing deferred lighting
+// (lighting.slang / light_shadow.slang) consumes it unchanged. The difference is the surface: albedo comes from a
+// material texture (slot 0) and the per-pixel normal from a tangent-space normal map (slot 1), rotated into world
+// space by the TBN frame built from the interpolated normal + vertex tangent. UVs are scaled by TILES so the
+// demo's [0,1]-mapped geometry tiles the texture — which exercises the Repeat sampler address mode and the mip chain.
+
+#include "transform.module.slang"
 
 [[vk::binding(0, 0)]] Sampler2D albedoTex; // material slot 0 — base colour (sRGB)
 [[vk::binding(1, 0)]] Sampler2D normalTex; // material slot 1 — tangent-space normal map (linear)
 
-struct PushConstants
-{
-	float4x4 mvp;
-};
+struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
+struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
 
-[[vk::push_constant]] PushConstants pc;
+// The two samplers own bindings 0,1, so the UBOs follow at 2,3 (register b1/b2; b0 is the unused root-constant slot).
+[[vk::binding(2, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+[[vk::binding(3, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
 
 static const float TILES = 3.0; // > 1 so [0,1] UVs tile — exercises Repeat addressing + mip sampling
 
@@ -46,10 +47,13 @@ struct GBuffer
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = mul(pc.mvp, float4(input.position, 1.0));
-	output.normal = input.normal;     // model is identity, so object space == world space
-	output.tangent = input.tangent;
-	output.worldPos = input.position;
+	float4 world = mul(draw.model, float4(input.position, 1.0));
+	output.position = mul(view.viewProj, world);
+	// Normal by the inverse of the model's 3x3 (column-form, correct under any scale); tangent is a direction, so
+	// it rides the model's upper-3x3 directly. The handedness (w) passes through for the bitangent reconstruction.
+	output.normal = mul(input.normal, inverse3x3((float3x3)draw.model));
+	output.tangent = float4(mul((float3x3)draw.model, input.tangent.xyz), input.tangent.w);
+	output.worldPos = world.xyz;
 	output.uv = input.uv;
 	return output;
 }

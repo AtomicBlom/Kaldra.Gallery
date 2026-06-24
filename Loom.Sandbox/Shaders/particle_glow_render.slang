@@ -1,20 +1,17 @@
-// Generalized GPU particle render (PlanningPhase2.md M14-4, Track A) — the TEXTURED, colour-over-life half of
-// the generalized particle system, and the one demo path that exercises the M14-0 textured DrawParticles verb.
-// Each particle the compute wrote is one INSTANCE of a billboard quad fabricated from SV_VertexID; the instance
-// stream is SandboxVertexLayouts.Particle (binding 0, two IPARTICLE float4 rows). The quad is expanded in
-// WORLD space (ortho-correct: size is in world px) about the particle's position. The fragment samples a 4-frame
-// spark atlas at a SUB-UV frame chosen from normalised life (a young spark is a tight bright core; an old one a
-// soft faint puff) and tints it by a warm ember colour-over-life ramp. Additive blend (.Blends, BlendMode.Additive)
-// glows it over the lit scene with HDR intensity > 1 so it feeds bloom. Entry points vertexMain/fragmentMain → DXIL.
+// Generalized GPU particle render — the TEXTURED, colour-over-life half of the generalized particle system. Each
+// particle the compute wrote is one INSTANCE of a billboard quad fabricated from SV_VertexID; the instance stream
+// is SandboxVertexLayouts.Particle (binding 0, two IPARTICLE float4 rows). The quad is expanded in WORLD space
+// (ortho-correct: size is in world px) about the particle's position. The fragment samples a 4-frame spark atlas
+// at a SUB-UV frame chosen from normalised life (a young spark is a tight bright core; an old one a soft faint
+// puff) and tints it by a warm ember colour-over-life ramp. Additive blend glows it over the lit scene with HDR
+// intensity > 1 so it feeds bloom. The particle is already in world space, so it needs only the view-projection
+// the pass .Reads (no per-object model).
 
 [[vk::binding(0, 0)]] Sampler2D atlas; // 4×1 spark sub-UV atlas (slot 0)
 
-struct PushConstants
-{
-	float4x4 mvp; // camera view-projection (the instanced/particle path's only push, vertex stage)
-};
-
-[[vk::push_constant]] PushConstants pc;
+struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
+// The sampler owns binding 0, so the UBO follows at binding 1 (register b1; b0 is the unused root-constant slot).
+[[vk::binding(1, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {
@@ -58,7 +55,7 @@ VsOut vertexMain(VsIn input, uint vertexId : SV_VertexID)
 	float v = insetV + corner.y * (1.0 - 2.0 * insetV);
 
 	VsOut output;
-	output.position = mul(pc.mvp, float4(world, 1.0));
+	output.position = mul(view.viewProj, float4(world, 1.0));
 	output.uv = float2(u, v);
 	output.life = life;
 	return output;

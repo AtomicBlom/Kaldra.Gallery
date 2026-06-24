@@ -187,13 +187,6 @@ internal static class Program
 				DumpGraph(index, dumpGraphPrefix);
 		}
 
-		// The sun: a directional light, constant — built once and handed in every frame's inputs. Neutral
-		// projection (+Y up); the backend applies the Vulkan clip-space Y-flip on ingest.
-		var lightDir = Vector3.Normalize(new Vector3(0.45f, 0.55f, -0.6f));
-		var sunView = Matrix4x4.CreateLookAt(lightDir * 7f, Vector3.Zero, Vector3.UnitY);
-		var sunProj = Matrix4x4.CreateOrthographic(9f, 9f, 0.1f, 14f);
-		var sunCamera = new Camera(sunView, sunProj);
-
 		// A real HUD control (freezes the orbit); also togglable via the ImGui Window menu when built with ImGui.
 		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
 		var pauseCamera = false;
@@ -201,7 +194,8 @@ internal static class Program
 		// Detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
 		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
 		// fly around and see exactly what that camera framed. --frustum enables it for a deterministic capture.
-		var fly = new FlyCamera();
+		var fly = new FlyCamera(engine);
+		var orbit = new Loom.Concepts.Camera(engine); // the default perspective orbit camera, reconfigured each frame
 		var debugCam = opts.Frustum;
 		var debugCamInit = false;
 		var frozenViewProjection = Matrix4x4.Identity;
@@ -310,15 +304,12 @@ internal static class Program
 			const double captureDelta = 1.0 / 60.0;
 			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed;
 			var eye = new Vector3(MathF.Sin(camTime) * 2.5f, 1.6f, MathF.Cos(camTime) * 2.5f);
-			var view = Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitY);
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
-			var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, 0.1f, 100f);
-			var camera = new Camera(view, projection);
+			orbit.Perspective(MathF.PI / 3f, aspect, 0.1f, 100f).LookAt(eye, Vector3.Zero);
 
 			// A demo may override the camera — a 2D/sprite demo returns an orthographic view here; otherwise
 			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax).
-			if (demos[currentDemo].GetCamera(aspect, camTime) is { } demoCamera)
-				camera = demoCamera;
+			var camera = demos[currentDemo].GetCamera(aspect, camTime) ?? orbit;
 
 			// Per-frame CPU work for the active demo (e.g. the instancing demo's frustum cull) — runs with this
 			// frame's MAIN camera (the one the debug view freezes), before Render, so the surviving draw list is
@@ -338,16 +329,16 @@ internal static class Program
 				if (!debugCamInit)
 				{
 					debugCamInit = true;
-					frozenViewProjection = camera.ViewProjectionMatrix;
+					frozenViewProjection = camera.View * camera.Projection; // uncorrected world-space VP for the frustum corners
 					fly.PlaceLookingAt(new Vector3(6f, 4f, 6f), Vector3.Zero); // start outside the frozen frustum
 				}
 				// A fixed detached viewpoint under capture (deterministic); free-fly otherwise.
 				renderCamera = capturePath is not null
-					? new Camera(Matrix4x4.CreateLookAt(new Vector3(6f, 4f, 6f), Vector3.Zero, Vector3.UnitY), projection)
+					? new Loom.Concepts.Camera(engine).LookAt(new Vector3(6f, 4f, 6f), Vector3.Zero).Perspective(MathF.PI / 3f, aspect, 0.1f, 100f)
 					: fly.Update(keyboard, mouse, (float)delta, aspect);
 
 				var corners = frozenViewProjection.GetFrustumCorners();
-				var vp = renderCamera.ViewProjectionMatrix;
+				var vp = renderCamera.View * renderCamera.Projection;
 				var edges = Frustum.EdgeIndices;
 				for (var e = 0; e < edges.Length; e += 2)
 					if (ProjectToScreen(corners[edges[e]], vp, fbW, fbH, out var p0) &&
@@ -364,7 +355,7 @@ internal static class Program
 			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : elapsed);
 			if (demoLines.Count > 0)
 			{
-				var vp = renderCamera.ViewProjectionMatrix;
+				var vp = renderCamera.View * renderCamera.Projection;
 				for (var i = 0; i < demoLines.Count; i++)
 					if (ProjectToScreen(demoLines[i].A, vp, fbW, fbH, out var a) &&
 						ProjectToScreen(demoLines[i].B, vp, fbW, fbH, out var b))
@@ -514,21 +505,10 @@ internal static class Program
 			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
 
-			// The named views the host supplies this frame: always the shadow light, plus a demo's cascade slices when
-			// it fits them (GetCascades fits the cascades to the scripted camera + sun and writes its own split
-			// far-depths into a parameter buffer). A demo's pass closures pull these back by key (ViewKeys); demos that
-			// shadow nothing just ignore them.
-			var views = new Dictionary<string, Camera> { [ViewKeys.Sun] = sunCamera };
-			if (demos[currentDemo].GetCascades(camera, lightDir) is { } cs)
-				for (var c = 0; c < cs.Cascades.Count; c++)
-					views[ViewKeys.Cascade(c)] = cs.Cascades[c];
-
 			engine.Render(new FrameInputs
 			{
 				DeltaSeconds = capturePath is not null ? captureDelta : delta,
 				Time = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed,
-				View = renderCamera,
-				Views = views,
 			});
 
 			if (capturePath is not null && frame >= 62)

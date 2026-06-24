@@ -2,7 +2,6 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 
 using Loom.Assets;
-using Loom.Concepts;
 using Loom.Core.Animation;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
@@ -44,19 +43,23 @@ internal sealed class StylizedDemo : IDemo
 	private Blade[] _field = [];
 
 	private DayNight.State _sun = DayNight.Compute(0.34f);
-	private readonly Camera[] _cascades = new Camera[CascadeCount];
+	private readonly Concepts.Camera[] _cascades = new Concepts.Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
 	private readonly float[] _csmParams = new float[68];
 	private readonly float[] _skyParams = new float[36];
 	private readonly float[] _wind = new float[8];
 	private IEngine _engine = null!;
+	private Concepts.Camera _cam = null!;
 	private ConstantsHandle _csmSplits = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private ConstantsHandle _viewproj = null!;
+	private readonly ConstantsHandle[] _cascadeViewproj = new ConstantsHandle[CascadeCount];
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
+		for (var c = 0; c < CascadeCount; c++)
+			_cascades[c] = new Concepts.Camera(engine);
 		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
@@ -107,23 +110,21 @@ internal sealed class StylizedDemo : IDemo
 		_field = [.. blades];
 	}
 
-	public Camera? GetCamera(float aspect, float time)
-	{
-		var view = Matrix4x4.CreateLookAt(new Vector3(4.5f, 3.2f, 8.5f), new Vector3(0f, 1.1f, 0f), Vector3.UnitY);
-		var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, CamNear, CamFar);
-		return new Camera(view, projection);
-	}
+	public Concepts.Camera? GetCamera(float aspect, float time) => _cam
+		.Perspective(MathF.PI / 3f, aspect, CamNear, CamFar)
+		.LookAt(new Vector3(4.5f, 3.2f, 8.5f), new Vector3(0f, 1.1f, 0f));
 
-	public (IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, Vector3 lightDir)
+	// Fit the cascades to the camera + sun and publish each cascade's view-projection (the depth passes), the
+	// camera view-projection (the g-buffer), and the splits (the lighting pass).
+	public void Update(Concepts.Camera camera)
 	{
-		Cascades.Compute(camera, _sun.SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
-		// Splits ride a parameter buffer the lighting pass reads; the matrices stay on the closure push (clip-space flip).
+		_cam = camera;
+		Cascades.Compute(_cam, _sun.SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
 		_engine.Write(_csmSplits, new DemoGraph.CsmSplits(new Vector4(_splits[0], _splits[1], _splits[2], 0f)));
-		return (_cascades, _splits);
+		_engine.Write(_viewproj, _cam.ViewProjection);
+		for (var c = 0; c < CascadeCount; c++)
+			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
 	}
-
-	// Publish this frame's camera view-projection for the g-buffer pass (cascade depth + sky still ride the auto-push/ctx.View).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
 	{
@@ -135,11 +136,15 @@ internal sealed class StylizedDemo : IDemo
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
 		var graded = g.Screen.Color("graded", Format.Rgba16F);
 		var skinned = g.Buffer("skinned", _charVerts * 48);
-		_view = new ViewConstants(g, "stylized.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("stylized.viewproj");
+		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 
 		var cascadeMaps = new DepthHandle[CascadeCount];
 		for (var c = 0; c < CascadeCount; c++)
+		{
 			cascadeMaps[c] = g.Domain($"sun_csm{c}", (int)ShadowResolution, (int)ShadowResolution).Depth($"csm_depth{c}", Format.Depth32F);
+			_cascadeViewproj[c] = g.Constants<Matrix4x4>($"stylized.cascade{c}.viewproj");
+		}
 
 		// Skin the character once.
 		g.Compute("skin")
@@ -156,38 +161,40 @@ internal sealed class StylizedDemo : IDemo
 		{
 			var cascade = c;
 			g.Pass($"shadow{c}")
+				.Reads(_cascadeViewproj[cascade])
 				.WritesDepth(cascadeMaps[cascade])
 				.ReadsVertex(skinned)
 				.Draw(ctx =>
 				{
-					ctx.Draw(new DrawCall { Mesh = _char, SkinnedVertices = skinned, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
-					ctx.Draw(new DrawCall { Mesh = _ground, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
+					DemoDraw.Skinned(ctx, _char, skinned, "depthonly", Matrix4x4.Identity);
+					DemoDraw.Mesh(ctx, _ground, "depthonly", Matrix4x4.Identity);
 				});
 		}
 
 		// G-buffer: skinned character + ground + the windy foliage field.
 		g.Pass("gbuffer")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				_submit.DrawSkinned(ctx, _char, skinned, "gbuffer", Matrix4x4.Identity);
-				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Skinned(ctx, _char, skinned, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
 				_wind[4] = 0.16f; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
-				ctx.Draw(new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field), Uniforms = DrawCall.Bytes(_wind) });
+				var foliage = new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field) };
+				foliage.SetUniforms<float>(_wind);
+				ctx.Draw(foliage);
 			});
 
-		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2])
 			.Reads(_csmSplits)
 			.Writes(lit)
-			.Draw(ctx => ctx.FullScreen("lighting_toon", PackLighting(ctx), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
+			.Draw(ctx => ctx.FullScreen("lighting_toon", PackLighting(), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
-		g.Pass("sky").Blends(lit).Samples(depth).Draw(ctx => ctx.FullScreen("sky", PackSky(ctx), depth));
+		g.Pass("sky").Blends(lit).Samples(depth).Draw(ctx => ctx.FullScreen("sky", PackSky(), depth));
 
 		g.Pass("grade")
 			.Samples(lit)
@@ -199,16 +206,15 @@ internal sealed class StylizedDemo : IDemo
 		g.Present(screen);
 	});
 
-	private ReadOnlySpan<float> PackLighting(IRenderContext ctx)
+	private ReadOnlySpan<float> PackLighting()
 	{
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjectionMatrix;
+			var m = _cascades[c].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
-		// Splits ride the CsmSplits parameter buffer (written in GetCascades); the push carries matrices + camera/sun/ambient.
-		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
+		Matrix4x4.Invert(_cam.View, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
 		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;
@@ -219,12 +225,12 @@ internal sealed class StylizedDemo : IDemo
 		return p;
 	}
 
-	private ReadOnlySpan<float> PackSky(IRenderContext ctx)
+	private ReadOnlySpan<float> PackSky()
 	{
 		var p = _skyParams;
-		Matrix4x4.Invert(ctx.View.ViewProjectionMatrix, out var invVp);
+		Matrix4x4.Invert(_cam.ViewProjection, out var invVp);
 		MemoryMarshal.CreateReadOnlySpan(in invVp.M11, 16).CopyTo(p.AsSpan(0, 16));
-		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
+		Matrix4x4.Invert(_cam.View, out var invView);
 		var eye = invView.Translation;
 		p[16] = eye.X; p[17] = eye.Y; p[18] = eye.Z; p[19] = 0f;
 		p[20] = _sun.SunDir.X; p[21] = _sun.SunDir.Y; p[22] = _sun.SunDir.Z; p[23] = 0f;

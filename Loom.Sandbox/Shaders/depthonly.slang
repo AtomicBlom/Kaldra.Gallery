@@ -1,14 +1,17 @@
-// Depth-only technique (Planning.md §7.2 shadows). Drawn from the sun's view (the view: param) into the
-// shadow map: it writes only depth — no colour target, no fragment output — so each shadow-map texel holds
-// the distance from the sun to the nearest caster. Deferred lighting then compares against it. The vertex
-// stage is the usual MVP transform; here the MVP is the sun's view-projection, supplied via ctx.Draw(view:).
+// Depth-only technique (shadow maps). Drawn from a light's view into the shadow map: it writes only depth — no
+// colour target, no fragment output — so each shadow-map texel holds the distance from the light to the nearest
+// caster. Deferred lighting then compares against it. The vertex transforms by the view-projection the pass
+// .Reads (here the light's, clip-space-corrected) and the per-object model, so casters land in the light's clip
+// space; a camera depth pre-pass reuses the same technique with the camera's view-projection instead.
 
-struct PushConstants
-{
-	float4x4 mvp;
-};
+#include "transform.module.slang"
 
-[[vk::push_constant]] PushConstants pc;
+struct ViewProj { float4x4 viewProj; };              // the light's (or camera's) view-projection, clip-space-corrected
+struct PerDraw  { float4x4 model; uint objectId; };  // per-object model (id unused here)
+
+// No samplers precede them, so the UBOs own bindings 0,1 (register b1/b2; b0 is the unused root-constant slot).
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {
@@ -23,7 +26,7 @@ struct VsIn
 struct VsOut
 {
 	float4 position : SV_Position;
-	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout (M12 retires this)
+	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout
 	// Passed through (unused by the fragment) only so the vertex stage consumes the shared mesh layout's
 	// normal/uv attributes — keeps validation quiet without a per-technique vertex-input layout.
 	float3 normal : NORMAL;
@@ -34,7 +37,8 @@ struct VsOut
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	float4 world = mul(draw.model, float4(input.position, 1.0));
+	output.position = mul(view.viewProj, world);
 	output.tangent = input.tangent;
 	output.normal = input.normal;
 	output.uv = input.uv;

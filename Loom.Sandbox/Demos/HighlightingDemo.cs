@@ -1,7 +1,5 @@
 using System.Numerics;
 
-using Loom.Concepts;
-using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -21,8 +19,7 @@ internal sealed class HighlightingDemo : IDemo
 	private ColorHandle _ids = null!;
 	private ConstantsHandle _hoverParams = null!;
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "Object Highlighting";
 
@@ -47,24 +44,25 @@ internal sealed class HighlightingDemo : IDemo
 		var seedA = world.Color("outline_a", Format.Rg16F);
 		var seedB = world.Color("outline_b", Format.Rg16F);
 		var outlined = world.Color("lit_outlined", Format.Rgba16F);
-		_view = new ViewConstants(g, "highlighting.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("highlighting.viewproj");
 
 		g.Pass("scene")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(lit)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, scene.Cube, "lit", Matrix4x4.Identity);
-				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Cube, "lit", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
-		// Write the cube's object id (1), then read it back so the host can decide the hovered object (§7.4). The
-		// host hands the hovered id to the seed pass through this parameter buffer (WriteHover) — no engine-side
-		// picking state, just the general readback + parameter-buffer primitives.
+		// Write the cube's object id (1), then read it back so the host can decide the hovered object. The host
+		// hands the hovered id to the seed pass through this parameter buffer (WriteHover) — no engine-side picking
+		// state, just the general readback + parameter-buffer primitives. The id rides the per-draw block now, so
+		// the id shader writes it straight from the draw.
 		_ids = ids;
 		_hoverParams = g.Constants<DemoGraph.OutlineParams>("outline.params");
-		g.Pass("id").Writes(ids).Draw(ctx => ctx.Draw(DrawCall.Create(scene.Cube, "id")));
+		g.Pass("id").Reads(_viewproj).Writes(ids).Draw(ctx => DemoDraw.Mesh(ctx, scene.Cube, "id", Matrix4x4.Identity, 1));
 		g.Readback(ids);
 
 		g.Pass("outline.seed")
@@ -98,8 +96,8 @@ internal sealed class HighlightingDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's view-projection for the scene pass to read (the id pass still rides the auto-push).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	// Publish this frame's view-projection for the scene + id passes to read.
+	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 
 	public ResourceHandle? PickTarget => _ids;
 

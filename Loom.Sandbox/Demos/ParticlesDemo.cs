@@ -1,7 +1,5 @@
 using System.Numerics;
 
-using Loom.Concepts;
-using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -18,8 +16,7 @@ namespace Loom.Sandbox.Demos;
 internal sealed class ParticlesDemo : IDemo
 {
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "Particles";
 
@@ -40,16 +37,16 @@ internal sealed class ParticlesDemo : IDemo
 
 		const int particleCount = 4096;
 		var particles = g.Buffer("particles", particleCount * 16); // float4 per particle
-		_view = new ViewConstants(g, "particles.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("particles.viewproj");
 
 		g.Pass("scene")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(lit)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, scene.Cube, "lit", Matrix4x4.Identity);
-				_submit.Draw(ctx, scene.Plane, "lit", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Cube, "lit", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
 		g.Compute("particle.update")
@@ -57,6 +54,7 @@ internal sealed class ParticlesDemo : IDemo
 			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [ctx.Time], [], [particles]));
 
 		g.Pass("particles")
+			.Reads(_viewproj)
 			.Blends(lit)
 			.ReadsVertex(particles)
 			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.render", VertexCount = 6, Instances = DrawCall.Gpu(particles, particleCount) })); // 6 = a billboard quad fabricated per particle
@@ -66,6 +64,6 @@ internal sealed class ParticlesDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's view-projection for the lit scene pass (the particle render still rides the auto-push).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	// Publish this frame's view-projection for the scene pass and the particle render pass to read.
+	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 }

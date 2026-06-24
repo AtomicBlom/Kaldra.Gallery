@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Loom.Concepts;
+
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -26,19 +26,23 @@ internal sealed class CascadedShadowsDemo : IDemo
 	private static readonly Vector3 SunDir = Vector3.Normalize(new Vector3(0.5f, 0.7f, -0.5f));
 
 	private Mesh _ground;
-	private readonly Camera[] _cascades = new Camera[CascadeCount];
+	private readonly Concepts.Camera[] _cascades = new Concepts.Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
 	private readonly float[] _csmParams = new float[68]; // 3×mat4 (48) + eye + forward + sunDir + sunColor + ambient
 	private IEngine _engine = null!;
+	private Concepts.Camera _cam = null!;
 	private ConstantsHandle _csmSplits = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private ConstantsHandle _viewproj = null!;
+	private readonly ConstantsHandle[] _cascadeViewproj = new ConstantsHandle[CascadeCount];
 
 	public bool DebugTint { get; set; }
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
+		for (var c = 0; c < CascadeCount; c++)
+			_cascades[c] = new Concepts.Camera(engine);
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("lighting_csm", new TechniqueDescriptor("lighting_csm"));
@@ -60,24 +64,21 @@ internal sealed class CascadedShadowsDemo : IDemo
 	}
 
 	// A low camera looking across the ground into the distance, so near→far spans the cascades.
-	public Camera? GetCamera(float aspect, float time)
-	{
-		var view = Matrix4x4.CreateLookAt(new Vector3(0f, 4f, 16f), new Vector3(0f, 0f, -8f), Vector3.UnitY);
-		var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, CamNear, CamFar);
-		return new Camera(view, projection);
-	}
+	public Concepts.Camera? GetCamera(float aspect, float time) => _cam
+		.Perspective(MathF.PI / 3f, aspect, CamNear, CamFar)
+		.LookAt(new Vector3(0f, 4f, 16f), new Vector3(0f, 0f, -8f));
 
-	public (IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, Vector3 lightDir)
+	// Fit the cascades to this frame's camera + sun and publish everything the passes read: each cascade's
+	// view-projection (the depth passes), the camera view-projection (the g-buffer), and the splits + tint flag.
+	public void Update(Concepts.Camera camera)
 	{
-		Cascades.Compute(camera, SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
-		// The split far-depths + the cascade-tint flag ride a parameter buffer the lighting pass reads (the matrices
-		// stay on the closure push, where the backend's per-cascade clip-space flip applies).
+		_cam = camera;
+		Cascades.Compute(_cam, SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
 		_engine.Write(_csmSplits, new DemoGraph.CsmSplits(new Vector4(_splits[0], _splits[1], _splits[2], DebugTint ? 1f : 0f)));
-		return (_cascades, _splits);
+		_engine.Write(_viewproj, _cam.ViewProjection);
+		for (var c = 0; c < CascadeCount; c++)
+			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
 	}
-
-	// Publish this frame's camera view-projection for the g-buffer pass (cascade depth passes still ride the auto-push).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public void DrawDebugUI()
 	{
@@ -91,7 +92,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 	{
 		var screen = g.Backbuffer;
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
-		_view = new ViewConstants(g, "csm.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("csm.viewproj");
 		var albedo = g.Screen.Color("albedo", Format.Rgba8Srgb);
 		var normal = g.Screen.Color("normal", Format.Rgba16F);
 		var position = g.Screen.Color("position", Format.Rgba16F);
@@ -104,6 +105,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 		{
 			var dom = g.Domain($"sun_csm{c}", (int)ShadowResolution, (int)ShadowResolution);
 			cascadeMaps[c] = dom.Depth($"csm_depth{c}", Format.Depth32F);
+			_cascadeViewproj[c] = g.Constants<Matrix4x4>($"csm.cascade{c}.viewproj");
 		}
 
 		// A depth-only pass per cascade, drawing the scene from that cascade's sun view.
@@ -111,48 +113,47 @@ internal sealed class CascadedShadowsDemo : IDemo
 		{
 			var cascade = c; // capture by value
 			g.Pass($"shadow{c}")
+				.Reads(_cascadeViewproj[cascade])
 				.WritesDepth(cascadeMaps[cascade])
 				.Draw(ctx =>
 				{
-					ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
-					ctx.Draw(new DrawCall { Mesh = _ground, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
+					DemoDraw.Mesh(ctx, scene.Cube, "depthonly", Matrix4x4.Identity);
+					DemoDraw.Mesh(ctx, _ground, "depthonly", Matrix4x4.Identity);
 				});
 		}
 
 		g.Pass("gbuffer")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
-				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 			});
 
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2])
 			.Reads(_csmSplits)
 			.Writes(lit)
-			.Draw(ctx => ctx.FullScreen("lighting_csm", PackParams(ctx), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
+			.Draw(ctx => ctx.FullScreen("lighting_csm", PackParams(), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
 
-	// Pack the per-frame CSM uniform block: three cascade view-projections, the split far-depths (+ debug flag),
-	// the camera eye + forward (for the view-depth metric), and the sun direction + key intensity.
-	private ReadOnlySpan<float> PackParams(IRenderContext ctx)
+	// Pack the per-frame CSM uniform block: three cascade view-projections, then the camera eye + forward (for the
+	// view-depth metric), and the sun direction + key intensity. The splits + tint flag ride the CsmSplits buffer.
+	private ReadOnlySpan<float> PackParams()
 	{
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjectionMatrix;
+			var m = _cascades[c].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
-		// Splits + the cascade-tint flag now ride the CsmSplits parameter buffer (written in GetCascades); the push
-		// carries only the clip-space matrices + the camera/sun/ambient data the engine can't host-write.
-		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
+		Matrix4x4.Invert(_cam.View, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
 		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;

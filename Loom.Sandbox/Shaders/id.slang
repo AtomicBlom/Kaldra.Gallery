@@ -1,16 +1,17 @@
-// Object-id / picking pass (Planning.md §7.4). Draws opaque geometry writing each object's id into a
-// single-channel target — the seed source the JFA outline grows a border from (§7.5: "same buffer, new
-// consumer"). For the reference frame there is one object (the cube), so it writes a constant id of 1; with
-// many objects the id would be per-instance data. Occlusion would normally reuse the opaque depth, but a
-// single convex object is its own silhouette, so no depth test is needed here. Vertex stage matches the
-// mesh/g-buffer techniques (MVP push constant, Loom.Core.Vertex layout).
+// Object-id / picking pass. Draws opaque geometry writing each object's id into a single-channel target — the
+// seed source the JFA outline grows a border from ("same buffer, new consumer"). The id is per-object data: it
+// rides the per-draw block, so each object writes its own id and the readback at the cursor decodes which object
+// is hovered. Occlusion would normally reuse the opaque depth, but a single convex object is its own silhouette,
+// so no depth test is needed here.
 
-struct PushConstants
-{
-	float4x4 mvp;
-};
+#include "transform.module.slang"
 
-[[vk::push_constant]] PushConstants pc;
+struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
+struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + the picking id this pass writes
+
+// No samplers precede them, so the UBOs own bindings 0,1 (register b1/b2; b0 is the unused root-constant slot).
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {
@@ -25,7 +26,7 @@ struct VsIn
 struct VsOut
 {
 	float4 position : SV_Position;
-	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout (M12 retires this)
+	float4 tangent : TANGENT; // consumed only to satisfy the shared 4-attribute vertex layout
 	float3 normal : NORMAL;
 	float2 uv : TEXCOORD0;
 };
@@ -34,7 +35,8 @@ struct VsOut
 VsOut vertexMain(VsIn input)
 {
 	VsOut output;
-	output.position = mul(pc.mvp, float4(input.position, 1.0));
+	float4 world = mul(draw.model, float4(input.position, 1.0));
+	output.position = mul(view.viewProj, world);
 	output.tangent = input.tangent;
 	output.normal = input.normal;
 	output.uv = input.uv;
@@ -44,5 +46,5 @@ VsOut vertexMain(VsIn input)
 [shader("fragment")]
 float fragmentMain(VsOut input) : SV_Target
 {
-	return 1.0; // the cube's object id; background stays 0 (the target is cleared)
+	return (float)draw.objectId; // this object's id; background stays 0 (the target is cleared)
 }

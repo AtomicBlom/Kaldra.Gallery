@@ -4,7 +4,6 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Core.Scene;
-using Loom.Concepts;
 
 namespace Loom.Sandbox.Demos;
 
@@ -27,7 +26,7 @@ internal sealed class InstancingDemo : IDemo
 	private int _drawn;
 	private int _total;
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "Instancing + Cull";
 
@@ -66,10 +65,10 @@ internal sealed class InstancingDemo : IDemo
 		{
 			var screen = g.Backbuffer;
 			var depth = g.Screen.Depth("depth", Format.Depth32F);
-			_view = new ViewConstants(g, "instanced.viewproj");
+			_viewproj = g.Constants<Matrix4x4>("instanced.viewproj");
 
 			g.Pass("instances")
-				.Reads(_view.Handle)
+				.Reads(_viewproj)
 				.Writes(screen)
 				.WritesDepth(depth)
 				// The app hands the engine the culled draw list — the visible transforms compacted in Update().
@@ -80,9 +79,9 @@ internal sealed class InstancingDemo : IDemo
 		});
 	}
 
-	public void Update(Camera camera)
+	public void Update(Concepts.Camera camera)
 	{
-		_view.Publish(_engine, camera);
+		_engine.Write(_viewproj, camera.ViewProjection);
 		_drawn = _group.Cull(camera.ExtractFrustum(), _visible);
 	}
 

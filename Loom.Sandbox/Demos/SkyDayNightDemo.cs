@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Loom.Concepts;
+
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -26,18 +26,22 @@ internal sealed class SkyDayNightDemo : IDemo
 
 	private Mesh _ground;
 	private DayNight.State _sun = DayNight.Compute(0.47f);
-	private readonly Camera[] _cascades = new Camera[CascadeCount];
+	private readonly Concepts.Camera[] _cascades = new Concepts.Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
 	private readonly float[] _csmParams = new float[68];
 	private readonly float[] _skyParams = new float[36];
 	private IEngine _engine = null!;
+	private Concepts.Camera _cam = null!;
 	private ConstantsHandle _csmSplits = null!;
-	private ViewConstants _view = null!;
-	private readonly DrawSubmitter _submit = new();
+	private ConstantsHandle _viewproj = null!;
+	private readonly ConstantsHandle[] _cascadeViewproj = new ConstantsHandle[CascadeCount];
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
+		for (var c = 0; c < CascadeCount; c++)
+			_cascades[c] = new Concepts.Camera(engine);
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("lighting_csm", new TechniqueDescriptor("lighting_csm"));
@@ -57,30 +61,31 @@ internal sealed class SkyDayNightDemo : IDemo
 		_ground = engine.CreateMesh(vertices, [0, 1, 2, 0, 2, 3]);
 	}
 
-	// GetCamera runs once per frame before GetCascades + Render, so it doubles as the per-frame sun update: the
-	// day phase advances with time (frozen under capture → a deterministic golden hour).
+	// GetCamera runs once per frame before Update, so it doubles as the per-frame sun update: the day phase
+	// advances with time (frozen under capture → a deterministic golden hour).
 	private float _phaseOverride = -1f; // < 0 = advance with time; ≥ 0 = scrubbed time-of-day
 
-	public Camera? GetCamera(float aspect, float time)
+	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
 		_sun = DayNight.Compute(_phaseOverride >= 0f ? _phaseOverride : 0.47f + 0.02f * time);
 		// Low eye looking slightly up across the ground toward the sun (upper-left), so the sky + horizon + sun
 		// glow fill the upper half of the frame.
-		var view = Matrix4x4.CreateLookAt(new Vector3(2f, 2.2f, 16f), new Vector3(-4f, 4f, -20f), Vector3.UnitY);
-		var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3f, aspect, CamNear, CamFar);
-		return new Camera(view, projection);
+		return _cam
+			.Perspective(MathF.PI / 3f, aspect, CamNear, CamFar)
+			.LookAt(new Vector3(2f, 2.2f, 16f), new Vector3(-4f, 4f, -20f));
 	}
 
-	public (IReadOnlyList<Camera> Cascades, IReadOnlyList<float> Splits)? GetCascades(Camera camera, Vector3 lightDir)
+	// Fit the cascades to the camera + sun and publish each cascade's view-projection (the depth passes), the
+	// camera view-projection (the g-buffer), and the splits (the lighting pass).
+	public void Update(Concepts.Camera camera)
 	{
-		Cascades.Compute(camera, _sun.SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
-		// Splits ride a parameter buffer the lighting pass reads; the matrices stay on the closure push (clip-space flip).
+		_cam = camera;
+		Cascades.Compute(_cam, _sun.SunDir, CamNear, CamFar, ShadowResolution, _cascades, _splits);
 		_engine.Write(_csmSplits, new DemoGraph.CsmSplits(new Vector4(_splits[0], _splits[1], _splits[2], 0f)));
-		return (_cascades, _splits);
+		_engine.Write(_viewproj, _cam.ViewProjection);
+		for (var c = 0; c < CascadeCount; c++)
+			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
 	}
-
-	// Publish this frame's camera view-projection for the g-buffer pass (cascade depth + sky still ride the auto-push/ctx.View).
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public void DrawDebugUI()
 	{
@@ -100,63 +105,66 @@ internal sealed class SkyDayNightDemo : IDemo
 		var position = g.Screen.Color("position", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
+		_viewproj = g.Constants<Matrix4x4>("skydaynight.viewproj");
+		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 
 		var cascadeMaps = new DepthHandle[CascadeCount];
 		for (var c = 0; c < CascadeCount; c++)
+		{
 			cascadeMaps[c] = g.Domain($"sun_csm{c}", (int)ShadowResolution, (int)ShadowResolution).Depth($"csm_depth{c}", Format.Depth32F);
+			_cascadeViewproj[c] = g.Constants<Matrix4x4>($"skydaynight.cascade{c}.viewproj");
+		}
 
 		for (var c = 0; c < CascadeCount; c++)
 		{
 			var cascade = c;
 			g.Pass($"shadow{c}")
+				.Reads(_cascadeViewproj[cascade])
 				.WritesDepth(cascadeMaps[cascade])
 				.Draw(ctx =>
 				{
-					ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
-					ctx.Draw(new DrawCall { Mesh = _ground, Technique = "depthonly", View = ctx.Views[ViewKeys.Cascade(cascade)] });
+					DemoDraw.Mesh(ctx, scene.Cube, "depthonly", Matrix4x4.Identity);
+					DemoDraw.Mesh(ctx, _ground, "depthonly", Matrix4x4.Identity);
 				});
 		}
 
-		_view = new ViewConstants(g, "skydaynight.viewproj");
 		g.Pass("gbuffer")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
-				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				DemoDraw.Mesh(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 			});
 
-		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 		g.Pass("lighting")
 			.Samples(albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2])
 			.Reads(_csmSplits)
 			.Writes(lit)
-			.Draw(ctx => ctx.FullScreen("lighting_csm", PackLighting(ctx), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
+			.Draw(ctx => ctx.FullScreen("lighting_csm", PackLighting(), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
 		// Sky fills the background (alpha-over keeps lit geometry, fills the rest with the gradient + sun glow).
 		// Masks on scene depth == cleared far (no geometry); position.a can't tell — colour clears to alpha 1.
 		g.Pass("sky")
 			.Blends(lit)
 			.Samples(depth)
-			.Draw(ctx => ctx.FullScreen("sky", PackSky(ctx), depth));
+			.Draw(ctx => ctx.FullScreen("sky", PackSky(), depth));
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
 
-	private ReadOnlySpan<float> PackLighting(IRenderContext ctx)
+	private ReadOnlySpan<float> PackLighting()
 	{
 		var p = _csmParams;
 		for (var c = 0; c < CascadeCount; c++)
 		{
-			var m = ctx.Views[ViewKeys.Cascade(c)].ViewProjectionMatrix;
+			var m = _cascades[c].ViewProjection;
 			MemoryMarshal.CreateReadOnlySpan(in m.M11, 16).CopyTo(p.AsSpan(c * 16, 16));
 		}
-		// Splits ride the CsmSplits parameter buffer (written in GetCascades); the push carries matrices + camera/sun/ambient.
-		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
+		Matrix4x4.Invert(_cam.View, out var invView);
 		var eye = invView.Translation;
 		var forward = -Vector3.Normalize(new Vector3(invView.M31, invView.M32, invView.M33));
 		p[48] = eye.X; p[49] = eye.Y; p[50] = eye.Z; p[51] = 0f;
@@ -167,12 +175,12 @@ internal sealed class SkyDayNightDemo : IDemo
 		return p;
 	}
 
-	private ReadOnlySpan<float> PackSky(IRenderContext ctx)
+	private ReadOnlySpan<float> PackSky()
 	{
 		var p = _skyParams;
-		Matrix4x4.Invert(ctx.View.ViewProjectionMatrix, out var invVp);
+		Matrix4x4.Invert(_cam.ViewProjection, out var invVp);
 		MemoryMarshal.CreateReadOnlySpan(in invVp.M11, 16).CopyTo(p.AsSpan(0, 16));
-		Matrix4x4.Invert(ctx.View.ViewMatrix, out var invView);
+		Matrix4x4.Invert(_cam.View, out var invView);
 		var eye = invView.Translation;
 		p[16] = eye.X; p[17] = eye.Y; p[18] = eye.Z; p[19] = 0f;
 		p[20] = _sun.SunDir.X; p[21] = _sun.SunDir.Y; p[22] = _sun.SunDir.Z; p[23] = 0f;

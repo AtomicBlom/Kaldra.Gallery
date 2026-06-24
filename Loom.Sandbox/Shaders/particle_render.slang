@@ -1,15 +1,13 @@
-// GPU particle render (Planning.md §7.6). Each particle the compute wrote is one INSTANCE; the buffer is
-// bound as the per-instance vertex stream (one float4: xyz position + w life). The vertex stage fabricates a
-// 6-vertex quad per instance (a billboard — no point sprites, which Adreno handles unevenly) sized in clip
-// space, and the fragment makes a soft round emissive spark, additively blended onto lit so it glows through
-// bloom. The graph emitted the compute→vertex barrier; this just draws.
+// GPU particle render. Each particle the compute wrote is one INSTANCE; the buffer is bound as the per-instance
+// vertex stream (one float4: xyz position + w life). The vertex stage fabricates a 6-vertex quad per instance (a
+// billboard — no point sprites, which Adreno handles unevenly) sized in clip space, and the fragment makes a soft
+// round emissive spark, additively blended onto lit so it glows through bloom. The graph emitted the
+// compute→vertex barrier; this just draws. The particle is already in world space, so it needs only the
+// view-projection the pass .Reads (no per-object model).
 
-struct PushConstants
-{
-	float4x4 mvp;
-};
-
-[[vk::push_constant]] PushConstants pc;
+struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
+// No samplers precede it, so the UBO owns binding 0 (register b1; b0 is the unused root-constant slot).
+[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsOut
 {
@@ -28,7 +26,7 @@ VsOut vertexMain([[vk::location(0)]] float4 particle : POSITION, uint vertexId :
 	};
 	float2 corner = corners[vertexId];
 
-	float4 clip = mul(pc.mvp, float4(particle.xyz, 1.0));
+	float4 clip = mul(view.viewProj, float4(particle.xyz, 1.0));
 	// Offset in clip space scaled by w, so the quad keeps a roughly constant on-screen size with depth.
 	const float size = 0.012;
 	clip.xy += corner * size * clip.w;

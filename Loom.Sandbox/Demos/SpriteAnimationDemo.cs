@@ -1,7 +1,6 @@
 using System.Numerics;
 
 using Loom.Assets;
-using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -32,13 +31,15 @@ internal sealed class SpriteAnimationDemo : IDemo
 	private SpriteSheet _sheet = new(1, 1);
 	private SpriteInstance[] _sprites = [];
 	private IEngine _engine = null!;
-	private ViewConstants _view = null!;
+	private Concepts.Camera _cam = null!;
+	private ConstantsHandle _viewproj = null!;
 
 	public string Name => "Sprite Animation";
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
+		_cam = new Concepts.Camera(engine);
 		engine.DefineTechnique("sprite", new TechniqueDescriptor(
 			"gbuffer_sprite", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Sprite));
 		engine.DefineTechnique("compose2d", new TechniqueDescriptor("compose2d"));
@@ -60,12 +61,10 @@ internal sealed class SpriteAnimationDemo : IDemo
 	}
 
 	// The same centred orthographic view as the other 2D demos (the backend handles the Y-flip).
-	public Camera? GetCamera(float aspect, float time)
+	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
-		var view = Matrix4x4.CreateLookAt(eye, eye with { Z = 0f }, Vector3.UnitY);
-		var projection = Matrix4x4.CreateOrthographic(WorldWidth, WorldHeight, 0.1f, 100f);
-		return new Camera(view, projection);
+		return _cam.Orthographic(WorldWidth, WorldHeight, 0.1f, 100f).LookAt(eye, eye with { Z = 0f });
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -76,11 +75,11 @@ internal sealed class SpriteAnimationDemo : IDemo
 		var normal = world.Color("anim_normal", Format.Rgba8Unorm);
 		var emissive = world.Color("anim_emissive", Format.Rgba8Srgb);
 		var lit = world.Color("anim_lit", Format.Rgba16F);
-		_view = new ViewConstants(g, "anim.viewproj");
+		_viewproj = g.Constants<Matrix4x4>("anim.viewproj");
 
 		// One instanced draw — but the uv-rects are re-stamped from ctx.Time each frame, so the sprites animate.
 		g.Pass("sprites")
-			.Reads(_view.Handle)
+			.Reads(_viewproj)
 			.Writes(albedo, normal, emissive)
 			.Draw(ctx =>
 			{
@@ -107,7 +106,7 @@ internal sealed class SpriteAnimationDemo : IDemo
 	});
 
 	// Publish this frame's orthographic view-projection for the sprite pass to read.
-	public void Update(Camera camera) => _view.Publish(_engine, camera);
+	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 
 	public string HudStatus => $"{_sprites.Length} animated sprites @ {Fps:0}fps ({SpinnerAtlas.Frames} frames)";
 }
