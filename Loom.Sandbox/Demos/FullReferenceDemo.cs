@@ -1,5 +1,6 @@
 using System.Numerics;
 
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -19,11 +20,15 @@ internal sealed class FullReferenceDemo : IDemo
 {
 	private ColorHandle _ids = null!;
 	private ConstantsHandle _hoverParams = null!;
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public string Name => "Full reference frame";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", HasFragmentPush: true));
@@ -59,6 +64,7 @@ internal sealed class FullReferenceDemo : IDemo
 
 		var sun = g.Domain("sun_shadow", 1024, 1024);
 		var shadowMap = sun.Depth("sun_depth", Format.Depth32F);
+		_view = new ViewConstants(g, "fullref.viewproj");
 
 		g.Pass("shadow")
 			.WritesDepth(shadowMap)
@@ -69,12 +75,13 @@ internal sealed class FullReferenceDemo : IDemo
 			});
 
 		g.Pass("gbuffer")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
-				ctx.Draw(DrawCall.Create(scene.Plane, "gbuffer"));
+				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "gbuffer", Matrix4x4.Identity);
 			});
 
 		g.Pass("ssao")
@@ -164,6 +171,9 @@ internal sealed class FullReferenceDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's camera view-projection for the g-buffer pass (shadow/id/transparent still ride the auto-push).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 
 	public ResourceHandle? PickTarget => _ids;
 

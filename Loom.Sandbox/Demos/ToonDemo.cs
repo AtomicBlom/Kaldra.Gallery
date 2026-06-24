@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+using Loom.Concepts;
 using Loom.Core;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
@@ -30,6 +31,8 @@ internal sealed class ToonDemo : IDemo
 	private readonly float[] _csmParams = new float[68];
 	private IEngine _engine = null!;
 	private ConstantsHandle _csmSplits = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -70,6 +73,9 @@ internal sealed class ToonDemo : IDemo
 		return (_cascades, _splits);
 	}
 
+	// Publish this frame's camera view-projection for the g-buffer pass (cascade depth passes still ride the auto-push).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
+
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
@@ -96,13 +102,15 @@ internal sealed class ToonDemo : IDemo
 				});
 		}
 
+		_view = new ViewConstants(g, "toon.viewproj");
 		g.Pass("gbuffer")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
-				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
+				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 			});
 
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");

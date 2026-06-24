@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 
 using Loom.Assets;
+using Loom.Concepts;
 using Loom.Core.Animation;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
@@ -50,6 +51,8 @@ internal sealed class StylizedDemo : IDemo
 	private readonly float[] _wind = new float[8];
 	private IEngine _engine = null!;
 	private ConstantsHandle _csmSplits = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -119,6 +122,9 @@ internal sealed class StylizedDemo : IDemo
 		return (_cascades, _splits);
 	}
 
+	// Publish this frame's camera view-projection for the g-buffer pass (cascade depth + sky still ride the auto-push/ctx.View).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
+
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
@@ -129,6 +135,7 @@ internal sealed class StylizedDemo : IDemo
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
 		var graded = g.Screen.Color("graded", Format.Rgba16F);
 		var skinned = g.Buffer("skinned", _charVerts * 48);
+		_view = new ViewConstants(g, "stylized.viewproj");
 
 		var cascadeMaps = new DepthHandle[CascadeCount];
 		for (var c = 0; c < CascadeCount; c++)
@@ -160,13 +167,14 @@ internal sealed class StylizedDemo : IDemo
 
 		// G-buffer: skinned character + ground + the windy foliage field.
 		g.Pass("gbuffer")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				ctx.Draw(new DrawCall { Mesh = _char, SkinnedVertices = skinned, Technique = "gbuffer" });
-				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
+				_submit.DrawSkinned(ctx, _char, skinned, "gbuffer", Matrix4x4.Identity);
+				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
 				_wind[4] = 0.16f; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
 				ctx.Draw(new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field), Uniforms = DrawCall.Bytes(_wind) });

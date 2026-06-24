@@ -1,3 +1,7 @@
+using System.Numerics;
+
+using Loom.Concepts;
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
@@ -13,10 +17,15 @@ namespace Loom.Sandbox.Demos;
 /// </summary>
 internal sealed class ShadowsDemo : IDemo
 {
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
+
 	public string Name => "Shadows";
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("light_shadow", new TechniqueDescriptor("light_shadow", HasFragmentPush: true));
@@ -29,6 +38,7 @@ internal sealed class ShadowsDemo : IDemo
 		var normal = g.Screen.Color("normal", Format.Rgba16F);
 		var position = g.Screen.Color("position", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
+		_view = new ViewConstants(g, "shadows.viewproj");
 
 		// The shadow map lives in its own high-res square domain, rendered from the sun.
 		var sun = g.Domain("sun_shadow", 1024, 1024);
@@ -43,12 +53,13 @@ internal sealed class ShadowsDemo : IDemo
 			});
 
 		g.Pass("gbuffer")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
-				ctx.Draw(DrawCall.Create(scene.Plane, "gbuffer"));
+				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				_submit.Draw(ctx, scene.Plane, "gbuffer", Matrix4x4.Identity);
 			});
 
 		// Deferred lighting + the shadow test; the sun's view-projection rides the fragment push (the same
@@ -61,4 +72,7 @@ internal sealed class ShadowsDemo : IDemo
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
+
+	// Publish this frame's camera view-projection for the g-buffer pass (the shadow pass still rides the auto-push).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
 }

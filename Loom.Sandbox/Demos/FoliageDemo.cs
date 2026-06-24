@@ -1,4 +1,5 @@
 using System.Numerics;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -31,9 +32,13 @@ internal sealed class FoliageDemo : IDemo
 	private Blade[] _visible = [];
 	private int _visibleCount;
 	private readonly float[] _wind = new float[8];
+	private IEngine _engine = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public void DefineTechniques(IEngine engine)
 	{
+		_engine = engine;
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("foliage", new TechniqueDescriptor("foliage", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Foliage));
 		engine.DefineTechnique("lighting_basic", new TechniqueDescriptor("lighting_basic"));
@@ -81,9 +86,10 @@ internal sealed class FoliageDemo : IDemo
 		_visible = new Blade[_field.Length];
 	}
 
-	// CPU frustum cull each frame: keep blades whose bounding sphere intersects the camera frustum.
+	// CPU frustum cull each frame + publish the camera view-projection the g-buffer/foliage passes read.
 	public void Update(Camera camera)
 	{
+		_view.Publish(_engine, camera);
 		var frustum = camera.ExtractFrustum();
 		_visibleCount = 0;
 		foreach (var blade in _field)
@@ -111,13 +117,15 @@ internal sealed class FoliageDemo : IDemo
 		var position = g.Screen.Color("position", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
+		_view = new ViewConstants(g, "foliage.viewproj");
 
 		g.Pass("gbuffer")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
+				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 				// time + wind params reach the vertex stage through the uniform seam.
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f; // dir.xy, time
 				_wind[4] = 0.18f; _wind[5] = 2.2f; _wind[6] = 0f; _wind[7] = 0f;     // amplitude, frequency

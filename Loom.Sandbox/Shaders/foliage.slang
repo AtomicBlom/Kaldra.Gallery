@@ -7,18 +7,18 @@
 
 [[vk::binding(0, 0)]] Sampler2D bladeTex; // blade colour + alpha cutout (alpha < cutoff → discard)
 
+// The camera view-projection (clip-space-corrected) the pass .Reads — the first UBO after the sampler (binding 1,
+// register b1). The per-instance world transform is rebuilt from the instance stream below, so there is no
+// per-draw model block; the wind parameters ride the per-draw Uniforms slot that follows (binding 2, register b2).
+struct ViewProj { float4x4 viewProj; };
+[[vk::binding(1, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+
 struct WindParams
 {
 	float4 dirTime;  // wind direction.xy, time (.z), _
 	float4 strength; // amplitude (.x), frequency (.y), _, _
 };
-[[vk::binding(1, 0)]] ConstantBuffer<WindParams> wind : register(b1);
-
-struct PushConstants
-{
-	float4x4 mvp; // camera view-projection (the per-instance world transform is rebuilt below)
-};
-[[vk::push_constant]] PushConstants pc;
+[[vk::binding(2, 0)]] ConstantBuffer<WindParams> wind : register(b2);
 
 struct VsIn
 {
@@ -58,7 +58,7 @@ VsOut vertexMain(VsIn input)
 	world.z += wind.dirTime.y * sway;
 
 	VsOut output;
-	output.position = mul(pc.mvp, float4(world, 1.0));
+	output.position = mul(view.viewProj, float4(world, 1.0));
 	output.uv = input.uv;
 	output.worldPos = world;
 	output.normal = float3(0.0, 1.0, 0.0); // blades read as upward-facing for soft, even lighting

@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Loom.Concepts;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -31,6 +32,8 @@ internal sealed class SkyDayNightDemo : IDemo
 	private readonly float[] _skyParams = new float[36];
 	private IEngine _engine = null!;
 	private ConstantsHandle _csmSplits = null!;
+	private ViewConstants _view = null!;
+	private readonly DrawSubmitter _submit = new();
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -76,6 +79,9 @@ internal sealed class SkyDayNightDemo : IDemo
 		return (_cascades, _splits);
 	}
 
+	// Publish this frame's camera view-projection for the g-buffer pass (cascade depth + sky still ride the auto-push/ctx.View).
+	public void Update(Camera camera) => _view.Publish(_engine, camera);
+
 	public void DrawDebugUI()
 	{
 		var scrub = _phaseOverride >= 0f;
@@ -111,13 +117,15 @@ internal sealed class SkyDayNightDemo : IDemo
 				});
 		}
 
+		_view = new ViewConstants(g, "skydaynight.viewproj");
 		g.Pass("gbuffer")
+			.Reads(_view.Handle)
 			.Writes(albedo, normal, position)
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(DrawCall.Create(scene.Cube, "gbuffer"));
-				ctx.Draw(DrawCall.Create(_ground, "gbuffer"));
+				_submit.Draw(ctx, scene.Cube, "gbuffer", Matrix4x4.Identity);
+				_submit.Draw(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 			});
 
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
