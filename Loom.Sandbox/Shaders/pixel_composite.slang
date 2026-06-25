@@ -1,18 +1,18 @@
-// Composite a small 3D "boss" render — drawn into its own tiny low-res domain — into a rectangular region of the
-// 2D pixel-art scene, with NEAREST filtering so the 3D geometry reads as deliberately chunky pixels that sit at
-// home in the pixel-art aesthetic. This is the low-res-domain feature in a compositing role rather than as the
-// whole-scene renderer. Samples the full-screen 2D scene (slot 0), the boss colour (slot 1) and the boss depth
-// (slot 2, its own domain). The push gives the boss's destination rect in screen UV (u0,v0 .. u1,v1). Inside the
-// rect, where the boss depth shows geometry (nearer than the cleared far plane) the boss colour replaces the
-// scene; everywhere else the 2D scene shows through. The graph derives the cross-domain shader-read transitions.
+// Composite the 2D pixel-art scene (its own low-res domain) + a small 3D "boss" render (its own tiny domain) onto
+// the full backbuffer, with NEAREST filtering so both read as deliberately chunky pixels. The 2D scene is fit to
+// the screen with a preserved aspect ratio (letterbox/pillarbox bars), so the pixels stay uniformly scaled on any
+// window shape rather than stretching. Inside the boss rect (given in CONTENT uv) the boss colour replaces the
+// scene where the boss depth shows geometry (nearer than the cleared far plane). The graph derives the cross-domain
+// shader-read transitions.
 
-[[vk::binding(0, 0)]] Sampler2D scene;
-[[vk::binding(1, 0)]] Sampler2D bossColor;
-[[vk::binding(2, 0)]] Sampler2D bossDepth;
+[[vk::binding(0, 0)]] Sampler2D scene;     // the 2D pixel-art scene (low-res domain)
+[[vk::binding(1, 0)]] Sampler2D bossColor; // the boss render (tiny domain)
+[[vk::binding(2, 0)]] Sampler2D bossDepth; // the boss depth (its domain)
 
 struct PushConstants
 {
-	float4 rect; // boss destination rect in screen UV: x=u0, y=v0, z=u1, w=v1
+	float4 rect;   // boss destination rect in CONTENT uv: x=u0, y=v0, z=u1, w=v1
+	float4 aspect; // x = screen aspect (w/h), y = content aspect (w/h)
 };
 [[vk::push_constant]] PushConstants pc;
 
@@ -35,14 +35,24 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 [shader("fragment")]
 float4 fragmentMain(VsOut input) : SV_Target
 {
-	float3 colour = scene.Sample(input.uv).rgb;
+	// Fit the content's aspect inside the screen, centred — bars fill the rest, so pixels never stretch.
+	float2 scale = float2(1.0, 1.0);
+	if (pc.aspect.x > pc.aspect.y)
+		scale.x = pc.aspect.y / pc.aspect.x; // wider screen → pillarbox (bars left/right)
+	else
+		scale.y = pc.aspect.x / pc.aspect.y; // taller screen → letterbox (bars top/bottom)
+	float2 lo = (1.0 - scale) * 0.5;
+	float2 cuv = (input.uv - lo) / scale; // screen uv → content uv
 
-	if (input.uv.x >= pc.rect.x && input.uv.x <= pc.rect.z &&
-		input.uv.y >= pc.rect.y && input.uv.y <= pc.rect.w)
+	if (any(cuv < 0.0) || any(cuv > 1.0))
+		return float4(0.0, 0.0, 0.0, 1.0); // the bars
+
+	float3 colour = scene.Sample(cuv).rgb;
+
+	if (cuv.x >= pc.rect.x && cuv.x <= pc.rect.z && cuv.y >= pc.rect.y && cuv.y <= pc.rect.w)
 	{
-		float2 bossUv = (input.uv - pc.rect.xy) / (pc.rect.zw - pc.rect.xy);
-		float depth = bossDepth.Sample(bossUv).r;
-		if (depth < 0.999) // boss geometry covers this texel (cleared far = 1.0)
+		float2 bossUv = (cuv - pc.rect.xy) / (pc.rect.zw - pc.rect.xy);
+		if (bossDepth.Sample(bossUv).r < 0.999) // boss geometry covers this texel (cleared far = 1.0)
 			colour = bossColor.Sample(bossUv).rgb;
 	}
 

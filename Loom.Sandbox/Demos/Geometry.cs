@@ -111,6 +111,55 @@ internal static class Geometry
 		return ([.. vertices], [.. indices]);
 	}
 
+	// A unit-diameter dome — the top half of a sphere (radius 0.5): a flat underside at y=0 rising to a domed crown
+	// at y=0.5, with the underside closed by a disc. The outward dome normals make a glow read brightest on the
+	// crown (a mushroom cap); the underside disc faces down (dim gills).
+	public static (Vertex[] Vertices, uint[] Indices) BuildHemisphere(int stacks = 8, int slices = 24)
+	{
+		const float r = 0.5f;
+		var vertices = new List<Vertex>();
+		var indices = new List<uint>();
+
+		// Dome: stacks from the crown (theta 0) down to the equator (theta π/2).
+		for (var i = 0; i <= stacks; i++)
+		{
+			var theta = i / (float)stacks * (MathF.PI / 2f);
+			var (st, ct) = (MathF.Sin(theta), MathF.Cos(theta));
+			for (var j = 0; j <= slices; j++)
+			{
+				var u = j / (float)slices;
+				var ang = u * MathF.Tau;
+				var (sa, ca) = (MathF.Sin(ang), MathF.Cos(ang));
+				var n = new Vector3(st * ca, ct, st * sa);
+				vertices.Add(new Vertex(n * r, n, new Vector2(u, ct), MakeTangent(n, new Vector3(-sa, 0, ca))));
+			}
+		}
+		var stride = (uint)(slices + 1);
+		for (uint i = 0; i < stacks; i++)
+			for (uint j = 0; j < slices; j++)
+			{
+				var a = i * stride + j;
+				var b = a + stride;
+				indices.AddRange([a, b, a + 1, a + 1, b, b + 1]);
+			}
+
+		// Flat underside disc (closes the dome) at y = 0, facing down.
+		var down = -Vector3.UnitY;
+		var center = (uint)vertices.Count;
+		vertices.Add(new Vertex(Vector3.Zero, down, new Vector2(0.5f, 0.5f), MakeTangent(down, Vector3.UnitX)));
+		var rim = (uint)vertices.Count;
+		for (var j = 0; j <= slices; j++)
+		{
+			var ang = j / (float)slices * MathF.Tau;
+			var (sa, ca) = (MathF.Sin(ang), MathF.Cos(ang));
+			vertices.Add(new Vertex(new Vector3(ca * r, 0f, sa * r), down, new Vector2(ca * 0.5f + 0.5f, sa * 0.5f + 0.5f), MakeTangent(down, Vector3.UnitX)));
+		}
+		for (uint j = 0; j < slices; j++)
+			indices.AddRange([center, rim + j + 1, rim + j]);
+
+		return ([.. vertices], [.. indices]);
+	}
+
 	// An icosphere of unit diameter: an icosahedron midpoint-subdivided `subdivisions` times then projected to the
 	// sphere, so the triangles stay near-equilateral with no polar pinching. Normals are the normalised position;
 	// UVs are a spherical projection (with a harmless longitude seam, since these shapes aren't texture-mapped).

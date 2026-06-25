@@ -10,13 +10,15 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Ancient ruins — a stone-courtyard SSAO/shadow showcase. A gateway of Kenney castle-kit walls + an arch, a
-/// stacked square tower, scattered rocks and a tree are assembled from glTF pieces (each placed by a per-draw
-/// model matrix); a torus "summoning circle" rings a glowing icosphere artifact floating at the centre, and a
-/// compute-skinned character paces the courtyard. The whole scene renders deferred into a fixed full-res world:
-/// shadow → g-buffer → SSAO (contact shadows in the dense stone crevices, the payoff) → sun lighting → sky →
-/// the additive emissive artifact → object-id + jump-flood outline (hover the artifact or the character) → bloom
-/// → auto-exposure tonemap → a desaturated-stone grade → blit. Frozen time pins a deterministic cross-backend golden.
+/// Ancient ruins — a stone-courtyard SSAO/shadow showcase built from many repeated Kenney castle-kit pieces. A
+/// walled courtyard (rows of walls + a gate arch, four stacked corner towers) encloses a glowing torus summoning
+/// circle ringing a floating icosphere artifact, with rocks, stairs and trees scattered through it and a
+/// compute-skinned character pacing the stone. Each glTF piece is grounded by its measured bounding box (so
+/// nothing floats) and textured from the kit's shared colormap (so it reads as painted stone, not blank grey).
+/// The scene renders deferred into a fixed full-res world: shadow → textured g-buffer → SSAO (contact shadows in
+/// the dense crevices, the payoff) → sun lighting → sky → the additive emissive ring + artifact → object-id +
+/// jump-flood outline (hover the artifact or the character) → bloom → auto-exposure tonemap → a warm-stone grade →
+/// blit. Frozen time pins a deterministic cross-backend golden.
 /// </summary>
 internal sealed class RuinsDemo : IDemo
 {
@@ -24,12 +26,18 @@ internal sealed class RuinsDemo : IDemo
 
 	private const float ShadowResolution = 2048f;
 
+	// Loaded-once piece definitions (geometry + measured bounds), reused across every placement so a repeated
+	// wall/tower is one upload drawn many times.
+	private sealed record PieceDef(Mesh[] Meshes, float MinY, float Height, float Width, float Depth);
+	private readonly Dictionary<string, PieceDef> _library = [];
 	private readonly List<(Mesh Mesh, Matrix4x4 Model)> _pieces = [];
-	private Mesh _torus;
+
+	private Mesh _ring;
 	private Mesh _artifact;
 	private Mesh _ground;
-	private Matrix4x4 _torusModel;
+	private Matrix4x4 _ringModel;
 	private Matrix4x4 _artifactModel;
+	private Material _stone; // the kit's shared colormap atlas
 
 	private Mesh _char;
 	private int _charVerts;
@@ -39,43 +47,48 @@ internal sealed class RuinsDemo : IDemo
 	private Matrix4x4 _charModel;
 
 	private IEngine _engine = null!;
+	private string _assets = "";
 	private Concepts.Camera _cam = null!;
 	private Concepts.Camera _sunCam = null!;
 	private readonly float[] _skyParams = new float[36];
 
-	// A warm daytime sky whose sun direction matches DemoSun (so the sky's sun glow lines up with the lit shadows).
+	// The sun direction the lighting + sky share; the sun camera (built in DefineTechniques) frames the whole
+	// courtyard, not just the origin, so the far walls/towers still cast into the shadow map.
+	private static readonly Vector3 SunDir = Vector3.Normalize(new Vector3(0.5f, 0.72f, -0.45f));
+
 	private readonly DayNight.State _sky = new(
-		DemoSun.Direction,
-		new Vector3(1.0f, 0.96f, 0.86f),
-		2.0f,
-		new Vector3(0.30f, 0.32f, 0.36f),
-		new Vector3(0.20f, 0.42f, 0.82f),  // zenith blue
-		new Vector3(0.45f, 0.60f, 0.84f)); // horizon (deeper, not washed)
+		SunDir,
+		new Vector3(1.0f, 0.95f, 0.84f),
+		1.9f,
+		new Vector3(0.34f, 0.36f, 0.42f),
+		new Vector3(0.07f, 0.20f, 0.52f),  // deep zenith blue
+		new Vector3(0.24f, 0.42f, 0.72f)); // horizon blue
 
 	private ColorHandle _ids = null!;
 	private ConstantsHandle _hoverParams = null!;
 	private ConstantsHandle _viewproj = null!;
 	private ConstantsHandle _sunViewproj = null!;
 
-	private float _bloomThreshold = 1.1f;
-	private float _gradeStrength = 0.7f;
+	private float _bloomThreshold = 1.5f; // only the emissive ring/artifact bloom — the lit stone shouldn't wash the sky
+	private float _gradeStrength = 0.5f;
 	private int _clipIdx;
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
 		_cam = new Concepts.Camera(engine);
-		_sunCam = DemoSun.View(engine);
+		_assets = Path.Combine(AppContext.BaseDirectory, "assets");
 
 		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
+		engine.DefineTechnique("gbuffer.tex", new TechniqueDescriptor("gbuffer_textured", HasVertexInput: true, LinearFilter: true));
 		engine.DefineTechnique("ssao", new TechniqueDescriptor("ssao", HasFragmentPush: true));
 		engine.DefineTechnique("ssao.blur", new TechniqueDescriptor("ssao_blur"));
 		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", HasFragmentPush: true));
 		engine.DefineTechnique("sky", new TechniqueDescriptor("sky", Blend: BlendMode.AlphaOver));
-		// The artifact reuses emissive.slang as an additive forward technique (its own name so it doesn't collide
-		// with other demos' "emissive" — the gallery technique registry is last-wins by name).
+		// The ring + artifact reuse emissive.slang as an additive forward technique (its own name so it doesn't
+		// collide with other demos' "emissive" — the gallery technique registry is last-wins by name).
 		engine.DefineTechnique("ruins.emissive", new TechniqueDescriptor("emissive", HasVertexInput: true, Blend: BlendMode.Additive));
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
 		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed"));
@@ -90,34 +103,22 @@ internal sealed class RuinsDemo : IDemo
 		engine.DefineTechnique("grade", new TechniqueDescriptor("grade", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 
-		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
+		// The kit's shared colormap atlas — every castle piece's uvs index a flat palette region of this one image.
+		_stone = engine.CreateMaterial(engine.CreateTexture(
+			ImageLoader.Load(Path.Combine(_assets, "kenney", "castle", "Textures", "colormap.png"), TextureFormat.Rgba8Srgb)));
 
-		// The courtyard: a back gateway (two walls + an arch), a left corner wall, a stacked square tower on the
-		// right, scattered rocks, stairs and a tree. Every Kenney piece is a 2×2 footprint with its base at y=-1,
-		// so Place() lifts it by its scale to sit on the ground; tiers stack in 2-unit steps.
-		AddPiece(engine, assets, "wall", Place(-2f, -4f));
-		AddPiece(engine, assets, "tower-square-arch", Place(0f, -4f));
-		AddPiece(engine, assets, "wall", Place(2f, -4f));
-		AddPiece(engine, assets, "wall-corner", Place(-4f, -4f));
-		// A single grounded corner tower base — a ruined stump. (The Kenney mid/top tiers don't stack flush at a
-		// 2-unit step, so stacking them reads as floating blocks; a single base sidesteps that and suits "ruins".)
-		AddPiece(engine, assets, "tower-square-base", Place(4f, -4f));
-		AddPiece(engine, assets, "wall", Place(-4f, -2f, yawDeg: 90f));
-		AddPiece(engine, assets, "stairs-stone", Place(1.6f, -1.5f));
-		AddPiece(engine, assets, "rocks-large", Place(-2.6f, 1.8f, 0.8f));
-		AddPiece(engine, assets, "rocks-small", Place(2.8f, 2.0f, 0.9f));
-		AddPiece(engine, assets, "tree-large", Place(-3.8f, 1.5f));
+		BuildCourtyard();
 
-		// The summoning circle (flat ring on the ground) + the floating artifact gem at the centre.
-		var (torusV, torusI) = Geometry.BuildTorus(2.4f, 0.18f, 64, 12);
-		_torus = engine.CreateMesh(torusV, torusI);
-		_torusModel = Matrix4x4.CreateTranslation(0f, 0.05f, 0f);
+		// The summoning circle (a flat glowing ring) + the floating artifact gem at the centre.
+		var (ringV, ringI) = Geometry.BuildTorus(2.6f, 0.16f, 64, 12);
+		_ring = engine.CreateMesh(ringV, ringI);
+		_ringModel = Matrix4x4.CreateScale(0.8f, 0.4f, 0.8f) * Matrix4x4.CreateTranslation(0f, 0.06f, 0f);
 		var (artV, artI) = Geometry.BuildIcosphere(3);
 		_artifact = engine.CreateMesh(artV, artI);
-		_artifactModel = Matrix4x4.CreateScale(0.85f) * Matrix4x4.CreateTranslation(0f, 1.9f, 0f);
+		_artifactModel = Matrix4x4.CreateScale(0.8f) * Matrix4x4.CreateTranslation(0f, 1.7f, 0f);
 
-		// A stone ground plane, sized to the courtyard (not a vast pale plain that dominates the frame).
-		const float s = 14f;
+		// A stone ground plane sized to the courtyard.
+		const float s = 18f;
 		var up = Vector3.UnitY;
 		var t = new Vector4(1, 0, 0, 1);
 		_ground = engine.CreateMesh(
@@ -125,38 +126,152 @@ internal sealed class RuinsDemo : IDemo
 			 new(new Vector3(s, 0, s), up, new Vector2(1, 1), t), new(new Vector3(-s, 0, s), up, new Vector2(0, 1), t)],
 			[0, 1, 2, 0, 2, 3]);
 
-		// The compute-skinned character — the Kenney survivor, converted from FBX (mesh + idle/run/jump clips) to a
-		// single GLB by tools/convert_character_fbx.py and loaded through the neutral glTF path.
-		var model = GltfLoader.Load(Path.Combine(assets, "kenney", "characters", "character_animated.glb"));
+		// The compute-skinned character — the Kenney survivor (mesh + idle/run/jump clips) loaded through the
+		// neutral glTF path. Scale it from its measured height to stand a touch shorter than a wall, and ground it.
+		var model = GltfLoader.Load(Path.Combine(_assets, "kenney", "characters", "character_animated.glb"));
 		var prim = model.Primitives[0];
 		_char = engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
 		_charVerts = prim.SkinnedVertices!.Length;
 		_skeleton = model.Skeleton!;
 		_clips = [.. model.Clips];
 		_palette = new Matrix4x4[_skeleton.JointCount];
-		_charModel = Matrix4x4.CreateScale(0.9f) * Matrix4x4.CreateTranslation(-2.6f, 0f, 1.0f);
+		var (cmin, cmax) = Bounds(prim.Vertices);
+		// Size the character relative to the real wall height (a head shorter than a wall) rather than an absolute
+		// guess, so it stays in proportion to the kit whatever the asset's native scale.
+		var wallHeight = _library["wall"].Height;
+		var charScale = wallHeight * 0.8f / MathF.Max(cmax.Y - cmin.Y, 0.001f);
+		// Stand the character just inside the summoning circle, in the fly-through camera's view, facing the artifact.
+		_charModel = Matrix4x4.CreateScale(charScale)
+			* Matrix4x4.CreateRotationY(-2.6f)
+			* Matrix4x4.CreateTranslation(0.9f, -cmin.Y * charScale, 1.4f);
+
+		// Frame the whole courtyard from the sun for the shadow pass (a wide ortho centred on the courtyard).
+		_sunCam = new Concepts.Camera(engine)
+			.LookAt(SunDir * 26f, new Vector3(0f, 1.5f, 0f))
+			.Orthographic(30f, 30f, 0.1f, 52f);
 	}
 
-	private void AddPiece(IEngine engine, string assets, string name, Matrix4x4 model)
+	// Lay out the courtyard from the measured piece footprint, so rows stay flush and each wall's long face runs
+	// ALONG its row (a wall whose long axis is the kit's Z needs a 90° yaw to span an X-row), regardless of the
+	// kit's native orientation.
+	private void BuildCourtyard()
 	{
-		var loaded = GltfLoader.Load(Path.Combine(assets, "kenney", "castle", name + ".glb"));
-		foreach (var prim in loaded.Primitives)
-			_pieces.Add((engine.CreateMesh(prim.Vertices, prim.Indices), model));
+		var wall = Load("wall");
+		var step = MathF.Max(wall.Width, wall.Depth); // a wall tile's footprint → adjacent tiles sit flush
+		var longIsX = wall.Width >= wall.Depth;       // is the wall natively long along X?
+		var yawAlongX = longIsX ? 90f : 0f;           // a quarter-turn so the wall face sits on the row's edge
+		var yawAlongZ = longIsX ? 0f : 90f;           // …for the side rows
+		const int span = 3;                           // walls per half-row → a (2·span+1)-wide courtyard
+		var half = span * step;                       // courtyard half-extent
+
+		// Back wall (z = -half) with a gate arch at the centre; the corners are left for towers.
+		for (var i = -span; i <= span; i++)
+		{
+			if (i == 0) { Place("tower-square-arch", 0f, -half, yawDeg: yawAlongX); continue; }
+			if (Math.Abs(i) == span) continue; // corner → tower
+			Place("wall", i * step, -half, yawDeg: yawAlongX);
+		}
+		// Side walls (x = ±half), long face running front-to-back; corners left for towers.
+		for (var j = -span + 1; j <= span - 1; j++)
+		{
+			Place("wall", -half, j * step, yawDeg: yawAlongZ);
+			Place("wall", half, j * step, yawDeg: yawAlongZ);
+		}
+		// Front wall (z = +half): a broken, ruined edge — every other bay, leaving gaps to fly through.
+		for (var i = -span + 1; i <= span - 1; i += 2)
+			Place("wall", i * step, half, yawDeg: yawAlongX);
+
+		// Four stacked corner towers (base → mid → top), each tier grounded flush on the one below.
+		foreach (var (cx, cz) in new[] { (-half, -half), (half, -half), (-half, half), (half, half) })
+		{
+			var top = Place("tower-square-base", cx, cz);
+			top = Place("tower-square-mid", cx, cz, baseY: top);
+			Place("tower-square-top", cx, cz, baseY: top);
+		}
+
+		// Rubble, stairs and trees scattered through the yard — more repeated kit, breaking up the floor.
+		Place("rocks-large", -half * 0.55f, half * 0.45f, 0.9f, 20f);
+		Place("rocks-small", half * 0.5f, half * 0.5f, 1.0f, -35f);
+		Place("rocks-small", -half * 0.2f, -half * 0.6f, 0.8f, 60f);
+		Place("rocks-large", half * 0.6f, -half * 0.2f, 0.7f, 110f);
+		Place("stairs-stone", half * 0.18f, half * 0.62f, 1.0f, 180f);
+		Place("tree-large", -half * 0.85f, -half * 0.15f);
+		Place("tree-large", half * 0.85f, half * 0.2f, 0.85f);
 	}
 
-	// Place a 2×2, base-at-y=-1 Kenney piece on the ground at (x,z): scale, optional yaw, lift so the base sits at
-	// ground level (tier 0) or stacks 2 units per tier. System.Numerics row-vector order.
-	private static Matrix4x4 Place(float x, float z, float scale = 1f, float yawDeg = 0f, int tier = 0) =>
-		Matrix4x4.CreateScale(scale)
-		* Matrix4x4.CreateRotationY(yawDeg * MathF.PI / 180f)
-		* Matrix4x4.CreateTranslation(x, scale + tier * 2f * scale, z);
+	// Load a piece's geometry once and measure its bounding box (for grounding + footprint-based layout).
+	private PieceDef Load(string name)
+	{
+		if (_library.TryGetValue(name, out var cached))
+			return cached;
+
+		var loaded = GltfLoader.Load(Path.Combine(_assets, "kenney", "castle", name + ".glb"));
+		var meshes = new List<Mesh>();
+		var min = new Vector3(float.MaxValue);
+		var max = new Vector3(float.MinValue);
+		foreach (var prim in loaded.Primitives)
+		{
+			meshes.Add(_engine.CreateMesh(prim.Vertices, prim.Indices));
+			var (pmin, pmax) = Bounds(prim.Vertices);
+			min = Vector3.Min(min, pmin);
+			max = Vector3.Max(max, pmax);
+		}
+		var def = new PieceDef([.. meshes], min.Y, max.Y - min.Y, max.X - min.X, max.Z - min.Z);
+		_library[name] = def;
+		return def;
+	}
+
+	// Place a piece at (x,z): scale, optional yaw, lift so its measured base sits at baseY. Returns the world-space
+	// top (baseY + scaled height) so a caller can stack the next tier flush on top.
+	private float Place(string name, float x, float z, float scale = 1f, float yawDeg = 0f, float baseY = 0f)
+	{
+		var def = Load(name);
+		var model = Matrix4x4.CreateScale(scale)
+			* Matrix4x4.CreateRotationY(yawDeg * MathF.PI / 180f)
+			* Matrix4x4.CreateTranslation(x, baseY - def.MinY * scale, z);
+		foreach (var m in def.Meshes)
+			_pieces.Add((m, model));
+		return baseY + def.Height * scale;
+	}
+
+	private static (Vector3 Min, Vector3 Max) Bounds(Vertex[] vertices)
+	{
+		var min = new Vector3(float.MaxValue);
+		var max = new Vector3(float.MinValue);
+		foreach (var v in vertices)
+		{
+			min = Vector3.Min(min, v.Position);
+			max = Vector3.Max(max, v.Position);
+		}
+		return (min, max);
+	}
 
 	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
-		// Close + low, looking up into the gateway/tower so the stone fills the frame (not a far miniature, and the
-		// raised target keeps the ground from eating the lower half).
-		var eye = new Vector3(MathF.Sin(time * 0.12f) * 3.5f, 3.0f, 6.5f);
-		return _cam.Perspective(MathF.PI / 3f, aspect, 0.3f, 100f).LookAt(eye, new Vector3(0f, 2.2f, -2.5f));
+		var wall = Load("wall");
+		var step = MathF.Max(wall.Width, wall.Depth);
+		var half = 3 * step;
+
+		// A looping cubic-bezier fly-through, eased with smoothstep so velocity falls to zero at the loop seam (no
+		// jarring bounce): it glides to a soft pause just outside the front, dives through a gap in the broken front
+		// wall, sweeps low around the summoning circle (left → right), and rises back out — always looking at the
+		// centre, so the arc reads as circling the artifact. P0 == P3 closes the loop seamlessly; the phase is offset
+		// so a frozen capture (time == 1) lands mid-flight on the interior sweep past the circle. Kept close so the
+		// courtyard fills the frame rather than receding to a distant miniature.
+		var phase = (time * (1f / 12f) + 0.417f) % 1f;
+		var t = phase * phase * (3f - 2f * phase); // smoothstep ease — zero velocity at phase 0/1 (the seam)
+		var p0 = new Vector3(0f, half * 0.55f, half + 2.8f);    // just outside the front, moderate height (loop start = end)
+		var p1 = new Vector3(-half * 0.85f, 1.2f, half * 0.4f); // in through a gap, low, by the circle's left
+		var p2 = new Vector3(half * 0.9f, 1.3f, -half * 0.55f); // around to the circle's right/back
+		var eye = Bezier(p0, p1, p2, p0, t);
+		return _cam.Perspective(MathF.PI / 3f, aspect, 0.2f, 120f).LookAt(eye, new Vector3(0f, half * 0.32f, 0f));
+	}
+
+	// A cubic bezier through the four control points (degree-3 Bernstein form).
+	private static Vector3 Bezier(Vector3 a, Vector3 b, Vector3 c, Vector3 d, float t)
+	{
+		var u = 1f - t;
+		return u * u * u * a + 3f * u * u * t * b + 3f * u * t * t * c + t * t * t * d;
 	}
 
 	public void Update(Concepts.Camera camera)
@@ -220,7 +335,8 @@ internal sealed class RuinsDemo : IDemo
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				DrawStone(ctx, "depthonly");
+				DrawPieces(ctx, "depthonly", null);
+				DemoDraw.Mesh(ctx, _ground, "depthonly", Matrix4x4.Identity);
 				DemoDraw.Skinned(ctx, _char, skinned, "depthonly", _charModel);
 			});
 
@@ -231,7 +347,8 @@ internal sealed class RuinsDemo : IDemo
 			.ReadsVertex(skinned)
 			.Draw(ctx =>
 			{
-				DrawStone(ctx, "gbuffer");
+				DrawPieces(ctx, "gbuffer.tex", _stone);
+				DemoDraw.Mesh(ctx, _ground, "gbuffer", Matrix4x4.Identity);
 				DemoDraw.Skinned(ctx, _char, skinned, "gbuffer", _charModel);
 			});
 
@@ -252,12 +369,16 @@ internal sealed class RuinsDemo : IDemo
 
 		g.Pass("sky").Blends(lit).Samples(depth).Draw(ctx => ctx.FullScreen("sky", PackSky(), depth));
 
-		// The glowing artifact: additive over the lit scene, depth-tested so the summoning-circle/stone occlude it.
+		// The glowing summoning ring + artifact: additive over the lit scene, depth-tested so the stone occludes them.
 		g.Pass("artifact")
 			.Reads(_viewproj)
 			.Blends(lit)
 			.ReadsDepth(depth)
-			.Draw(ctx => DemoDraw.Mesh(ctx, _artifact, "ruins.emissive", _artifactModel));
+			.Draw(ctx =>
+			{
+				DemoDraw.Mesh(ctx, _ring, "ruins.emissive", _ringModel);
+				DemoDraw.Mesh(ctx, _artifact, "ruins.emissive", _artifactModel);
+			});
 
 		// Object ids for picking: the artifact (1) and the character (2). Read back so the host knows the hovered id.
 		g.Pass("id")
@@ -295,9 +416,9 @@ internal sealed class RuinsDemo : IDemo
 			.Writes(outlined)
 			.Draw(ctx => ctx.FullScreen("outline.resolve", flood, lit));
 
-		// Bloom (the artifact glow + outline ring), auto-expose to the lit scene (maps the HDR stone to display),
-		// then a desaturated-stone grade.
-		var bloomed = g.Bloom(outlined, () => _bloomThreshold, () => 0.55f, mips: 4);
+		// Bloom (the artifact/ring glow + outline ring), auto-expose to the lit scene, then a warm-stone grade. Many
+		// mips at low intensity → a smooth, soft glow (few mips left visible blocky mip steps in the halo).
+		var bloomed = g.Bloom(outlined, () => _bloomThreshold, () => 0.3f, mips: 6);
 
 		g.Compute("exposure")
 			.Samples(lit)
@@ -312,20 +433,18 @@ internal sealed class RuinsDemo : IDemo
 		g.Pass("grade")
 			.Samples(toned)
 			.Writes(graded)
-			.Draw(ctx => ctx.FullScreen("grade", [1.06f, 1.0f, 0.90f, _gradeStrength, 1.18f, 0.92f, 0f, 0f], toned));
+			.Draw(ctx => ctx.FullScreen("grade", [1.05f, 1.0f, 0.93f, _gradeStrength, 1.12f, 1.0f, 0f, 0f], toned));
 
 		g.Pass("blit").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
 
-	// Draw the static stone scene (castle pieces + summoning circle + ground) with the given technique.
-	private void DrawStone(IRenderContext ctx, string technique)
+	// Draw every placed castle piece with the given technique (and optional colormap material for the g-buffer pass).
+	private void DrawPieces(IRenderContext ctx, string technique, Material? material)
 	{
 		foreach (var (mesh, model) in _pieces)
-			DemoDraw.Mesh(ctx, mesh, technique, model);
-		DemoDraw.Mesh(ctx, _torus, technique, _torusModel);
-		DemoDraw.Mesh(ctx, _ground, technique, Matrix4x4.Identity);
+			DemoDraw.Mesh(ctx, mesh, technique, model, 0, material);
 	}
 
 	private ReadOnlySpan<float> PackSky()

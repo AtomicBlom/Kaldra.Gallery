@@ -9,13 +9,13 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Pixel-art castle — a 2D scene with a deliberately pixelated 3D boss composited into it. The 2D half is a
-/// parallax background, a stone tilemap floor, animated guard sprites and dynamic 2D point lights, composed +
-/// bloomed + upscaled (the M14 pixel pipeline). The headline is the boss: a 3D "golem" (icosphere head + capsule
-/// body + cylinder arms) renders into its own tiny 128×128 domain, and a composite pass nearest-samples that
-/// little render into a screen-space rectangle of the 2D scene — so the 3D geometry reads as chunky pixels at home
-/// in the art. It's the low-res-domain feature in a compositing role; the engine derives the cross-domain
-/// shader-read transition because the boss colour/depth become sampled inputs to the screen-domain composite.
+/// Pixel-art castle — a 2D night-castle scene with a deliberately pixelated, cel-shaded 3D boss composited into it.
+/// The 2D half is a parallax castle skyline + moon, a stone rampart tilemap (battlemented brick wall over a
+/// flagstone floor), patrolling knight guards and warm torch lights, composed + bloomed + upscaled. The headline is
+/// the boss: a 3D golem (icosphere head + capsule body + cylinder arms) renders forward with a toon/cel shader into
+/// its own tiny 128×128 domain, and a composite pass nearest-samples that little render into a screen-space
+/// rectangle of the 2D scene — so the chunky cel-shaded geometry reads as a hand-placed pixel sprite. It's the
+/// low-res-domain feature in a compositing role; the engine derives the cross-domain shader-read transition.
 /// </summary>
 internal sealed class PixelArtCastleDemo : IDemo
 {
@@ -24,7 +24,8 @@ internal sealed class PixelArtCastleDemo : IDemo
 	private const int BossSize = 128;
 	private const float ScrollSpeed = 10f;
 
-	// A 20×12 stone-castle floor (matches tilemap.slang's baked MapSize): a flagstone floor with a raised ledge.
+	// A 20×12 rampart: empty sky (the parallax skyline shows through), a battlemented brick wall, then a flagstone
+	// floor the guards patrol. Char → tile id in BuildIndexBytes: b=brick, p=pale stone, s=stone, '.'=empty.
 	private static readonly string[] Map =
 	[
 		"....................",
@@ -33,17 +34,17 @@ internal sealed class PixelArtCastleDemo : IDemo
 		"....................",
 		"....................",
 		"....................",
-		"..gg............gg..",
-		"..dd............dd..",
-		"gggggggggggggggggggg",
-		"dddddddddddddddddddd",
-		"ddsssddddddddssssddd",
-		"dddddddddddddddddddd",
+		"b.b.b.b.b.b.b.b.b.b.",
+		"bbbbbbbbbbbbbbbbbbbb",
+		"pppppppppppppppppppp",
+		"ssssssssssssssssssss",
+		"ssssssssssssssssssss",
+		"ssssssssssssssssssss",
 	];
 
 	private Material _back;
-	private Material _tiles;
 	private Material _guards;
+	private Material _tiles;
 	private Mesh _mapQuad;
 	private SpriteSheet _backSheet = new(1, 1);
 	private SpriteSheet _guardSheet = new(1, 1);
@@ -60,6 +61,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 
 	private float _bossScale = 1f;
 	private float _guardSpeed = 1.5f;
+	private float _aspect = WorldWidth / (float)WorldHeight; // the live framebuffer aspect, for the composite letterbox
 
 	public string Name => "Pixel Art Castle";
 
@@ -75,7 +77,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
 		engine.DefineTechnique("light2d", new TechniqueDescriptor(
 			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Light2D));
-		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true)); // the 3D boss (forward)
+		engine.DefineTechnique("toon", new TechniqueDescriptor("toon", HasVertexInput: true)); // the 3D boss (forward cel)
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
@@ -83,8 +85,8 @@ internal sealed class PixelArtCastleDemo : IDemo
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 		engine.DefineTechnique("pixel.composite", new TechniqueDescriptor("pixel_composite", HasFragmentPush: true)); // nearest → the boss stays chunky
 
-		_back = BallAtlas.CreateMaterial(engine, out _backSheet);
-		_guards = SpinnerAtlas.CreateMaterial(engine, out _guardSheet);
+		_back = CastleBackdrop.CreateMaterial(engine, out _backSheet);
+		_guards = GuardKnight.CreateMaterial(engine, out _guardSheet);
 
 		TileAtlas.CreateTextures(engine, out var atlasAlbedo, out var atlasNormal);
 		var index = engine.CreateTexture(TextureData.FromRgba8(20, 12, BuildIndexBytes(), TextureFormat.Rgba8Unorm, generateMips: false));
@@ -102,7 +104,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 		];
 		_mapQuad = engine.CreateMesh(verts, [0, 1, 2, 0, 2, 3]);
 
-		// The 3D boss golem parts (object space, feet at y≈0). Composited pixelated into the 2D scene.
+		// The 3D boss golem parts (object space, feet at y≈0). Composited cel-shaded + pixelated into the 2D scene.
 		var (headV, headI) = Geometry.BuildIcosphere(2);
 		_head = engine.CreateMesh(headV, headI);
 		var (bodyV, bodyI) = Geometry.BuildCapsule(0.8f, 0.35f, 16, 8);
@@ -110,12 +112,14 @@ internal sealed class PixelArtCastleDemo : IDemo
 		var (armV, armI) = Geometry.BuildCylinder(0.7f, 0.12f, 8);
 		_arm = engine.CreateMesh(armV, armI);
 
-		// A fixed perspective view of the golem (square aspect — it renders into a square domain).
-		_bossCam.Perspective(MathF.PI / 3.2f, 1f, 0.1f, 20f).LookAt(new Vector3(0f, 0.95f, 3.4f), new Vector3(0f, 0.85f, 0f));
+		// A fixed perspective view of the golem (square aspect — it renders into a square domain), framed tight so the
+		// figure fills the tile with its feet near the bottom edge (so it grounds, not floats, when composited).
+		_bossCam.Perspective(0.72f, 1f, 0.1f, 20f).LookAt(new Vector3(0f, 1.0f, 3.2f), new Vector3(0f, 1.0f, 0f));
 	}
 
 	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
+		_aspect = aspect; // stash the framebuffer aspect so the composite can letterbox the low-res scene
 		// The 2D scene's orthographic camera (world-pixel space; the floor scrolls subtly via parallax in the sprites).
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
 		return _cam.Orthographic(WorldWidth, WorldHeight, 0.1f, 100f).LookAt(eye, eye with { Z = 0f });
@@ -142,7 +146,6 @@ internal sealed class PixelArtCastleDemo : IDemo
 		var emissive = world.Color("pac_emissive", Format.Rgba8Srgb);
 		var depth = world.Depth("pac_depth", Format.Depth32F);
 		var lit = world.Color("pac_lit", Format.Rgba16F);
-		var scene2d = g.Screen.Color("pac_scene2d", Format.Rgba16F);
 
 		var boss = g.Domain("pac_boss", BossSize, BossSize);
 		var bossColor = boss.Color("pac_boss_color", Format.Rgba16F);
@@ -151,7 +154,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 		_viewproj = g.Constants<Matrix4x4>("pac.viewproj");
 		_bossViewproj = g.Constants<Matrix4x4>("pac.boss.viewproj");
 
-		// One depth-ordered 2D G-buffer pass: parallax background → tilemap floor → animated guard sprites.
+		// One depth-ordered 2D G-buffer pass: parallax skyline → rampart tilemap → patrolling guard sprites.
 		g.Pass("scene")
 			.Reads(_viewproj)
 			.Writes(albedo, normal, emissive)
@@ -178,84 +181,102 @@ internal sealed class PixelArtCastleDemo : IDemo
 				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildTorches(ctx.Time).AsSpan()), Sampled = gbuffer });
 			});
 
-		// Bloom the lit 2D scene (torch glow), then nearest-upscale the 320×180 world to the full screen.
+		// Bloom the lit 2D scene (torch glow). The composite below scales it to the screen (aspect-preserving,
+		// nearest), so no separate upscale pass is needed.
 		var bloomed = g.Bloom(lit, threshold: 1.0f, mips: 5, intensity: 0.8f);
-		g.Pass("upscale").Samples(bloomed).Writes(scene2d).Draw(ctx => ctx.FullScreen("blit", bloomed));
 
-		// The 3D boss: a turntable golem rendered forward into its own tiny domain (its own depth → coverage).
+		// The 3D boss: a turntable golem rendered forward, cel-shaded, into its own tiny domain (depth → coverage).
 		g.Pass("boss")
 			.Reads(_bossViewproj)
 			.Writes(bossColor)
 			.WritesDepth(bossDepth)
 			.Draw(ctx =>
 			{
-				var spin = Matrix4x4.CreateRotationY(ctx.Time * 0.7f);
+				// A stocky golem standing on the floor (feet at y≈0): two legs, a wide body, a big head, two thick arms.
+				var spin = Matrix4x4.CreateRotationY(ctx.Time * 0.6f);
 				var s = _bossScale;
-				DemoDraw.Mesh(ctx, _body, "lit", Matrix4x4.CreateScale(s) * Matrix4x4.CreateTranslation(0f, 0.85f * s, 0f) * spin);
-				DemoDraw.Mesh(ctx, _head, "lit", Matrix4x4.CreateScale(0.7f * s) * Matrix4x4.CreateTranslation(0f, 1.5f * s, 0f) * spin);
-				DemoDraw.Mesh(ctx, _arm, "lit", Matrix4x4.CreateScale(s) * Matrix4x4.CreateRotationZ(0.4f) * Matrix4x4.CreateTranslation(0.45f * s, 0.9f * s, 0f) * spin);
-				DemoDraw.Mesh(ctx, _arm, "lit", Matrix4x4.CreateScale(s) * Matrix4x4.CreateRotationZ(-0.4f) * Matrix4x4.CreateTranslation(-0.45f * s, 0.9f * s, 0f) * spin);
+				DemoDraw.Mesh(ctx, _arm, "toon", Matrix4x4.CreateScale(1.7f * s, 0.9f * s, 1.7f * s) * Matrix4x4.CreateTranslation(-0.26f * s, 0.30f * s, 0f) * spin);
+				DemoDraw.Mesh(ctx, _arm, "toon", Matrix4x4.CreateScale(1.7f * s, 0.9f * s, 1.7f * s) * Matrix4x4.CreateTranslation(0.26f * s, 0.30f * s, 0f) * spin);
+				DemoDraw.Mesh(ctx, _body, "toon", Matrix4x4.CreateScale(1.45f * s, 1.0f * s, 1.2f * s) * Matrix4x4.CreateTranslation(0f, 0.98f * s, 0f) * spin);
+				DemoDraw.Mesh(ctx, _head, "toon", Matrix4x4.CreateScale(0.62f * s) * Matrix4x4.CreateTranslation(0f, 1.85f * s, 0f) * spin);
+				DemoDraw.Mesh(ctx, _arm, "toon", Matrix4x4.CreateScale(1.5f * s, 1.0f * s, 1.5f * s) * Matrix4x4.CreateRotationZ(0.95f) * Matrix4x4.CreateTranslation(0.6f * s, 1.25f * s, 0f) * spin);
+				DemoDraw.Mesh(ctx, _arm, "toon", Matrix4x4.CreateScale(1.5f * s, 1.0f * s, 1.5f * s) * Matrix4x4.CreateRotationZ(-0.95f) * Matrix4x4.CreateTranslation(-0.6f * s, 1.25f * s, 0f) * spin);
 			});
 
-		// Composite the boss into a near-square screen rect, nearest-sampled so it reads as chunky pixels.
+		// Composite the aspect-fit 2D scene + the boss to the backbuffer. The boss rect is in CONTENT uv and square
+		// in that space (so the 128² render isn't stretched), with its bottom near the floor so the golem stands on
+		// the flagstones; the shader letterboxes the 2D scene to the live framebuffer aspect (uniform pixel scale).
 		g.Pass("composite")
-			.Samples(scene2d, bossColor, bossDepth)
+			.Samples(bloomed, bossColor, bossDepth)
 			.Writes(screen)
-			.Draw(ctx => ctx.FullScreen("pixel.composite", [0.37f, 0.20f, 0.63f, 0.86f], scene2d, bossColor, bossDepth));
+			.Draw(ctx => ctx.FullScreen("pixel.composite", [0.37f, 0.30f, 0.63f, 0.86f, _aspect, WorldWidth / (float)WorldHeight, 0f, 0f], bloomed, bossColor, bossDepth));
 
 		DemoGraph.Hud(g, screen);
 		g.Present(screen);
 	});
 
-	public string HudStatus => "pixel-art 2D scene + a 3D boss pixelated through a 128² domain";
+	public string HudStatus => "pixel-art 2D castle + a cel-shaded 3D boss pixelated through a 128² domain";
 
-	// Two far parallax bands of dim motifs drifting behind the floor (z < 0) — distant castle backdrop.
+	// A parallax castle skyline (towers + a moon) drifting slowly behind the rampart (z < 0 → behind the wall,
+	// showing through the empty sky rows of the tilemap).
 	private SpriteInstance[] BuildBackground(float time)
 	{
-		var sprites = new List<SpriteInstance>(24);
-		(int cell, float y, float size, float factor, float depth, float spacing, Vector4 tint)[] layers =
+		var sprites = new List<SpriteInstance>(12);
+
+		// The moon, fixed high in the sky.
+		sprites.Add(SpriteInstance.At(new Vector2(258f, 150f), new Vector2(40f, 40f), _backSheet.Uv(CastleBackdrop.Moon), depth: -9f)
+			with { Tint = new Vector4(1f, 1f, 0.96f, 1f) });
+
+		// A row of moonlit tower silhouettes along the back, gently parallax-scrolling.
+		(int cell, float size, float y)[] line =
 		[
-			(2, 150f, 60f, 0.08f, -8f, 96f, new Vector4(0.22f, 0.24f, 0.40f, 1f)),
-			(3, 120f, 46f, 0.18f, -6f, 80f, new Vector4(0.32f, 0.30f, 0.48f, 1f)),
+			(CastleBackdrop.Wall, 56f, 112f),
+			(CastleBackdrop.Tower, 52f, 116f),
+			(CastleBackdrop.Turret, 62f, 122f),
+			(CastleBackdrop.Tower, 48f, 114f),
+			(CastleBackdrop.Wall, 56f, 112f),
+			(CastleBackdrop.Turret, 60f, 120f),
+			(CastleBackdrop.Tower, 50f, 116f),
 		];
-		var scroll = time * ScrollSpeed;
-		foreach (var (cell, y, size, factor, depth, spacing, tint) in layers)
+		const float spacing = 52f;
+		var period = WorldWidth + spacing * 2f;
+		// Snap the parallax scroll to whole world-pixels — sub-pixel motion makes the nearest-sampled silhouettes
+		// shimmer/throb in apparent size as they cross texel boundaries.
+		var scroll = MathF.Floor(time * ScrollSpeed * 0.15f);
+		var tint = new Vector4(0.55f, 0.62f, 0.85f, 1f); // moonlit silhouette
+		for (var i = 0; i < line.Length; i++)
 		{
-			var period = WorldWidth + spacing * 2f;
-			var count = (int)MathF.Ceiling(period / spacing) + 1;
-			for (var i = 0; i < count; i++)
-			{
-				var x = Wrap(i * spacing - scroll * factor, -spacing, period - spacing);
-				sprites.Add(SpriteInstance.At(new Vector2(x, y), new Vector2(size, size), _backSheet.Uv(cell), depth) with { Tint = tint });
-			}
+			var x = MathF.Floor(Wrap(i * spacing - scroll, -spacing, period - spacing));
+			sprites.Add(SpriteInstance.At(new Vector2(x, line[i].y), new Vector2(line[i].size, line[i].size), _backSheet.Uv(line[i].cell), depth: -8f)
+				with { Tint = tint });
 		}
 		return [.. sprites];
 	}
 
-	// Animated guard sprites pacing the floor (near layer, z > 0); the frame advances from time.
+	// Knight guards patrolling the flagstone floor; the walk frame advances from time.
 	private SpriteInstance[] BuildGuards(float time)
 	{
-		var frame = (int)(time * 6f);
-		(float baseX, float y, float range, float phase)[] spots = [(80f, 64f, 30f, 0f), (210f, 64f, 26f, 2f)];
+		var frame = (int)(time * 6f) % GuardKnight.Frames;
+		(float baseX, float y, float range, float phase)[] spots = [(80f, 54f, 34f, 0f), (220f, 54f, 28f, 2f)];
 		var sprites = new SpriteInstance[spots.Length];
 		for (var i = 0; i < spots.Length; i++)
 		{
-			var x = spots[i].baseX + MathF.Sin(time * _guardSpeed + spots[i].phase) * spots[i].range;
-			sprites[i] = SpriteInstance.At(new Vector2(x, spots[i].y), new Vector2(28f, 28f), _guardSheet.Uv(frame + i), depth: 3f);
+			var x = MathF.Floor(spots[i].baseX + MathF.Sin(time * _guardSpeed + spots[i].phase) * spots[i].range);
+			sprites[i] = SpriteInstance.At(new Vector2(x, spots[i].y), new Vector2(22f, 30f), _guardSheet.Uv(frame), depth: 3f);
 		}
 		return sprites;
 	}
 
-	// Warm torch lights flickering along the floor — the normal-mapped relief read.
+	// Warm torch lights flickering along the rampart wall — the normal-mapped relief read.
 	private static Light2DInstance[] BuildTorches(float t)
 	{
 		var flickerA = 1.4f + MathF.Sin(t * 11f) * 0.2f;
 		var flickerB = 1.3f + MathF.Sin(t * 9f + 1.7f) * 0.2f;
 		return
 		[
-			Light2DInstance.At(new Vector2(48f, 96f), 90f, new Vector3(1.0f, 0.6f, 0.3f), flickerA, 40f),
-			Light2DInstance.At(new Vector2(272f, 96f), 90f, new Vector3(1.0f, 0.6f, 0.3f), flickerB, 40f),
-			Light2DInstance.At(new Vector2(160f, 120f), 70f, new Vector3(0.5f, 0.7f, 1.0f), 1.0f, 36f),
+			Light2DInstance.At(new Vector2(60f, 70f), 80f, new Vector3(1.0f, 0.6f, 0.3f), flickerA, 30f),
+			Light2DInstance.At(new Vector2(260f, 70f), 80f, new Vector3(1.0f, 0.6f, 0.3f), flickerB, 30f),
+			Light2DInstance.At(new Vector2(160f, 40f), 70f, new Vector3(0.5f, 0.7f, 1.0f), 1.0f, 28f),
 		];
 	}
 
@@ -273,7 +294,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 		for (var row = 0; row < 12; row++)
 			for (var col = 0; col < 20; col++)
 			{
-				var id = Map[row][col] switch { 'g' => (byte)1, 'd' => (byte)2, 's' => (byte)3, _ => (byte)0 };
+				var id = Map[row][col] switch { 'b' => (byte)4, 'p' => (byte)15, 's' => (byte)3, _ => (byte)0 };
 				var o = (row * 20 + col) * 4;
 				bytes[o] = id;
 				bytes[o + 3] = 255;

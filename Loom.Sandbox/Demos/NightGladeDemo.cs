@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+using Loom.Assets;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -9,13 +10,13 @@ using Loom.Core.Materials;
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
-/// Night glade — a bloom + auto-exposure showcase. A cluster of glowing capsule mushrooms (a capsule stem + an
-/// emissive dome cap drawn forward at HDR intensity, so it blooms hard) stands in a windy grass field under a deep
-/// blue night sky, with a slow fountain of warm spark "fireflies" rising through the centre. The scene is lit only
-/// by a dim night ambient, so the auto-exposure opens up to reveal the foliage while the emissive caps + sparks
-/// blow past the bloom threshold. Pass order: cascade depth → g-buffer (stems + ground + foliage) → deferred night
-/// lighting → sky → emissive caps (additive) → spark fireflies (additive) → bloom → auto-exposure → tonemap →
-/// teal/purple grade → blit. Frozen time pins a deterministic cross-backend golden.
+/// Night glade — a bloom showcase. A cluster of glowing capsule mushrooms (a capsule stem + an emissive dome cap
+/// drawn forward at HDR intensity, so it blooms hard) stands in a dense field of long wind-swept grass, ringed by
+/// dark Kenney trees, with a dozen warm fireflies wandering through the air. The scene is lit only by a dim cool
+/// moon, so the night reads dark while the emissive caps + fireflies blow past the bloom threshold and glow. Pass
+/// order: cascade depth → g-buffer (stems + textured trees + ground + grass) → deferred night lighting → sky →
+/// emissive caps (additive) → wandering fireflies (additive) → bloom → teal/purple grade → blit. Frozen time pins
+/// a deterministic cross-backend golden.
 /// </summary>
 internal sealed class NightGladeDemo : IDemo
 {
@@ -24,23 +25,26 @@ internal sealed class NightGladeDemo : IDemo
 	private const int CascadeCount = 3;
 	private const float ShadowResolution = 1024f;
 	private const float CamNear = 0.3f;
-	private const float CamFar = 60f;
-	private const int Grid = 24;
-	private const float FieldHalf = 4f;
-	private const int ParticleCount = 64; // one workgroup; kept sparse so the rising sparks read as glowing spores from the hero mushroom, not a dense cone
+	private const float CamFar = 80f;
+	private const int Grid = 56;          // 56×56 ≈ 3100 grass blades
+	private const float FieldHalf = 11f;  // the field fills the visible ground, not a small patch in a void
+	private const int FireflyCount = 14;  // a dozen-odd wandering motes, not a dense fountain
 
 	private readonly record struct Blade(Vector4 PosScale, Vector4 YawPhaseStiffness);
 
-	// Each mushroom is a placed (capsule stem + emissive dome cap); only the position + a uniform scale vary.
+	// Each mushroom is a placed (capsule stem + glowing dome cap); only the position + a uniform scale vary. Scaled
+	// large enough that every cap towers clear of the long grass (caps sit at ~0.84·scale, grass tops out ~1.0).
 	private readonly (Vector3 Pos, float Scale)[] _mushrooms =
 	[
-		(new(0f, 0f, 0f), 1.3f),
-		(new(1.6f, 0f, 0.6f), 0.8f),
-		(new(-1.4f, 0f, 1.0f), 1.0f),
-		(new(0.8f, 0f, -1.5f), 0.7f),
-		(new(-1.6f, 0f, -0.8f), 0.9f),
-		(new(2.0f, 0f, -1.0f), 1.1f),
-		(new(-0.4f, 0f, 1.8f), 0.75f),
+		(new(0f, 0f, 0f), 2.1f),
+		(new(2.4f, 0f, 0.9f), 1.5f),
+		(new(-2.2f, 0f, 1.5f), 1.7f),
+		(new(1.2f, 0f, -2.3f), 1.4f),
+		(new(-2.6f, 0f, -1.3f), 1.5f),
+		(new(3.0f, 0f, -1.7f), 1.6f),
+		(new(-0.7f, 0f, 2.8f), 1.4f),
+		(new(4.0f, 0f, 2.0f), 1.45f),
+		(new(-4.2f, 0f, -2.8f), 1.55f),
 	];
 
 	private Mesh _ground;
@@ -48,19 +52,23 @@ internal sealed class NightGladeDemo : IDemo
 	private Mesh _cap;
 	private Mesh _card;
 	private Material _blade;
-	private Material _groundMat; // a dark-earth ground material (the default gbuffer albedo is too bright for night)
+	private Material _groundMat;  // a dark-earth ground material (the default gbuffer albedo is too bright for night)
+	private Material _stemMat;    // a pale material so the mushroom stalks read against the dark night
+	private Material _bark;       // the Kenney tree colormap
+	private Mesh[] _treeMeshes = [];
+	private Matrix4x4[] _treeModels = [];
 	private Blade[] _field = [];
 
 	// A hand-authored moonlit night (rather than DayNight's pure midnight, which extinguishes the sun entirely and
-	// leaves the scene black save the emissives — the auto-exposure then over-opens and blows them out). A dim cool
-	// "moon" directional + a lifted cool ambient keep the stems/grass readable while the emissive caps still bloom.
+	// leaves the scene black save the emissives). A dim cool "moon" directional + a lifted cool ambient keep the
+	// stems/grass/trees readable while the emissive caps still bloom.
 	private readonly DayNight.State _sun = new(
-		Vector3.Normalize(new Vector3(0.35f, 0.65f, -0.40f)), // moon, high in the sky
-		new Vector3(0.40f, 0.50f, 0.85f),                     // cool moonlight
-		0.3f,                                                 // dim — the ground should stay dark so the emissive caps pop
-		new Vector3(0.04f, 0.05f, 0.10f),                     // low cool ambient (just enough to read grass silhouettes)
+		Vector3.Normalize(new Vector3(0.35f, 0.62f, -0.40f)), // moon, high in the sky
+		new Vector3(0.42f, 0.52f, 0.88f),                     // cool moonlight
+		0.35f,                                                // dim — the ground stays dark so the caps pop
+		new Vector3(0.05f, 0.06f, 0.12f),                     // low cool ambient (reads grass/tree silhouettes)
 		new Vector3(0.02f, 0.03f, 0.10f),                     // deep blue zenith
-		new Vector3(0.04f, 0.06f, 0.14f));                    // dark blue horizon
+		new Vector3(0.06f, 0.09f, 0.18f));                    // dark blue horizon (a touch of glow, not pure black)
 	private readonly Concepts.Camera[] _cascades = new Concepts.Camera[CascadeCount];
 	private readonly float[] _splits = new float[CascadeCount];
 	private readonly float[] _csmParams = new float[68];
@@ -73,8 +81,8 @@ internal sealed class NightGladeDemo : IDemo
 	private readonly ConstantsHandle[] _cascadeViewproj = new ConstantsHandle[CascadeCount];
 
 	// Live debug knobs (read inside the pass closures, so an ImGui slider takes effect without a graph rebuild).
-	private float _bloomThreshold = 2.0f;  // only the emissive caps/sparks (emission >> 1) bloom — a tight glow, not a frame-wide wash
-	private float _bloomIntensity = 0.18f;
+	private float _bloomThreshold = 1.6f;
+	private float _bloomIntensity = 0.22f;
 	private float _windStrength = 1.2f;
 	private bool _autoOrbit = true;
 
@@ -88,14 +96,16 @@ internal sealed class NightGladeDemo : IDemo
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer.nm", new TechniqueDescriptor("gbuffer_normalmap", HasVertexInput: true, LinearFilter: true, Address: SamplerAddress.Repeat));
+		engine.DefineTechnique("gbuffer.tex", new TechniqueDescriptor("gbuffer_textured", HasVertexInput: true, LinearFilter: true));
 		engine.DefineTechnique("foliage", new TechniqueDescriptor("foliage", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Foliage));
 		engine.DefineTechnique("lighting_csm", new TechniqueDescriptor("lighting_csm"));
+		engine.DefineTechnique("fog", new TechniqueDescriptor("fog", HasFragmentPush: true));
 		engine.DefineTechnique("sky", new TechniqueDescriptor("sky", Blend: BlendMode.AlphaOver));
-		// The emissive dome caps reuse emissive.slang but as an ADDITIVE forward technique (its own name so it doesn't
-		// clobber the opaque "emissive" the bloom demo registers — the gallery's technique registry is last-wins by name).
-		engine.DefineTechnique("glade.cap", new TechniqueDescriptor("emissive", HasVertexInput: true, Blend: BlendMode.Additive));
-		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
-		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
+		// The glowing dome caps: a self-lit red toadstool dome (additive → blooms), normal-shaded so the dome shape
+		// reads and the red separates them from the warm yellow-green fireflies.
+		engine.DefineTechnique("glade.cap", new TechniqueDescriptor("glow_cap", HasVertexInput: true, Blend: BlendMode.Additive));
+		engine.DefineTechnique("firefly.update", new TechniqueDescriptor("firefly_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("firefly.render", new TechniqueDescriptor("firefly_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
@@ -103,27 +113,34 @@ internal sealed class NightGladeDemo : IDemo
 		engine.DefineTechnique("grade", new TechniqueDescriptor("grade", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 
+		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
+
 		// A wide, dark ground plane.
-		const float s = 15f;
+		const float s = 16f;
 		var up = Vector3.UnitY;
 		var t = new Vector4(1, 0, 0, 1);
 		_ground = engine.CreateMesh(
 			[new(new Vector3(-s, 0, -s), up, new Vector2(0, 0), t), new(new Vector3(s, 0, -s), up, new Vector2(1, 0), t),
 			 new(new Vector3(s, 0, s), up, new Vector2(1, 1), t), new(new Vector3(-s, 0, s), up, new Vector2(0, 1), t)],
 			[0, 1, 2, 0, 2, 3]);
-		// A dark-earth ground material (albedo + flat normal) so the floor stays dark at night — the stock gbuffer's
-		// hardcoded warm albedo reads as a pale sheet under any lighting.
 		_groundMat = engine.CreateMaterial(
-			engine.CreateTexture(TextureData.FromRgba8(1, 1, [26, 30, 24, 255], TextureFormat.Rgba8Srgb, generateMips: false)),
+			engine.CreateTexture(TextureData.FromRgba8(1, 1, [24, 28, 22, 255], TextureFormat.Rgba8Srgb, generateMips: false)),
+			engine.CreateTexture(TextureData.FromRgba8(1, 1, [128, 128, 255, 255], TextureFormat.Rgba8Unorm, generateMips: false)));
+		_stemMat = engine.CreateMaterial(
+			engine.CreateTexture(TextureData.FromRgba8(1, 1, [216, 210, 194, 255], TextureFormat.Rgba8Srgb, generateMips: false)),
 			engine.CreateTexture(TextureData.FromRgba8(1, 1, [128, 128, 255, 255], TextureFormat.Rgba8Unorm, generateMips: false)));
 
 		// One capsule stem + one dome cap, instanced per mushroom by a model matrix (a uniform scale per mushroom).
 		var (stemV, stemI) = Geometry.BuildCapsule(0.5f, 0.18f, 16, 8);
 		_stem = engine.CreateMesh(stemV, stemI);
-		var (capV, capI) = Geometry.BuildSphere(12, 24);
+		var (capV, capI) = Geometry.BuildHemisphere(10, 28);
 		_cap = engine.CreateMesh(capV, capI);
 
-		// Foliage blade card + its cutout texture (a small night-grass field).
+		// A ring of dark Kenney trees enclosing the glade — silhouettes against the moonlit sky, so the field reads
+		// as a clearing in a wood rather than a patch in a void. Textured from the kit's colormap, grounded by AABB.
+		LoadTrees(engine, assets);
+
+		// Foliage blade card + its cutout texture (a tall, thin, pointed blade — long grass).
 		_card = engine.CreateMesh(
 			[new(new Vector3(-0.5f, 0f, 0f), up, new Vector2(0, 1), t), new(new Vector3(0.5f, 0f, 0f), up, new Vector2(1, 1), t),
 			 new(new Vector3(0.5f, 1f, 0f), up, new Vector2(1, 0), t), new(new Vector3(-0.5f, 1f, 0f), up, new Vector2(0, 0), t)],
@@ -134,20 +151,65 @@ internal sealed class NightGladeDemo : IDemo
 		var blades = new List<Blade>();
 		for (var i = 0; i < Grid * Grid; i++)
 		{
-			var x = (i % Grid / (float)(Grid - 1) - 0.5f) * 2f * FieldHalf + ((float)rng.NextDouble() - 0.5f) * 0.4f;
-			var z = (i / Grid / (float)(Grid - 1) - 0.5f) * 2f * FieldHalf + ((float)rng.NextDouble() - 0.5f) * 0.4f;
+			var x = (i % Grid / (float)(Grid - 1) - 0.5f) * 2f * FieldHalf + ((float)rng.NextDouble() - 0.5f) * 0.5f;
+			var z = (i / Grid / (float)(Grid - 1) - 0.5f) * 2f * FieldHalf + ((float)rng.NextDouble() - 0.5f) * 0.5f;
 			blades.Add(new Blade(
-				new Vector4(x, 0f, z, 0.3f + (float)rng.NextDouble() * 0.4f),
+				new Vector4(x, 0f, z, 0.5f + (float)rng.NextDouble() * 0.5f), // 0.5–1.0 tall — long grass under the mushroom caps
 				new Vector4((float)rng.NextDouble() * MathF.Tau, (float)rng.NextDouble() * MathF.Tau, 1.4f + (float)rng.NextDouble(), 0f)));
 		}
 		_field = [.. blades];
 	}
 
+	// Load the Kenney "tree-large" piece once, measure its bounds, and place a ring of them around the glade
+	// (grounded so the trunk base sits on the floor). Textured from the castle kit's shared colormap.
+	private void LoadTrees(IEngine engine, string assets)
+	{
+		var model = GltfLoader.Load(Path.Combine(assets, "kenney", "castle", "tree-large.glb"));
+		var meshes = new List<Mesh>();
+		var min = new Vector3(float.MaxValue);
+		var max = new Vector3(float.MinValue);
+		foreach (var prim in model.Primitives)
+		{
+			meshes.Add(engine.CreateMesh(prim.Vertices, prim.Indices));
+			foreach (var v in prim.Vertices)
+			{
+				min = Vector3.Min(min, v.Position);
+				max = Vector3.Max(max, v.Position);
+			}
+		}
+		_bark = engine.CreateMaterial(engine.CreateTexture(
+			ImageLoader.Load(Path.Combine(assets, "kenney", "castle", "Textures", "colormap.png"), TextureFormat.Rgba8Srgb)));
+
+		// A dense ring of trees enclosing the clearing at varied radius/scale, each grounded by the measured base + a
+		// yaw spin — a thick wood around the glade, not a sparse fringe.
+		const int treeCount = 22;
+		var rng = new Random(7);
+		var meshesArr = meshes.ToArray();
+		var allMeshes = new List<Mesh>();
+		var models = new List<Matrix4x4>();
+		for (var i = 0; i < treeCount; i++)
+		{
+			var ang = i / (float)treeCount * MathF.Tau + (float)rng.NextDouble() * 0.5f;
+			var radius = 7.5f + (float)rng.NextDouble() * 5.5f;
+			var scale = 1.5f + (float)rng.NextDouble() * 1.4f;
+			var model2 = Matrix4x4.CreateScale(scale)
+				* Matrix4x4.CreateRotationY((float)rng.NextDouble() * MathF.Tau)
+				* Matrix4x4.CreateTranslation(MathF.Cos(ang) * radius, -min.Y * scale, MathF.Sin(ang) * radius);
+			foreach (var m in meshesArr)
+			{
+				allMeshes.Add(m);
+				models.Add(model2);
+			}
+		}
+		_treeMeshes = [.. allMeshes];
+		_treeModels = [.. models];
+	}
+
 	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
-		var angle = _autoOrbit ? time * 0.25f : 0.9f;
-		var eye = new Vector3(MathF.Sin(angle) * 6f, 2.5f, MathF.Cos(angle) * 6f);
-		return _cam.Perspective(MathF.PI / 3f, aspect, CamNear, CamFar).LookAt(eye, new Vector3(0f, 0.7f, 0f));
+		var angle = _autoOrbit ? time * 0.22f : 0.9f;
+		var eye = new Vector3(MathF.Sin(angle) * 7f, 2.6f, MathF.Cos(angle) * 7f);
+		return _cam.Perspective(MathF.PI / 3f, aspect, CamNear, CamFar).LookAt(eye, new Vector3(0f, 0.8f, 0f));
 	}
 
 	public void Update(Concepts.Camera camera)
@@ -176,8 +238,9 @@ internal sealed class NightGladeDemo : IDemo
 		var position = g.Screen.Color("ng_position", Format.Rgba16F);
 		var depth = g.Screen.Depth("ng_depth", Format.Depth32F);
 		var lit = g.Screen.Color("ng_lit", Format.Rgba16F);
+		var litFog = g.Screen.Color("ng_litfog", Format.Rgba16F);
 		var graded = g.Screen.Color("ng_graded", Format.Rgba16F);
-		var particles = g.Buffer("ng_particles", ParticleCount * 16); // float4 per particle
+		var fireflies = g.Buffer("ng_fireflies", FireflyCount * 16); // float4 per firefly
 		_viewproj = g.Constants<Matrix4x4>("nightglade.viewproj");
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("nightglade.csm.splits");
 
@@ -198,6 +261,8 @@ internal sealed class NightGladeDemo : IDemo
 				{
 					foreach (var m in _mushrooms)
 						DemoDraw.Mesh(ctx, _stem, "depthonly", StemModel(m.Pos, m.Scale));
+					for (var i = 0; i < _treeMeshes.Length; i++)
+						DemoDraw.Mesh(ctx, _treeMeshes[i], "depthonly", _treeModels[i]);
 					DemoDraw.Mesh(ctx, _ground, "depthonly", Matrix4x4.Identity);
 				});
 		}
@@ -209,11 +274,13 @@ internal sealed class NightGladeDemo : IDemo
 			.Draw(ctx =>
 			{
 				foreach (var m in _mushrooms)
-					DemoDraw.Mesh(ctx, _stem, "gbuffer", StemModel(m.Pos, m.Scale));
+					DemoDraw.Mesh(ctx, _stem, "gbuffer.nm", StemModel(m.Pos, m.Scale), 0, _stemMat);
+				for (var i = 0; i < _treeMeshes.Length; i++)
+					DemoDraw.Mesh(ctx, _treeMeshes[i], "gbuffer.tex", _treeModels[i], 0, _bark);
 				DemoDraw.Mesh(ctx, _ground, "gbuffer.nm", Matrix4x4.Identity, 0, _groundMat); // dark-earth ground
 
 				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
-				_wind[4] = 0.12f * _windStrength; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
+				_wind[4] = 0.14f * _windStrength; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
 				var foliage = new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field) };
 				foliage.SetUniforms<float>(_wind);
 				ctx.Draw(foliage);
@@ -225,13 +292,25 @@ internal sealed class NightGladeDemo : IDemo
 			.Writes(lit)
 			.Draw(ctx => ctx.FullScreen("lighting_csm", PackLighting(), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
-		g.Pass("sky").Blends(lit).Samples(depth).Draw(ctx => ctx.FullScreen("sky", PackSky(), depth));
+		// Distance fog: fade the lit ground/trees into a dark night haze so the ground plane recedes instead of
+		// ending at a hard quad edge. (Background texels pass through; the sky pass fills them.)
+		g.Pass("fog")
+			.Samples(lit, position)
+			.Writes(litFog)
+			.Draw(ctx =>
+			{
+				Matrix4x4.Invert(_cam.View, out var iv);
+				var e = iv.Translation;
+				ctx.FullScreen("fog", [e.X, e.Y, e.Z, 5f, 0.03f, 0.05f, 0.12f, 1f / 16f], lit, position);
+			});
 
-		// Emissive dome caps: additive over the lit scene, depth-tested against the opaque stems/ground so a cap
+		g.Pass("sky").Blends(litFog).Samples(depth).Draw(ctx => ctx.FullScreen("sky", PackSky(), depth));
+
+		// Emissive dome caps: additive over the fogged scene, depth-tested against the opaque stems/ground so a cap
 		// behind a nearer mushroom is occluded. Their HDR emission (>> 1) feeds the bloom hard.
 		g.Pass("caps")
 			.Reads(_viewproj)
-			.Blends(lit)
+			.Blends(litFog)
 			.ReadsDepth(depth)
 			.Draw(ctx =>
 			{
@@ -239,22 +318,22 @@ internal sealed class NightGladeDemo : IDemo
 					DemoDraw.Mesh(ctx, _cap, "glade.cap", CapModel(m.Pos, m.Scale));
 			});
 
-		// Spark fireflies: a compute fountain writes the particle buffer; the render pass reads it as the per-instance
-		// stream and additively blends small clip-space-sized warm sparks (HDR → they bloom) rising through the glade.
-		g.Compute("particle.update")
-			.ReadWrites(particles)
-			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(ParticleCount / 64), 1, 1), [ctx.Time], [], [particles]));
+		// Wandering fireflies: a compute pass writes one float4 (position + brightness) per mote; the render pass
+		// reads it as the per-instance stream and additively blends warm glowing billboards drifting through the air.
+		g.Compute("firefly.update")
+			.ReadWrites(fireflies)
+			.Dispatch(ctx => ctx.Dispatch("firefly.update", (1, 1, 1), [ctx.Time], [], [fireflies]));
 
 		g.Pass("fireflies")
 			.Reads(_viewproj)
-			.Blends(lit)
-			.ReadsVertex(particles)
-			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "particle.render", VertexCount = 6, Instances = DrawCall.Gpu(particles, ParticleCount) }));
+			.Blends(litFog)
+			.ReadsVertex(fireflies)
+			.Draw(ctx => ctx.Draw(new DrawCall { Technique = "firefly.render", VertexCount = 6, Instances = DrawCall.Gpu(fireflies, FireflyCount) }));
 
-		// Bloom the HDR lit result (live threshold/intensity). No auto-exposure: on a deliberately dark night it
-		// would open up and brighten the darks back to "daytime", washing out the mood — the bright emissive caps +
-		// sparks instead clip to a bloomed glow, which is the night look we want.
-		var bloomed = g.Bloom(lit, () => _bloomThreshold, () => _bloomIntensity, mips: 3);
+		// Bloom the HDR fogged result (live threshold/intensity). No auto-exposure: on a deliberately dark night it
+		// would open up and brighten the darks back to "daytime"; the bright emissive caps + fireflies instead clip
+		// to a bloomed glow, which is the night look we want.
+		var bloomed = g.Bloom(litFog, () => _bloomThreshold, () => _bloomIntensity, mips: 4);
 
 		// A cool teal/purple night grade.
 		g.Pass("grade")
@@ -267,14 +346,17 @@ internal sealed class NightGladeDemo : IDemo
 		g.Present(screen);
 	});
 
-	// A mushroom stem: a uniform-scaled capsule translated so its rounded base sits on the ground (the unit capsule
-	// spans ±0.43 in Y → lift by 0.43·scale). System.Numerics row-vector order (scale then translate).
+	// A mushroom stem: a thick capsule stalk translated so its rounded base sits on the ground (the unit capsule
+	// spans ±0.43 in Y → lift by 0.43·scale), widened in X/Z so the pale stalk reads clearly. Row-vector order.
 	private static Matrix4x4 StemModel(Vector3 pos, float scale) =>
-		Matrix4x4.CreateScale(scale) * Matrix4x4.CreateTranslation(pos.X, 0.43f * scale, pos.Z);
+		Matrix4x4.CreateScale(1.25f * scale, scale, 1.25f * scale) * Matrix4x4.CreateTranslation(pos.X, 0.43f * scale, pos.Z);
 
-	// A mushroom cap: a flattened dome (the unit sphere squashed in Y) overhanging the stem, perched at its top.
+	// A mushroom cap: a hemisphere dome (radius ≈ twice the stem's) whose crown sits just above the stem top, the
+	// flat underside overhanging the stalk. The unit dome is radius 0.5 (top at y=0.5), so scale 0.9·s gives a cap
+	// radius 0.45·s (the stem renders at ≈0.225·s) and a crown 0.45·s above the disc; lifting the disc to 0.50·s
+	// puts the crown at 0.95·s — a touch over the ≈0.86·s stem top.
 	private static Matrix4x4 CapModel(Vector3 pos, float scale) =>
-		Matrix4x4.CreateScale(0.5f * scale, 0.32f * scale, 0.5f * scale) * Matrix4x4.CreateTranslation(pos.X, 0.84f * scale, pos.Z);
+		Matrix4x4.CreateScale(0.9f * scale) * Matrix4x4.CreateTranslation(pos.X, 0.50f * scale, pos.Z);
 
 	// The deferred CSM lighting block: 3 cascade view-projections, camera eye/forward, and the night sun/ambient.
 	private ReadOnlySpan<float> PackLighting()
@@ -311,22 +393,25 @@ internal sealed class NightGladeDemo : IDemo
 		return p;
 	}
 
-	// A vertical green blade gradient with an alpha cutout — the same foliage cutout the stylized field uses.
+	// A tall, thin, pointed grass blade with an alpha cutout: widest at the base, tapering to a point at the tip
+	// (the natural blade silhouette), on a vertical green gradient. The previous fan-shaped cutout read as a flat
+	// patch; this reads as long grass.
 	private static TextureData BuildBladeTexture()
 	{
-		const int w = 24, h = 48;
+		const int w = 16, h = 64;
 		var rgba = new byte[w * h * 4];
 		for (var py = 0; py < h; py++)
 		{
-			var v = py / (float)(h - 1);
-			var halfWidth = float.Lerp(0.06f, 0.42f, v);
-			var shade = float.Lerp(0.6f, 0.26f, v);
+			var v = py / (float)(h - 1);          // 0 at the image top (tip), 1 at the bottom (base)
+			var fromBase = 1f - v;                // 0 at base, 1 at tip
+			var halfWidth = float.Lerp(0.20f, 0.0f, fromBase); // wide base → pointed tip
+			var shade = float.Lerp(0.30f, 0.62f, fromBase);    // darker base, brighter tip
 			for (var px = 0; px < w; px++)
 			{
 				var o = (py * w + px) * 4;
-				rgba[o + 0] = (byte)(0.18f * shade * 255);
+				rgba[o + 0] = (byte)(0.16f * shade * 255);
 				rgba[o + 1] = (byte)(shade * 255);
-				rgba[o + 2] = (byte)(0.20f * shade * 255);
+				rgba[o + 2] = (byte)(0.18f * shade * 255);
 				rgba[o + 3] = MathF.Abs(px / (float)(w - 1) - 0.5f) < halfWidth ? (byte)255 : (byte)0;
 			}
 		}
