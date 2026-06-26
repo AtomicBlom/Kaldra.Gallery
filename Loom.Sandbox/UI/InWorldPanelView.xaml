@@ -1,0 +1,19 @@
+<ContentControl xmlns="https://github.com/AtomicBlom/SUIsei/ui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Loom.Sandbox.UI.InWorldPanelView"
+        Width="512" Height="256">
+	<Border x:Name="PanelBody"
+	        Margin="12" CornerRadius="12">
+		<StackPanel Orientation="Vertical">
+			<StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+				<TextBlock x:Name="X" FontSize="14" />
+				<TextBlock x:Name="Y" FontSize="14" />
+			</StackPanel>
+			<TextBlock x:Name="StatusLabel" FontSize="16" Text="{x:Bind ViewModel.Status, Mode=OneWay}" />
+			<Button x:Name="IncrementButton" HorizontalAlignment="Left" Width="160" Height="44"
+Content="Increment" Click="{x:Bind OnIncrementClick}" />
+			<Button x:Name="ResetButton" HorizontalAlignment="Left" Width="160" Height="44"
+Content="Reset" Click="{x:Bind OnResetClick}" />
+		</StackPanel>
+	</Border>
+</ContentControl>

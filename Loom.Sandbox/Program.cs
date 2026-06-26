@@ -119,7 +119,7 @@ internal static class Program
 		// A screen-space overlay surface driven by the UIHost created above. Its compositor lays glyphs out against the
 		// same default font the painter uploaded, so UVs match. The single overlay surface carries one of two contents,
 		// swapped per active demo: the static panel (every other demo) and the interactive data-bound page.
-		var overlay = uiHost.CreateRoot(UIPlacement.Overlay(zLayer: 0, layoutScale: 1f));
+		var overlay = uiHost.CreateRoot(UILayer.Default);
 
 		// The static panel — the overlay content for every non-interactive demo.
 		UIElement mu1Panel = new Border
@@ -244,11 +244,12 @@ internal static class Program
 
 		// Translate raw mouse into neutral pointer events the UIHost routes (the host owns hit-test + routing).
 		// Independent of the ImGui/camera/pick mouse uses below — multiple handlers per Silk event are fine.
+		// Events are also forwarded to the active demo so it can queue them for in-world projection in PreFrame.
 		if (mouse is not null)
 		{
-			mouse.MouseMove += (_, pos) => uiHost.QueuePointer(PointerInput.Move(pos));
-			mouse.MouseDown += (m, btn) => { if (btn == MouseButton.Left) uiHost.QueuePointer(PointerInput.Press(m.Position)); };
-			mouse.MouseUp += (m, btn) => { if (btn == MouseButton.Left) uiHost.QueuePointer(PointerInput.Release(m.Position)); };
+			mouse.MouseMove += (_, pos) => { var e = PointerInput.Move(pos); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); };
+			mouse.MouseDown += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Press(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
+			mouse.MouseUp   += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Release(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
 		}
 
 		// Headless smoke (--smoke-frames N) + capture (--capture path) modes.
@@ -505,6 +506,8 @@ internal static class Program
 			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
 
+			demos[currentDemo].PreFrame(delta, elapsed, renderCamera, new Vector2(fbW, fbH));
+
 			engine.Render(new FrameInputs
 			{
 				DeltaSeconds = capturePath is not null ? captureDelta : delta,
@@ -661,6 +664,7 @@ internal static class Program
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
+			new InWorldUIDemo(),
 			new SkinningDemo(),
 			new CascadedShadowsDemo(),
 			new SkyDayNightDemo(),

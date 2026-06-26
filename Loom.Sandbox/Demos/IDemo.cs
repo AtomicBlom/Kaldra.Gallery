@@ -1,6 +1,9 @@
+using System.Numerics;
+
 using Loom.Concepts;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
+using SUIsei;
 
 namespace Loom.Sandbox.Demos;
 
@@ -55,6 +58,20 @@ internal interface IDemo
 
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
+
+	/// <summary>
+	/// Optional pointer hook — called once per raw screen-space pointer event (move, press, release), before the
+	/// frame camera is computed. A demo that owns an in-world panel queues the event here for later projection in
+	/// <see cref="PreFrame"/>. Default no-op.
+	/// </summary>
+	void OnPointer(in PointerInput e) { }
+
+	/// <summary>
+	/// Optional pre-render step with this frame's render camera and framebuffer size, called after
+	/// <see cref="Update"/> but before <c>engine.Render</c>. A demo that owns an in-world panel ticks and
+	/// composites it here (project queued screen-pointer hits, drive layout, render draw list). Default no-op.
+	/// </summary>
+	void PreFrame(double deltaSeconds, float time, Camera camera, Vector2 framebufferSize) { }
 
 	/// <summary>
 	/// The object-id buffer this demo writes for cursor picking, or null if it doesn't pick. The
