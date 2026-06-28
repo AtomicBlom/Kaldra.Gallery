@@ -55,7 +55,7 @@ internal sealed class InWorldUIDemo : IDemo
 		_panel = InWorldPanel.Create(engine, pixelWidth: 512, pixelHeight: 256,
 			worldTransform: worldTransform, billboard: true, fontAtlas: FontAtlas.Default);
 		_panelView = new InWorldPanelView();
-		_panel.View.Root.Content = _panelView.Root;
+		_panel.View.Root.Content = _panelView;
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>

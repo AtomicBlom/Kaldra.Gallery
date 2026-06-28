@@ -14,12 +14,7 @@ internal sealed partial class UIInteractiveView
 	public UIInteractiveView()
 	{
 		InitializeComponent();
-
-		Root.Margin = new Thickness(24f, 24f, 0f, 0f);
-		Root.Padding = new Thickness(20f, 16f, 20f, 16f);
-		Root.Background = HdrColor.FromRgb(28, 32, 44, 220);
-		Root.BorderBrush = HdrColor.FromRgb(120, 180, 255);
-		Root.BorderThickness = new Thickness(2f);
+		Background = HdrColor.FromRgb(28, 32, 44, 220);
 
 		TitleLabel.Foreground = HdrColor.FromRgb(180, 210, 255);
 

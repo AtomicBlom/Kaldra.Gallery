@@ -483,7 +483,7 @@ internal static class Program
 			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
 			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
 			// renders the list by id via the painter (scene.UI).
-			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage.Root
+			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage
 				: currentDemo == groupOpacityIndex ? groupOpacityPanel
 				: mu1Panel;
 
