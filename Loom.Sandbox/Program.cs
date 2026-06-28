@@ -312,12 +312,6 @@ internal static class Program
 			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax).
 			var camera = demos[currentDemo].GetCamera(aspect, camTime) ?? orbit;
 
-			// Per-frame CPU work for the active demo (e.g. the instancing demo's frustum cull) — runs with this
-			// frame's MAIN camera (the one the debug view freezes), before Render, so the surviving draw list is
-			// ready when the pass closure records. In freeze mode the demo still culls against the main frustum
-			// while we fly the detached camera around to inspect what it framed.
-			demos[currentDemo].Update(camera);
-
 			// Detached debug camera: when active, render from a free-fly view and draw the FROZEN scripted-camera
 			// frustum as a yellow wireframe. Entering debug mode freezes the current view; the host projects the frozen
 			// frustum's 8 corners to screen pixels and hands the 12 edges to the engine's overlay.
@@ -505,6 +499,11 @@ internal static class Program
 
 			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
+
+			// Per-frame CPU work for the active demo — runs here, after any mid-frame demo switch via the ImGui
+			// menu, so the current demo's Update always fires before its graph records (prevents null closures).
+			// In freeze mode the demo still culls against the main frustum while we fly the detached camera.
+			demos[currentDemo].Update(camera);
 
 			demos[currentDemo].PreFrame(delta, elapsed, renderCamera, new Vector2(fbW, fbH));
 
