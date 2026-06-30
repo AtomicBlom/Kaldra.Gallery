@@ -34,7 +34,7 @@ namespace Loom.Sandbox;
 //
 // ONE host serves BOTH backends: --backend vulkan (default) or --backend dx12 swaps the window surface + engine
 // settings (CreateWindow/CreateEngine); the demo gallery, the per-frame loop, and every debug feature are shared,
-// which is the portability thesis made concrete (and removes the old Program.cs/DirectX12Smoke.cs sync hazard). Every
+// which is the portability thesis made concrete — a single shared path means the two backends can't drift. Every
 // knob is a command-line option — run with --help for the list (there are no LOOM_* environment variables).
 internal static class Program
 {
@@ -249,7 +249,7 @@ internal static class Program
 		{
 			mouse.MouseMove += (_, pos) => { var e = PointerInput.Move(pos); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); };
 			mouse.MouseDown += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Press(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
-			mouse.MouseUp   += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Release(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
+			mouse.MouseUp += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Release(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
 		}
 
 		// Headless smoke (--smoke-frames N) + capture (--capture path) modes.

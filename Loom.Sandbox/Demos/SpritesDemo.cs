@@ -98,7 +98,7 @@ internal sealed class SpritesDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's orthographic view-projection for the sprite pass to read (the engine no longer pushes it).
+	// Publish this frame's orthographic view-projection for the sprite pass to read.
 	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 
 	public string HudStatus => $"sprites {_sprites.Length} (1 batched draw)";

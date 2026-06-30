@@ -48,7 +48,7 @@ internal sealed class CubeLightingDemo : IDemo
 		g.Present(screen);
 	});
 
-	// Publish this frame's view-projection for the scene pass to read (the engine no longer pushes it). The camera
+	// Publish this frame's view-projection for the scene pass to read. The camera
 	// already composes the engine's clip-space correction into ViewProjection.
 	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
 }
