@@ -8,6 +8,7 @@ using Loom.Core.Materials;
 using Loom.Sandbox.UI;
 using Loom.UI.SUIsei;
 using SUIsei;
+using SUIsei.Input;
 
 namespace Loom.Sandbox.Demos;
 
@@ -51,7 +52,7 @@ internal sealed class InWorldUIDemo : IDemo
 		// Place the panel 2 m wide × 1 m tall, hovering above the scene's origin. Billboard keeps it facing
 		// the camera at all orbit angles, so the captured frame always shows the front face.
 		var worldTransform = Matrix4x4.CreateScale(2f, 1f, 1f)
-		                   * Matrix4x4.CreateTranslation(0f, 0.8f, 0f);
+						   * Matrix4x4.CreateTranslation(0f, 0.8f, 0f);
 		_panel = InWorldPanel.Create(engine, pixelWidth: 512, pixelHeight: 256,
 			worldTransform: worldTransform, billboard: true, fontAtlas: FontAtlas.Default);
 		_panelView = new InWorldPanelView();
@@ -74,7 +75,7 @@ internal sealed class InWorldUIDemo : IDemo
 
 		// Offscreen panel texture — independent resolution from the backbuffer.
 		var panelTex = g.Domain("ui_panel", _panel.PixelWidth, _panel.PixelHeight)
-		                .Color("ui_panel_color", Format.Rgba8Srgb);
+						.Color("ui_panel_color", Format.Rgba8Srgb);
 
 		// 1. Composite the SUIsei tree into the offscreen panel texture.
 		g.Pass("ui.panel")

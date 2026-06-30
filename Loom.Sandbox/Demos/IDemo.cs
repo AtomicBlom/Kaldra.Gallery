@@ -4,6 +4,7 @@ using Loom.Concepts;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using SUIsei;
+using SUIsei.Input;
 
 namespace Loom.Sandbox.Demos;
 
