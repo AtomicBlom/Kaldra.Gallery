@@ -1,10 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <!-- Shared shader-build props (defines LoomShaderIncludeDir = Loom.Shaders/Shaders for the platform module). -->
+  <Import Project="..\build\Loom.Sdk\Loom.Shaders.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Hand-ported demos reuse the sandbox's shaders verbatim, compiled to WGSL and embedded under
+         "Loom.Web.Shaders." (the host's ShaderResolver resolves them). Only WGSL is needed in the browser. -->
+    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\..\Loom.Sandbox\Shaders</LoomShaderSourceDir>
+    <LoomShaderOutputMode>Embed</LoomShaderOutputMode>
+    <LoomEmitDxil>false</LoomEmitDxil>
+    <LoomEmitWgsl>true</LoomEmitWgsl>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +31,14 @@
     <ProjectReference Include="..\Loom.Core\Loom.Core.csproj" />
     <ProjectReference Include="..\Loom.Graph\Loom.Graph.csproj" />
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
+    <ProjectReference Include="..\Loom.Concepts\Loom.Concepts.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hermetic slangc for compiling the demo shaders to WGSL (build-machine only). -->
+    <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
+  </ItemGroup>
+
+  <Import Project="..\build\Loom.Sdk\Loom.Shaders.targets" />
 
 </Project>

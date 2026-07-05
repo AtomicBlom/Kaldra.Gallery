@@ -1,10 +1,9 @@
-using System.Numerics;
+using System.Reflection;
 using System.Runtime.InteropServices.JavaScript;
 
 using Loom.Backend.WebGPU;
-using Loom.Core.Graph;
 using Loom.Core.Hosting;
-using Loom.Core.Materials;
+using Loom.Web.Demos;
 
 // The "loom-webgpu" module (its exports) is registered by main.js via setModuleImports before Main runs, so
 // the backend's and this host's [JSImport]s resolve without an ImportAsync round-trip. Any startup failure is
@@ -32,31 +31,35 @@ async Task BootAsync()
 	var capsJson = await Host.InitDevice("#loom-canvas", WebGpuProtocol.Version);
 	var surface = WebGpuSurface.FromCapsJson("#loom-canvas", capsJson);
 
-	var settings = new WebGpuEngineSettings { EnableValidation = true };
+	// The demo shaders (lit, gbuffer, …) are embedded in this WASM assembly as WGSL under "Loom.Web.Shaders.";
+	// resolve them by artifact name so the backend finds them alongside its own engine shaders.
+	var settings = new WebGpuEngineSettings { EnableValidation = true, ShaderResolver = ResolveEmbeddedShader };
 	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
 	// Render at the canvas's real display resolution (CSS size × devicePixelRatio) so the output fills the window
 	// crisply — the engine's size, the canvas backing store, and the viewport all agree.
 	var (width, height) = ParseSize(Host.GetCanvasSize("#loom-canvas"));
 	var engine = backend.Create(surface, width, height, settings);
 
-	// Phase 2 proof: a graph-driven fullscreen technique. A "scene" target is cleared to red, then the engine's
-	// `blit` technique samples it and writes the backbuffer — exercising the whole technique path (WGSL module,
-	// bind-group layout derived from the emitted WGSL, render pipeline, sampler, bind group, the fullscreen draw).
-	engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
-	var graph = RenderGraph.Define(g =>
-	{
-		g.BackbufferClear = new Vector4(0.10f, 0.30f, 0.60f, 1.0f);
-		var scene = g.Screen.Color("scene", Format.Rgba8Srgb, clearValue: new Vector4(0.85f, 0.15f, 0.15f, 1.0f));
-		g.Pass("fill").Writes(scene).Draw(_ => { }); // clear-only: the pass's Writes clears `scene` to red
-		var backbuffer = g.Backbuffer;
-		g.Pass("blit").Writes(backbuffer).Samples(scene).Draw(ctx => ctx.FullScreen("blit", scene));
-		g.Present(backbuffer);
-	});
-	engine.SetGraph(graph);
+	// First real 3D scene on the WebGPU backend: a lit cube + ground plane with a depth buffer and an orbiting
+	// camera — exercising meshes, per-draw + constants uniforms, and the depth path end to end.
+	var demo = new CubeLightingDemo(engine);
+	engine.SetGraph(demo.Build(width, height));
 
-	App.Attach(engine);
+	App.Attach(engine, demo);
 	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
+}
+
+// Resolve a demo shader artifact (e.g. "lit.wgsl" / "lit.wgsl.json") from this assembly's embedded resources.
+static byte[]? ResolveEmbeddedShader(string nameWithExtension)
+{
+	var assembly = Assembly.GetExecutingAssembly();
+	using var stream = assembly.GetManifestResourceStream($"Loom.Web.Shaders.{nameWithExtension}");
+	if (stream is null)
+		return null;
+	var bytes = new byte[stream.Length];
+	stream.ReadExactly(bytes);
+	return bytes;
 }
 
 // Parse the "w,h" device-pixel size the JS side reports for the canvas.
@@ -73,22 +76,28 @@ static (int Width, int Height) ParseSize(string wh)
 internal static class App
 {
 	private static IEngine? _engine;
+	private static CubeLightingDemo? _demo;
 	private static double _lastTimestampMs;
 	private static float _time;
 
-	public static void Attach(IEngine engine) => _engine = engine;
+	public static void Attach(IEngine engine, CubeLightingDemo demo)
+	{
+		_engine = engine;
+		_demo = demo;
+	}
 
 	private static bool _faulted;
 
 	public static void Frame(double timestampMs)
 	{
-		if (_engine is null || _faulted)
+		if (_engine is null || _demo is null || _faulted)
 			return;
 		var delta = _lastTimestampMs > 0 ? (timestampMs - _lastTimestampMs) / 1000.0 : 1.0 / 60.0;
 		_lastTimestampMs = timestampMs;
 		_time += (float)delta;
 		try
 		{
+			_demo.Update(_time);
 			_engine.Render(new FrameInputs { DeltaSeconds = delta, Time = _time });
 		}
 		catch (Exception ex)
