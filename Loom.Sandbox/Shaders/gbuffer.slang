@@ -5,6 +5,8 @@
 // .Writes(albedo, normal, position). Deferred lighting samples these — position lets it project into the sun's
 // light space for the shadow test without reconstructing from depth.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
 struct ViewProj { float4x4 viewProj; };           // the app's view-projection, clip-space-corrected
@@ -13,8 +15,8 @@ struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picki
 // No samplers precede them, so the UBOs own Vulkan bindings 0,1; register(b1)/(b2) on DX12 (b0 is the unused
 // root-constant slot). The cbuffer packs the model's transpose, so it applies column-form and the normal by the
 // inverse of that 3x3 (correct under any scale).
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {

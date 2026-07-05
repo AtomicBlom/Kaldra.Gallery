@@ -3,13 +3,15 @@
 // colour depends on BOTH buffers — a flat-black or single-tint frame would mean one of the two never reached the
 // shader. Exercises the same push+Constants coexistence the deferred CSM-splits move needs.
 
+#include "loom_platform.module.slang"
+
 struct Tint
 {
 	float4 color;
 };
 
-[[vk::binding(0, 0)]] ConstantBuffer<Tint> base : register(b1); // the pass's .Reads Constants buffer (host-written)
-[[vk::binding(1, 0)]] ConstantBuffer<Tint> mul : register(b2);  // the in-closure FullScreen push
+LOOM_BINDING(0) ConstantBuffer<Tint> base : register(b1); // the pass's .Reads Constants buffer (host-written)
+LOOM_BINDING(1) ConstantBuffer<Tint> mul : register(b2);  // the in-closure FullScreen push
 
 [shader("vertex")]
 float4 vertexMain(uint vertexId : SV_VertexID) : SV_Position

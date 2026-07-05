@@ -5,13 +5,15 @@
 // fragment derives the ring from the quad-local coordinate. Additive blend, so it glows over the scene without a
 // depth/occlusion test. Entry points vertexMain/fragmentMain so the build emits DXIL.
 
+#include "loom_platform.module.slang"
+
 struct ViewProj
 {
 	float4x4 viewProj; // camera view-projection, clip-space-corrected — the app composes it; same view the lights read
 };
 
 // No samplers, so the view-proj UBO is the first binding (0); register(b1) — b0 is the unused root-constant slot.
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {

@@ -4,14 +4,16 @@
 // this draw is depth-tested against the solid cube (no z-fighting, no writes), and the alpha blend (src-alpha over)
 // the backend enables for a Blend technique lays the tint over the lit surface.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
 struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
 
 // No samplers precede them, so the UBOs own bindings 0,1 (register b1/b2; b0 is the unused root-constant slot).
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {

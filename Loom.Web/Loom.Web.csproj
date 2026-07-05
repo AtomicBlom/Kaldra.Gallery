@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <StaticWebAssetFingerprintPattern Include="JS" Pattern="*.js" Expression="#[.{fingerprint}]!" />
+  </ItemGroup>
+
+  <!-- The browser host references the WebGPU backend (and, transitively, the neutral engine layers). All are
+       pure-managed net10.0 assemblies, so they link into the WASM app unchanged. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Backend.WebGPU\Loom.Backend.WebGPU.csproj" />
+    <ProjectReference Include="..\Loom.Core\Loom.Core.csproj" />
+    <ProjectReference Include="..\Loom.Graph\Loom.Graph.csproj" />
+    <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
+  </ItemGroup>
+
+</Project>

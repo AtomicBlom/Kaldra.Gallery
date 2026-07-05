@@ -308,7 +308,7 @@ internal sealed class RuinsDemo : IDemo
 		var graded = world.Color("ruins_graded", Format.Rgba16F);
 		var skinned = g.Buffer("ruins_skinned", _charVerts * 48);
 		var meter = g.Domain("ruins_meter", 1, 1);
-		var exposure = meter.Persistent("ruins_exposure", Format.R16F);
+		var exposure = meter.Persistent("ruins_exposure", Format.R32F);
 
 		var sun = g.Domain("ruins_sun", (int)ShadowResolution, (int)ShadowResolution);
 		var shadowMap = sun.Depth("ruins_sun_depth", Format.Depth32F);

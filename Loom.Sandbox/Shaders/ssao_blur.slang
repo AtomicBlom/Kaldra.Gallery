@@ -10,7 +10,9 @@
 // Sampler2D.GetDimensions (which Slang lowers to a 3-argument call dxc rejects on the DXIL target), it compiles
 // identically for SPIR-V and DXIL, keeping the box blur byte-for-byte the same on both backends.
 
-[[vk::binding(0, 0)]] Sampler2D aoTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D aoTex;
 
 struct VsOut
 {

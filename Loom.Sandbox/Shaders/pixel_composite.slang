@@ -5,16 +5,18 @@
 // scene where the boss depth shows geometry (nearer than the cleared far plane). The graph derives the cross-domain
 // shader-read transitions.
 
-[[vk::binding(0, 0)]] Sampler2D scene;     // the 2D pixel-art scene (low-res domain)
-[[vk::binding(1, 0)]] Sampler2D bossColor; // the boss render (tiny domain)
-[[vk::binding(2, 0)]] Sampler2D bossDepth; // the boss depth (its domain)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D scene;     // the 2D pixel-art scene (low-res domain)
+LOOM_BINDING(1) Sampler2D bossColor; // the boss render (tiny domain)
+LOOM_BINDING(2) Sampler2D bossDepth; // the boss depth (its domain)
 
 struct PushConstants
 {
 	float4 rect;   // boss destination rect in CONTENT uv: x=u0, y=v0, z=u1, w=v1
 	float4 aspect; // x = screen aspect (w/h), y = content aspect (w/h)
 };
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

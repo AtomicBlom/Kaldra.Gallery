@@ -35,7 +35,7 @@ internal sealed class TonemappingDemo : IDemo
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var meter = g.Domain("meter", 1, 1);
-		var exposure = meter.Persistent("exposure", Format.R16F);
+		var exposure = meter.Persistent("exposure", Format.R32F);
 		var graded = g.Screen.Color("graded", Format.Rgba16F);
 		_viewproj = g.Constants<Matrix4x4>("tonemapping.viewproj");
 

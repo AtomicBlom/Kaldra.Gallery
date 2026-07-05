@@ -8,7 +8,9 @@
 // The §7.1 recipe uses a 3x3 tent on upsample; the single linear tap here compounds across the pyramid into
 // a smooth glow (correctness-first) — the multi-tap tent is a shader-only quality refinement.
 
-[[vk::binding(0, 0)]] Sampler2D source;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D source;
 
 struct VsOut
 {

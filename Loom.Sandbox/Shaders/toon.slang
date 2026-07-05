@@ -3,14 +3,16 @@
 // the silhouette — so the chunky low-res render composites into the 2D scene as a cel-shaded sprite. Transforms by
 // the .Reads view-projection + the per-draw model; outputs HDR so the lit bands carry through the scene's bloom.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
 struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused by toon)
 
 // No samplers precede them, so the UBOs own bindings 0,1 (register b1/b2; b0 is the unused root-constant slot).
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {

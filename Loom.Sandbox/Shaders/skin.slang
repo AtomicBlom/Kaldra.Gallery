@@ -12,15 +12,17 @@
 // 2 = skinned output (write). On Vulkan all three are storage buffers; on DX12 they bind as root SRVs (t0/t1)
 // + a root UAV (u0) by GPU address — so the compute entry must be `computeMain` for the build's DXIL emit.
 
-[[vk::binding(0, 0)]] ByteAddressBuffer inVertices;     // SkinnedVertex, 80 bytes: pos@0 nrm@12 uv@24 tan@32 joints@48 weights@64
-[[vk::binding(1, 0)]] ByteAddressBuffer bonePalette;    // row-major float4x4 per joint, 64 bytes: row r at joint*64 + r*16
-[[vk::binding(2, 0)]] RWByteAddressBuffer outVertices;  // MeshStandard, 48 bytes: pos@0 nrm@12 uv@24 tan@32
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) ByteAddressBuffer inVertices;     // SkinnedVertex, 80 bytes: pos@0 nrm@12 uv@24 tan@32 joints@48 weights@64
+LOOM_BINDING(1) ByteAddressBuffer bonePalette;    // row-major float4x4 per joint, 64 bytes: row r at joint*64 + r*16
+LOOM_BINDING(2) RWByteAddressBuffer outVertices;  // MeshStandard, 48 bytes: pos@0 nrm@12 uv@24 tan@32
 
 struct PushConstants
 {
 	float vertexCount; // pushed as a float (exact for any realistic count); cast to uint below
 };
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 // One row of joint j's palette matrix (the CPU uploads System.Numerics row-major matrices, so row r is the
 // 16-byte block at joint*64 + r*16). palette[j] = inverseBind[j]·jointWorld[j], so the skinned position is v·palette.

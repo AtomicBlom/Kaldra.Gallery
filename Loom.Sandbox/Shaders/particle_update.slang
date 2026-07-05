@@ -4,14 +4,16 @@
 // of (index, time) — a looping fountain — so no cross-frame state is needed; the buffer is rewritten each
 // frame. RWStructuredBuffer is the storage-buffer descriptor (binding 0: no samplers, no storage images).
 
-[[vk::binding(0, 0)]] RWStructuredBuffer<float4> particles;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) RWStructuredBuffer<float4> particles;
 
 struct PushConstants
 {
 	float4 p; // x = elapsed time (seconds)
 };
 
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 [shader("compute")]
 [numthreads(64, 1, 1)]

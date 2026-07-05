@@ -9,15 +9,17 @@
 // sample is occluded. A per-pixel rotation trades banding for noise, which the following ssao.blur pass then
 // smooths into clean contact shadows (§7.6). Position's .a flags geometry vs background.
 
-[[vk::binding(0, 0)]] Sampler2D positionTex;
-[[vk::binding(1, 0)]] Sampler2D normalTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D positionTex;
+LOOM_BINDING(1) Sampler2D normalTex;
 
 struct PushConstants
 {
 	float4x4 viewProj; // world → clip, to reproject sample points to screen
 };
 
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

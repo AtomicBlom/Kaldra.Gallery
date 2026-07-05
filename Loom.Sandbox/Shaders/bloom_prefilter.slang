@@ -6,13 +6,15 @@
 // correctly) — the wider tap is a shader-only quality refinement. The brightness threshold is supplied by
 // BloomGraph through the fragment push channel (M7-A3) — no longer a hardcoded constant.
 
-[[vk::binding(0, 0)]] Sampler2D source;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D source;
 
 struct PushConstants
 {
 	float threshold; // brightness above which a texel glows; wired from BloomGraph.Bloom(threshold:) (§7.1)
 };
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

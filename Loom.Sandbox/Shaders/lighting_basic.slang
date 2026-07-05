@@ -1,9 +1,11 @@
 // Minimal deferred lighting (M15-5): albedo/normal/position g-buffer → a single directional key + ambient, no
 // shadows. Used by the foliage demo to shade the instanced field cheaply. Background pixels (albedo 0) stay dark.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D normalTex;
-[[vk::binding(2, 0)]] Sampler2D positionTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D normalTex;
+LOOM_BINDING(2) Sampler2D positionTex;
 
 struct VsOut
 {

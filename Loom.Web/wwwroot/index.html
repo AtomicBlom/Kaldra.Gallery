@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- Relative base so the app works from itch.io's unpredictable sub-path (and from a local server). -->
+  <base href="./" />
+  <title>Loom — WebGPU triangle</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preload" id="webassembly" />
+  <script type="importmap"></script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #14141a; color: #d8d8e0;
+                 font-family: system-ui, sans-serif; overflow: hidden; }
+    #loom-canvas { display: block; width: 100vw; height: 100vh; }
+    #status { position: fixed; left: 10px; bottom: 8px; font-size: 12px; opacity: 0.65; }
+  </style>
+  <script type='module' src="main#[.{fingerprint}].js"></script>
+</head>
+
+<body>
+  <canvas id="loom-canvas"></canvas>
+  <div id="status">loading .NET runtime…</div>
+</body>
+
+</html>

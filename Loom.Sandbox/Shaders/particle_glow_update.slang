@@ -7,13 +7,15 @@
 // cross-backend golden). The render pass reads this same buffer as the per-instance vertex stream
 // (SandboxVertexLayouts.Particle, two IPARTICLE float4 rows); the graph derives the compute→vertex barrier.
 
+#include "loom_platform.module.slang"
+
 struct Particle
 {
 	float4 posLife; // xyz world position, w = remaining life (1 at spawn → 0 at death)
 	float4 velSeed; // xyz current velocity, w = per-particle seed (stable across the life)
 };
 
-[[vk::binding(0, 0)]] RWStructuredBuffer<Particle> particles;
+LOOM_BINDING(0) RWStructuredBuffer<Particle> particles;
 
 struct PushConstants
 {
@@ -22,7 +24,7 @@ struct PushConstants
 	float4 p2; // x = swirl amplitude, y = swirl frequency, z = origin.z (depth), w = unused
 };
 
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 float hash11(float n)
 {

@@ -11,9 +11,11 @@
 // tilemap would pass them as a per-pass uniform; a focused demo bakes them. The tile *data* is fully dynamic (the
 // index texture). The camera's view-projection arrives as a constants buffer the pass .Reads (clip-space-corrected).
 
-[[vk::binding(0, 0)]] Sampler2D indexTex;  // per-cell tile id in .r (Rgba8Unorm, NOT sRGB — exact byte), nearest
-[[vk::binding(1, 0)]] Sampler2D albedoTex; // tile atlas albedo (sRGB)
-[[vk::binding(2, 0)]] Sampler2D normalTex; // tile atlas tangent-space normal map (linear)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D indexTex;  // per-cell tile id in .r (Rgba8Unorm, NOT sRGB — exact byte), nearest
+LOOM_BINDING(1) Sampler2D albedoTex; // tile atlas albedo (sRGB)
+LOOM_BINDING(2) Sampler2D normalTex; // tile atlas tangent-space normal map (linear)
 
 struct ViewProj
 {
@@ -21,7 +23,7 @@ struct ViewProj
 };
 
 // The view-proj UBO follows the three samplers (binding 3); register(b1) — b0 is the unused root-constant slot.
-[[vk::binding(3, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(3) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {

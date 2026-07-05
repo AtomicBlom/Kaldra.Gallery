@@ -4,7 +4,9 @@
 // into a ring. The hovered id rides an app-writable parameter buffer the host fills from the picking readback
 // — id 0 means nothing is hovered, so no pixel seeds and the outline vanishes.
 
-[[vk::binding(0, 0)]] Sampler2D ids; // the object_id buffer from the picking pass
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D ids; // the object_id buffer from the picking pass
 
 struct OutlineParams
 {
@@ -13,7 +15,7 @@ struct OutlineParams
 
 // The hovered id rides a parameter buffer the seed pass .Reads — bound after the sampled input (Vulkan binding
 // 1 = SampleCount; the b1 root CBV on DirectX12), exactly as the reflected uniform seam places it.
-[[vk::binding(1, 0)]] ConstantBuffer<OutlineParams> outline : register(b1);
+LOOM_BINDING(1) ConstantBuffer<OutlineParams> outline : register(b1);
 
 struct VsOut
 {

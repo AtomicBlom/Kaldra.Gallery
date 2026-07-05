@@ -4,9 +4,11 @@
 // light rather than a hard dot. The mote is already in world space, so the pass needs only the .Reads
 // view-projection (no per-object model). A 6-vertex billboard per instance (no point sprites — Adreno is uneven).
 
+#include "loom_platform.module.slang"
+
 struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
 // No samplers precede it, so the UBO owns binding 0 (register b1; b0 is the unused root-constant slot).
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsOut
 {

@@ -5,10 +5,12 @@
 // additive render multiplies. The render reads this buffer as the per-instance stream (one float4 — the
 // ParticlePosition layout); the graph derives the compute->vertex barrier from the shared buffer.
 
-[[vk::binding(0, 0)]] RWStructuredBuffer<float4> fireflies;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) RWStructuredBuffer<float4> fireflies;
 
 struct PushConstants { float4 p; }; // x = elapsed time (seconds)
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 float hash11(float n) { return frac(sin(n) * 43758.5453123); }
 

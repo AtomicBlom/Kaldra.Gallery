@@ -5,13 +5,15 @@
 // row-major System.Numerics matrix uploaded), so it is applied column-form: mul(M, v) == v . M_original, the
 // row-vector convention the rest of Loom uses.
 
+#include "loom_platform.module.slang"
+
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw  { float4x4 model; uint objectId; }; // object id (unused here)
 
 // DX12 reserves b0 for the (still-firing, here-unused) root-constant MVP, so the CBVs start at b1; on Vulkan
 // there are no samplers ahead of them, so they own bindings 0,1. UniformBufferCount is reflection-derived.
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {

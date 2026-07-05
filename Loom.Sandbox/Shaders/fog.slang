@@ -4,15 +4,17 @@
 // through untouched, since the sky pass fills them. The eye, fog start distance, colour and inverse fade range
 // arrive as a push block.
 
-[[vk::binding(0, 0)]] Sampler2D litTex;
-[[vk::binding(1, 0)]] Sampler2D positionTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D litTex;
+LOOM_BINDING(1) Sampler2D positionTex;
 
 struct PushConstants
 {
 	float4 eyeStart;     // camera world position .xyz, fog start distance .w
 	float4 colorInvSpan; // fog colour .rgb, 1 / (fadeEnd - fadeStart) .w
 };
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

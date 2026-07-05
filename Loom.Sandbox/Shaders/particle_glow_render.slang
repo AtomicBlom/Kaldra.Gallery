@@ -7,11 +7,13 @@
 // intensity > 1 so it feeds bloom. The particle is already in world space, so it needs only the view-projection
 // the pass .Reads (no per-object model).
 
-[[vk::binding(0, 0)]] Sampler2D atlas; // 4×1 spark sub-UV atlas (slot 0)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D atlas; // 4×1 spark sub-UV atlas (slot 0)
 
 struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
 // The sampler owns binding 0, so the UBO follows at binding 1 (register b1; b0 is the unused root-constant slot).
-[[vk::binding(1, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {

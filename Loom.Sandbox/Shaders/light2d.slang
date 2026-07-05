@@ -6,8 +6,10 @@
 // arrives as two ILIGHT rows (ILIGHT0..1) — one repeated semantic with an index, like ISPRITE/ITRANSFORM, so
 // DX12's semantic-name-plus-index binding picks them up. Entry points vertexMain/fragmentMain so the build emits DXIL.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex; // 2D G-buffer albedo (slot 0)
-[[vk::binding(1, 0)]] Sampler2D normalTex; // 2D G-buffer encoded world normal (slot 1)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex; // 2D G-buffer albedo (slot 0)
+LOOM_BINDING(1) Sampler2D normalTex; // 2D G-buffer encoded world normal (slot 1)
 
 struct ViewProj
 {
@@ -15,7 +17,7 @@ struct ViewProj
 };
 
 // The view-proj UBO follows the two G-buffer samplers (binding 2); register(b1) — b0 is the unused root-constant slot.
-[[vk::binding(2, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(2) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {

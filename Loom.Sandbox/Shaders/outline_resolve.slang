@@ -5,8 +5,10 @@
 // into bloom and the hover border glows") the ring blooms into a soft halo hugging the cube. With nothing
 // hovered the seed buffer is all sentinel, distances are huge, and no ring appears.
 
-[[vk::binding(0, 0)]] Sampler2D seed; // final flood: nearest-seed coordinates
-[[vk::binding(1, 0)]] Sampler2D litTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D seed; // final flood: nearest-seed coordinates
+LOOM_BINDING(1) Sampler2D litTex;
 
 struct VsOut
 {

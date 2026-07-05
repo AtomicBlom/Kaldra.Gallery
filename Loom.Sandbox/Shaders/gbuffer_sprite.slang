@@ -11,8 +11,10 @@
 // view-projection arrives as a constants buffer the pass .Reads (the app composed the engine's ClipSpaceCorrection
 // into it); it is read the same column-form way on both backends, with no matrix-layout special-casing.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex; // atlas albedo (sRGB)
-[[vk::binding(1, 0)]] Sampler2D normalTex; // atlas tangent-space normal map (linear)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex; // atlas albedo (sRGB)
+LOOM_BINDING(1) Sampler2D normalTex; // atlas tangent-space normal map (linear)
 
 struct ViewProj
 {
@@ -20,7 +22,7 @@ struct ViewProj
 };
 
 // The view-proj UBO follows the two samplers (binding 2); register(b1) — b0 is the unused root-constant slot.
-[[vk::binding(2, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(2) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {

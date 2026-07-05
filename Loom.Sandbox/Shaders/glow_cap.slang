@@ -3,13 +3,15 @@
 // blob. The distinct red glow separates the ground-anchored mushroom caps from the warm yellow-green airborne
 // fireflies. Same vertex path as emissive.slang (view-projection + per-draw model); HDR emission feeds the bloom.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
 struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused)
 
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(1, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {

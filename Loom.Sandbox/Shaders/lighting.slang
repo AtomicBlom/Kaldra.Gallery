@@ -5,18 +5,20 @@
 // drew with): project the world position into light space and compare against the stored shadow depth.
 // Background pixels have albedo 0, so they stay black regardless of the (undefined) normal there.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D normalTex;
-[[vk::binding(2, 0)]] Sampler2D positionTex;
-[[vk::binding(3, 0)]] Sampler2D shadowMap;
-[[vk::binding(4, 0)]] Sampler2D aoTex; // screen-space ambient occlusion (§7.6)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D normalTex;
+LOOM_BINDING(2) Sampler2D positionTex;
+LOOM_BINDING(3) Sampler2D shadowMap;
+LOOM_BINDING(4) Sampler2D aoTex; // screen-space ambient occlusion (§7.6)
 
 struct PushConstants
 {
 	float4x4 sunViewProj; // the sun's view-projection — world space → the shadow map's clip space
 };
 
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

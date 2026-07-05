@@ -5,9 +5,11 @@
 // bloom/tonemap can follow. Background pixels have albedo 0 (the sprite pass cleared the G-buffer), so they stay
 // black regardless of the (undefined) normal there.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D normalTex;
-[[vk::binding(2, 0)]] Sampler2D emissiveTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D normalTex;
+LOOM_BINDING(2) Sampler2D emissiveTex;
 
 struct VsOut
 {

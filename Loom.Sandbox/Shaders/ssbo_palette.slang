@@ -3,12 +3,14 @@
 // indices, so a correct frame proves the host-written array reached the shader (Vulkan storage buffer at binding 0;
 // DirectX12 read-only root SRV at t0 — no samplers, so the SSBO is the first bound resource on each backend).
 
+#include "loom_platform.module.slang"
+
 struct Color
 {
 	float4 rgba;
 };
 
-[[vk::binding(0, 0)]] StructuredBuffer<Color> palette : register(t0);
+LOOM_BINDING(0) StructuredBuffer<Color> palette : register(t0);
 
 struct VsOut
 {

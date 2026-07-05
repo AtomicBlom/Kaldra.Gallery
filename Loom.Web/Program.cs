@@ -1,0 +1,103 @@
+using System.Numerics;
+using System.Runtime.InteropServices.JavaScript;
+
+using Loom.Backend.WebGPU;
+using Loom.Core.Graph;
+using Loom.Core.Hosting;
+
+// The "loom-webgpu" module (its exports) is registered by main.js via setModuleImports before Main runs, so
+// the backend's and this host's [JSImport]s resolve without an ImportAsync round-trip. Any startup failure is
+// surfaced to the on-page status line (the browser console is hard to read in headless verification runs).
+try
+{
+	await BootAsync();
+}
+catch (Exception ex)
+{
+	Host.SetStatus($"ERROR: {ex.GetType().Name}: {ex.Message}");
+	throw;
+}
+
+async Task BootAsync()
+{
+	if (!Host.IsWebGpuAvailable())
+	{
+		Host.SetStatus("WebGPU is not available in this browser. Try a recent Chrome or Edge.");
+		return;
+	}
+
+	// Bring the device up (async) before creating the engine — every later WebGPU call is synchronous, so the
+	// engine contract (a synchronous IRenderBackend.Create + Render) holds unchanged.
+	var capsJson = await Host.InitDevice("#loom-canvas", WebGpuProtocol.Version);
+	var surface = WebGpuSurface.FromCapsJson("#loom-canvas", capsJson);
+
+	var settings = new WebGpuEngineSettings { EnableValidation = true };
+	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
+	var engine = backend.Create(surface, 1280, 720, settings);
+
+	// Phase 1 proof: a graph-driven clear. The Loom render graph (Core) drives the WebGPU backend, which clears
+	// the canvas to the declared colour — the whole pipeline end to end, minus techniques.
+	var graph = RenderGraph.Define(g =>
+	{
+		g.BackbufferClear = new Vector4(0.10f, 0.30f, 0.60f, 1.0f);
+		var backbuffer = g.Backbuffer;
+		g.Pass("clear").Writes(backbuffer).Draw(_ => { });
+		g.Present(backbuffer);
+	});
+	engine.SetGraph(graph);
+
+	App.Attach(engine);
+	Host.SetStatus($"Loom running on {engine.DeviceName}");
+	Host.StartFrameLoop(App.Frame);
+}
+
+/// <summary>The per-frame driver: the browser's requestAnimationFrame calls <see cref="Frame"/>, which advances
+/// time and renders one Loom frame.</summary>
+internal static class App
+{
+	private static IEngine? _engine;
+	private static double _lastTimestampMs;
+	private static float _time;
+
+	public static void Attach(IEngine engine) => _engine = engine;
+
+	private static bool _faulted;
+
+	public static void Frame(double timestampMs)
+	{
+		if (_engine is null || _faulted)
+			return;
+		var delta = _lastTimestampMs > 0 ? (timestampMs - _lastTimestampMs) / 1000.0 : 1.0 / 60.0;
+		_lastTimestampMs = timestampMs;
+		_time += (float)delta;
+		try
+		{
+			_engine.Render(new FrameInputs { DeltaSeconds = delta, Time = _time });
+		}
+		catch (Exception ex)
+		{
+			_faulted = true;
+			Host.SetStatus($"RENDER ERROR: {ex.GetType().Name}: {ex.Message}");
+		}
+	}
+}
+
+/// <summary>Host-side JS interop: device bring-up, status text, and the frame loop — the pieces the browser
+/// host owns (the backend owns the GPU-object and per-frame command interop).</summary>
+internal static partial class Host
+{
+	[JSImport("isWebGpuAvailable", "loom-webgpu")]
+	public static partial bool IsWebGpuAvailable();
+
+	[JSImport("initDevice", "loom-webgpu")]
+	public static partial Task<string> InitDevice(string canvasSelector, int protocolVersion);
+
+	[JSImport("setStatus", "loom-webgpu")]
+	public static partial void SetStatus(string text);
+
+	[JSImport("getLocationSearch", "loom-webgpu")]
+	public static partial string GetLocationSearch();
+
+	[JSImport("startFrameLoop", "loom-webgpu")]
+	public static partial void StartFrameLoop([JSMarshalAs<JSType.Function<JSType.Number>>] Action<double> onFrame);
+}

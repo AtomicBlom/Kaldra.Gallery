@@ -5,17 +5,19 @@
 // space by the TBN frame built from the interpolated normal + vertex tangent. UVs are scaled by TILES so the
 // demo's [0,1]-mapped geometry tiles the texture — which exercises the Repeat sampler address mode and the mip chain.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex; // material slot 0 — base colour (sRGB)
-[[vk::binding(1, 0)]] Sampler2D normalTex; // material slot 1 — tangent-space normal map (linear)
+LOOM_BINDING(0) Sampler2D albedoTex; // material slot 0 — base colour (sRGB)
+LOOM_BINDING(1) Sampler2D normalTex; // material slot 1 — tangent-space normal map (linear)
 
 struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
 
 // The two samplers own bindings 0,1, so the UBOs follow at 2,3 (register b1/b2; b0 is the unused root-constant slot).
-[[vk::binding(2, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(3, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(2) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(3) ConstantBuffer<PerDraw>  draw : register(b2);
 
 static const float TILES = 3.0; // > 1 so [0,1] UVs tile — exercises Repeat addressing + mip sampling
 

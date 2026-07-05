@@ -2,14 +2,16 @@
 // M15-0 uniform block, but the diffuse term is quantized into a few flat bands and a rim term is added for the
 // cozy stylized look. Drop-in replacement for lighting_csm (the demo just swaps the technique name).
 
+#include "loom_platform.module.slang"
+
 static const int CASCADE_COUNT = 3;
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D normalTex;
-[[vk::binding(2, 0)]] Sampler2D positionTex;
-[[vk::binding(3, 0)]] Sampler2D cascade0;
-[[vk::binding(4, 0)]] Sampler2D cascade1;
-[[vk::binding(5, 0)]] Sampler2D cascade2;
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D normalTex;
+LOOM_BINDING(2) Sampler2D positionTex;
+LOOM_BINDING(3) Sampler2D cascade0;
+LOOM_BINDING(4) Sampler2D cascade1;
+LOOM_BINDING(5) Sampler2D cascade2;
 
 // The cascade split far-depths (.xyz) + cascade-tint flag (.w), an app-written parameter buffer the pass .Reads;
 // bound at uniform slot 0 (host data), ahead of the in-closure matrix push.
@@ -17,7 +19,7 @@ struct CsmSplits
 {
 	float4 splits;
 };
-[[vk::binding(6, 0)]] ConstantBuffer<CsmSplits> csmSplits : register(b1);
+LOOM_BINDING(6) ConstantBuffer<CsmSplits> csmSplits : register(b1);
 
 struct CsmParams
 {
@@ -28,7 +30,7 @@ struct CsmParams
 	float4 sunColor;     // sun light colour .rgb
 	float4 ambientColor; // ambient colour .rgb
 };
-[[vk::binding(7, 0)]] ConstantBuffer<CsmParams> csm : register(b2);
+LOOM_BINDING(7) ConstantBuffer<CsmParams> csm : register(b2);
 
 struct VsOut
 {

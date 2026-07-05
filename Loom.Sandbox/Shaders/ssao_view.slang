@@ -3,8 +3,10 @@
 // (where the cube meets the floor, in concave corners) are directly visible without a full lighting pass.
 // Background albedo is 0, so it stays black. This isolates "what SSAO computes" as its own legible demo.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D aoTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D aoTex;
 
 struct VsOut
 {

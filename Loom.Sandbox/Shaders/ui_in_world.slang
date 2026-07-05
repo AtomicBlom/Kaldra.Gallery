@@ -2,15 +2,17 @@
 // "ui.panel" pass into an offscreen target) using the mesh UV and outputs with premultiplied alpha blending so
 // the panel's anti-aliased rounded corners composite correctly over the background.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
-[[vk::binding(0, 0)]] Sampler2D panelTex;     // the composited UI panel texture (slot 0, linear filter)
+LOOM_BINDING(0) Sampler2D panelTex;     // the composited UI panel texture (slot 0, linear filter)
 
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw  { float4x4 model; uint objectId; };
 
-[[vk::binding(1, 0)]] ConstantBuffer<ViewProj> view : register(b1);
-[[vk::binding(2, 0)]] ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(2) ConstantBuffer<PerDraw>  draw : register(b2);
 
 struct VsIn
 {

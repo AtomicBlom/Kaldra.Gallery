@@ -7,17 +7,19 @@
 // the engine's single-push model — the camera transform lives in the g-buffer pass (vertex MVP push) and the
 // sun transform lives here (fragment push), one matrix each.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D normalTex;
-[[vk::binding(2, 0)]] Sampler2D positionTex;
-[[vk::binding(3, 0)]] Sampler2D shadowMap;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D normalTex;
+LOOM_BINDING(2) Sampler2D positionTex;
+LOOM_BINDING(3) Sampler2D shadowMap;
 
 struct PushConstants
 {
 	float4x4 sunViewProj; // world space → the shadow map's clip space
 };
 
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

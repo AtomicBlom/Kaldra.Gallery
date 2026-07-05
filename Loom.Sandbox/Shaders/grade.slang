@@ -3,14 +3,16 @@
 // desaturated for autumn, cool for winter, …). (A 3-D LUT is a later refinement; the tint grade is enough to
 // show the stylized colour direction and stays a plain fullscreen pass with one sampled input.)
 
-[[vk::binding(0, 0)]] Sampler2D sceneTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D sceneTex;
 
 struct PushConstants
 {
 	float4 tint;     // multiplicative tint .rgb; .w = grade strength (0 = passthrough)
 	float4 controls; // contrast (.x), saturation (.y), _, _
 };
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

@@ -5,9 +5,11 @@
 // gizmos, which were blended into lit). Thin separators divide the quadrants. This is the in-graph counterpart to
 // the engine's runtime resource viewer (M13), focused on the 2D deferred targets. Entry points vertexMain/fragmentMain.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex; // 2D G-buffer albedo
-[[vk::binding(1, 0)]] Sampler2D normalTex; // 2D G-buffer encoded world normal
-[[vk::binding(2, 0)]] Sampler2D litTex;    // the final lit result (+ gizmos)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex; // 2D G-buffer albedo
+LOOM_BINDING(1) Sampler2D normalTex; // 2D G-buffer encoded world normal
+LOOM_BINDING(2) Sampler2D litTex;    // the final lit result (+ gizmos)
 
 struct VsOut
 {

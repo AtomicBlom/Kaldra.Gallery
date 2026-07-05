@@ -3,11 +3,13 @@
 // pass .Reads it, and the backend binds it to this technique's reflected uniform slot. No sampled inputs and no
 // push, so the buffer lands at uniform slot 0 on Vulkan and the b1 root CBV on DirectX12.
 
+#include "loom_platform.module.slang"
+
 struct TintParams
 {
 	float4 color; // a single float4 packs identically under std140 and cbuffer rules — no cross-backend layout hazard
 };
-[[vk::binding(0, 0)]] ConstantBuffer<TintParams> tint : register(b1);
+LOOM_BINDING(0) ConstantBuffer<TintParams> tint : register(b1);
 
 [shader("vertex")]
 float4 vertexMain(uint vertexId : SV_VertexID) : SV_Position

@@ -5,20 +5,22 @@
 // fragment alpha-tests the blade silhouette (a plain discard on an opaque technique — no special pipeline
 // state) and writes the deferred g-buffer, so the same deferred lighting shades it.
 
-[[vk::binding(0, 0)]] Sampler2D bladeTex; // blade colour + alpha cutout (alpha < cutoff → discard)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D bladeTex; // blade colour + alpha cutout (alpha < cutoff → discard)
 
 // The camera view-projection (clip-space-corrected) the pass .Reads — the first UBO after the sampler (binding 1,
 // register b1). The per-instance world transform is rebuilt from the instance stream below, so there is no
 // per-draw model block; the wind parameters ride the per-draw Uniforms slot that follows (binding 2, register b2).
 struct ViewProj { float4x4 viewProj; };
-[[vk::binding(1, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
 
 struct WindParams
 {
 	float4 dirTime;  // wind direction.xy, time (.z), _
 	float4 strength; // amplitude (.x), frequency (.y), _, _
 };
-[[vk::binding(2, 0)]] ConstantBuffer<WindParams> wind : register(b2);
+LOOM_BINDING(2) ConstantBuffer<WindParams> wind : register(b2);
 
 struct VsIn
 {

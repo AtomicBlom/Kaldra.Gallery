@@ -4,6 +4,8 @@
 // The camera's view-projection arrives as a constants buffer the pass .Reads (the app composed the engine's
 // ClipSpaceCorrection into it); the instance matrix multiplies the local vertex into world space first.
 
+#include "loom_platform.module.slang"
+
 #include "transform.module.slang"
 
 struct ViewProj
@@ -11,7 +13,7 @@ struct ViewProj
 	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsIn
 {

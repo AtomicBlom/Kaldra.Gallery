@@ -5,14 +5,16 @@
 // a distance. The graph drives the ping-pong by swapping the (read, write) handles in a normal loop — only
 // two physical buffers exist (Planning.md §8). step + the target dimensions arrive via the fragment push.
 
-[[vk::binding(0, 0)]] Sampler2D seed; // previous flood (or the seed pass for the first step)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D seed; // previous flood (or the seed pass for the first step)
 
 struct PushConstants
 {
 	float4 p; // x = step (pixels), y = width, z = height
 };
 
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

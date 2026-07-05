@@ -6,8 +6,10 @@
 // to albedo 0 by the sprite G-buffer pass, so they stay black (no ambient floor on empty space).
 // Entry points vertexMain/fragmentMain so the Loom build emits DXIL.
 
-[[vk::binding(0, 0)]] Sampler2D albedoTex;
-[[vk::binding(1, 0)]] Sampler2D emissiveTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D albedoTex;
+LOOM_BINDING(1) Sampler2D emissiveTex;
 
 struct VsOut
 {

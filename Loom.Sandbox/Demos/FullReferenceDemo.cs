@@ -158,7 +158,7 @@ internal sealed class FullReferenceDemo : IDemo
 		var glow = g.Bloom(outlined, threshold: 1.0f, mips: 5);
 
 		var meter = g.Domain("meter", 1, 1);
-		var exposure = meter.Persistent("exposure", Format.R16F);
+		var exposure = meter.Persistent("exposure", Format.R32F);
 		var graded = world.Color("graded", Format.Rgba16F);
 
 		g.Compute("exposure")

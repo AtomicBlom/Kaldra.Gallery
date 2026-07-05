@@ -4,7 +4,9 @@
 // pixel) and alpha 1 over background. The per-pixel view ray is reconstructed from the inverse view-projection,
 // so the gradient follows the real horizon as the camera pitches.
 
-[[vk::binding(0, 0)]] Sampler2D depthTex; // scene depth; == 1.0 (cleared far) = background (no geometry drawn)
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D depthTex; // scene depth; == 1.0 (cleared far) = background (no geometry drawn)
 
 struct SkyParams
 {
@@ -15,7 +17,7 @@ struct SkyParams
 	float4 horizon;       // sky colour at the horizon (.rgb)
 	float4 sunColor;      // sun disc/glow colour (.rgb), glow sharpness (.w)
 };
-[[vk::binding(1, 0)]] ConstantBuffer<SkyParams> sky : register(b1);
+LOOM_BINDING(1) ConstantBuffer<SkyParams> sky : register(b1);
 
 struct VsOut
 {

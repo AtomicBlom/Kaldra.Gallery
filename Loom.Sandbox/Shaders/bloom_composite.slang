@@ -4,14 +4,16 @@
 // the frame consumes, so the bloom's memory can be aliased away afterwards. The composite intensity is
 // supplied by BloomGraph through the fragment push channel (M7-A3).
 
-[[vk::binding(0, 0)]] Sampler2D litTex;
-[[vk::binding(1, 0)]] Sampler2D bloomTex;
+#include "loom_platform.module.slang"
+
+LOOM_BINDING(0) Sampler2D litTex;
+LOOM_BINDING(1) Sampler2D bloomTex;
 
 struct PushConstants
 {
 	float intensity; // how strongly the glow composites back; wired from BloomGraph.Bloom(intensity:) (§7.1)
 };
-[[vk::push_constant]] PushConstants pc;
+LOOM_PUSH_CONSTANT PushConstants pc;
 
 struct VsOut
 {

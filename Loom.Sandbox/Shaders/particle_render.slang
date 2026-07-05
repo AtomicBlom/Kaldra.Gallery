@@ -5,9 +5,11 @@
 // compute→vertex barrier; this just draws. The particle is already in world space, so it needs only the
 // view-projection the pass .Reads (no per-object model).
 
+#include "loom_platform.module.slang"
+
 struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
 // No samplers precede it, so the UBO owns binding 0 (register b1; b0 is the unused root-constant slot).
-[[vk::binding(0, 0)]] ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
 
 struct VsOut
 {
