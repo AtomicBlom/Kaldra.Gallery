@@ -34,7 +34,10 @@ async Task BootAsync()
 
 	var settings = new WebGpuEngineSettings { EnableValidation = true };
 	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
-	var engine = backend.Create(surface, 1280, 720, settings);
+	// Render at the canvas's real display resolution (CSS size × devicePixelRatio) so the output fills the window
+	// crisply — the engine's size, the canvas backing store, and the viewport all agree.
+	var (width, height) = ParseSize(Host.GetCanvasSize("#loom-canvas"));
+	var engine = backend.Create(surface, width, height, settings);
 
 	// Phase 2 proof: a graph-driven fullscreen technique. A "scene" target is cleared to red, then the engine's
 	// `blit` technique samples it and writes the backbuffer — exercising the whole technique path (WGSL module,
@@ -52,8 +55,17 @@ async Task BootAsync()
 	engine.SetGraph(graph);
 
 	App.Attach(engine);
-	Host.SetStatus($"Loom running on {engine.DeviceName}");
+	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
+}
+
+// Parse the "w,h" device-pixel size the JS side reports for the canvas.
+static (int Width, int Height) ParseSize(string wh)
+{
+	var parts = wh.Split(',');
+	return parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h)
+		? (Math.Max(1, w), Math.Max(1, h))
+		: (1280, 720);
 }
 
 /// <summary>The per-frame driver: the browser's requestAnimationFrame calls <see cref="Frame"/>, which advances
@@ -99,6 +111,9 @@ internal static partial class Host
 
 	[JSImport("setStatus", "loom-webgpu")]
 	public static partial void SetStatus(string text);
+
+	[JSImport("getCanvasSize", "loom-webgpu")]
+	public static partial string GetCanvasSize(string canvasSelector);
 
 	[JSImport("getLocationSearch", "loom-webgpu")]
 	public static partial string GetLocationSearch();
