@@ -4,6 +4,7 @@ using System.Runtime.InteropServices.JavaScript;
 using Loom.Backend.WebGPU;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
+using Loom.Core.Materials;
 
 // The "loom-webgpu" module (its exports) is registered by main.js via setModuleImports before Main runs, so
 // the backend's and this host's [JSImport]s resolve without an ImportAsync round-trip. Any startup failure is
@@ -35,13 +36,17 @@ async Task BootAsync()
 	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
 	var engine = backend.Create(surface, 1280, 720, settings);
 
-	// Phase 1 proof: a graph-driven clear. The Loom render graph (Core) drives the WebGPU backend, which clears
-	// the canvas to the declared colour — the whole pipeline end to end, minus techniques.
+	// Phase 2 proof: a graph-driven fullscreen technique. A "scene" target is cleared to red, then the engine's
+	// `blit` technique samples it and writes the backbuffer — exercising the whole technique path (WGSL module,
+	// bind-group layout derived from the emitted WGSL, render pipeline, sampler, bind group, the fullscreen draw).
+	engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	var graph = RenderGraph.Define(g =>
 	{
 		g.BackbufferClear = new Vector4(0.10f, 0.30f, 0.60f, 1.0f);
+		var scene = g.Screen.Color("scene", Format.Rgba8Srgb, clearValue: new Vector4(0.85f, 0.15f, 0.15f, 1.0f));
+		g.Pass("fill").Writes(scene).Draw(_ => { }); // clear-only: the pass's Writes clears `scene` to red
 		var backbuffer = g.Backbuffer;
-		g.Pass("clear").Writes(backbuffer).Draw(_ => { });
+		g.Pass("blit").Writes(backbuffer).Samples(scene).Draw(ctx => ctx.FullScreen("blit", scene));
 		g.Present(backbuffer);
 	});
 	engine.SetGraph(graph);
