@@ -16,7 +16,7 @@ float4 vertexMain(uint vertexId : SV_VertexID) : SV_Position
 {
 	// The standard fullscreen triangle fabricated from the vertex id — covers the target, no vertex buffer.
 	float2 uv = float2((vertexId << 1) & 2, vertexId & 2);
-	return float4(uv * 2.0 - 1.0, 0.0, 1.0);
+	return LOOM_FULLSCREEN_POS(uv);
 }
 
 [shader("fragment")]

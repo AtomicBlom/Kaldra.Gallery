@@ -24,7 +24,7 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 
 	VsOut output;
 	output.uv = uv;
-	output.position = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+	output.position = LOOM_FULLSCREEN_POS(uv);
 	return output;
 }
 

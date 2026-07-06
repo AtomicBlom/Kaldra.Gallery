@@ -46,9 +46,9 @@ async Task BootAsync()
 	var (width, height) = App.ParseSize(Host.GetCanvasSize("#loom-canvas"));
 	var engine = backend.Create(surface, width, height, settings);
 
-	// First real 3D scene on the WebGPU backend: a lit cube + ground plane with a depth buffer and an orbiting
-	// camera — exercising meshes, per-draw + constants uniforms, and the depth path end to end.
-	var demo = new CubeLightingDemo(engine);
+	// Pick the demo from ?demo= (or the capture name, so the harness selects a demo by capturing it); default cube.
+	var demoName = QueryValue(query, "demo") ?? captureName;
+	var demo = WebDemos.Create(demoName, engine);
 	engine.SetGraph(demo.Build(width, height));
 
 	App.Attach(engine, demo, captureName);
@@ -95,7 +95,7 @@ internal static class App
 	}
 
 	private static IEngine? _engine;
-	private static CubeLightingDemo? _demo;
+	private static IWebDemo? _demo;
 	private static double _lastTimestampMs;
 	private static float _time;
 
@@ -106,7 +106,7 @@ internal static class App
 	private const int CaptureFrame = 60;
 	private static int _frame;
 
-	public static void Attach(IEngine engine, CubeLightingDemo demo, string? captureName)
+	public static void Attach(IEngine engine, IWebDemo demo, string? captureName)
 	{
 		_engine = engine;
 		_demo = demo;
