@@ -37,7 +37,7 @@ async Task BootAsync()
 	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
 	// Render at the canvas's real display resolution (CSS size × devicePixelRatio) so the output fills the window
 	// crisply — the engine's size, the canvas backing store, and the viewport all agree.
-	var (width, height) = ParseSize(Host.GetCanvasSize("#loom-canvas"));
+	var (width, height) = App.ParseSize(Host.GetCanvasSize("#loom-canvas"));
 	var engine = backend.Create(surface, width, height, settings);
 
 	// First real 3D scene on the WebGPU backend: a lit cube + ground plane with a depth buffer and an orbiting
@@ -48,6 +48,7 @@ async Task BootAsync()
 	App.Attach(engine, demo);
 	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
+	Host.StartResizeHandler(App.Resize);
 }
 
 // Resolve a demo shader artifact (e.g. "lit.wgsl" / "lit.wgsl.json") from this assembly's embedded resources.
@@ -62,19 +63,19 @@ static byte[]? ResolveEmbeddedShader(string nameWithExtension)
 	return bytes;
 }
 
-// Parse the "w,h" device-pixel size the JS side reports for the canvas.
-static (int Width, int Height) ParseSize(string wh)
-{
-	var parts = wh.Split(',');
-	return parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h)
-		? (Math.Max(1, w), Math.Max(1, h))
-		: (1280, 720);
-}
-
 /// <summary>The per-frame driver: the browser's requestAnimationFrame calls <see cref="Frame"/>, which advances
 /// time and renders one Loom frame.</summary>
 internal static class App
 {
+	/// <summary>Parse the "w,h" device-pixel size the JS side reports for the canvas.</summary>
+	public static (int Width, int Height) ParseSize(string wh)
+	{
+		var parts = wh.Split(',');
+		return parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h)
+			? (Math.Max(1, w), Math.Max(1, h))
+			: (1280, 720);
+	}
+
 	private static IEngine? _engine;
 	private static CubeLightingDemo? _demo;
 	private static double _lastTimestampMs;
@@ -87,6 +88,24 @@ internal static class App
 	}
 
 	private static bool _faulted;
+
+	/// <summary>Re-fit the render resolution and camera aspect to the canvas's new display size after a window resize.</summary>
+	public static void Resize()
+	{
+		if (_engine is null || _demo is null || _faulted)
+			return;
+		var (width, height) = ParseSize(Host.GetCanvasSize("#loom-canvas"));
+		try
+		{
+			_engine.Resize(width, height);
+			_demo.Resize(width, height);
+		}
+		catch (Exception ex)
+		{
+			_faulted = true;
+			Host.SetStatus($"RESIZE ERROR: {ex.GetType().Name}: {ex.Message}");
+		}
+	}
 
 	public static void Frame(double timestampMs)
 	{
@@ -129,4 +148,7 @@ internal static partial class Host
 
 	[JSImport("startFrameLoop", "loom-webgpu")]
 	public static partial void StartFrameLoop([JSMarshalAs<JSType.Function<JSType.Number>>] Action<double> onFrame);
+
+	[JSImport("startResizeHandler", "loom-webgpu")]
+	public static partial void StartResizeHandler([JSMarshalAs<JSType.Function>] Action onResize);
 }
