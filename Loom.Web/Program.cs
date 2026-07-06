@@ -31,9 +31,15 @@ async Task BootAsync()
 	var capsJson = await Host.InitDevice("#loom-canvas", WebGpuProtocol.Version);
 	var surface = WebGpuSurface.FromCapsJson("#loom-canvas", capsJson);
 
+	// Capture mode (?capture=<name>): render on a frozen clock and grab frame 60, matching the desktop --capture
+	// protocol so the two are pixel-comparable. &post routes the PNG to the diff harness's server instead of a download.
+	var query = Host.GetLocationSearch();
+	var captureName = QueryValue(query, "capture");
+	var captureViaPost = query.Contains("post", StringComparison.Ordinal);
+
 	// The demo shaders (lit, gbuffer, …) are embedded in this WASM assembly as WGSL under "Loom.Web.Shaders.";
 	// resolve them by artifact name so the backend finds them alongside its own engine shaders.
-	var settings = new WebGpuEngineSettings { EnableValidation = true, ShaderResolver = ResolveEmbeddedShader };
+	var settings = new WebGpuEngineSettings { EnableValidation = true, ShaderResolver = ResolveEmbeddedShader, CaptureViaPost = captureViaPost };
 	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
 	// Render at the canvas's real display resolution (CSS size × devicePixelRatio) so the output fills the window
 	// crisply — the engine's size, the canvas backing store, and the viewport all agree.
@@ -45,10 +51,22 @@ async Task BootAsync()
 	var demo = new CubeLightingDemo(engine);
 	engine.SetGraph(demo.Build(width, height));
 
-	App.Attach(engine, demo);
+	App.Attach(engine, demo, captureName);
 	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
 	Host.StartResizeHandler(App.Resize);
+}
+
+// Extract a query-string value (e.g. "?capture=cube&post" → QueryValue(…, "capture") == "cube").
+static string? QueryValue(string query, string key)
+{
+	foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+	{
+		var eq = pair.IndexOf('=');
+		if (eq > 0 && pair[..eq] == key)
+			return Uri.UnescapeDataString(pair[(eq + 1)..]);
+	}
+	return null;
 }
 
 // Resolve a demo shader artifact (e.g. "lit.wgsl" / "lit.wgsl.json") from this assembly's embedded resources.
@@ -81,10 +99,18 @@ internal static class App
 	private static double _lastTimestampMs;
 	private static float _time;
 
-	public static void Attach(IEngine engine, CubeLightingDemo demo)
+	// Capture mode: a frozen clock (fixed 1/60 s per frame) and a one-shot grab at frame 60, so the browser capture
+	// matches the deterministic desktop --capture frame for a pixel diff.
+	private static string? _captureName;
+	private const float CaptureDelta = 1f / 60f;
+	private const int CaptureFrame = 60;
+	private static int _frame;
+
+	public static void Attach(IEngine engine, CubeLightingDemo demo, string? captureName)
 	{
 		_engine = engine;
 		_demo = demo;
+		_captureName = captureName;
 	}
 
 	private static bool _faulted;
@@ -111,9 +137,23 @@ internal static class App
 	{
 		if (_engine is null || _demo is null || _faulted)
 			return;
-		var delta = _lastTimestampMs > 0 ? (timestampMs - _lastTimestampMs) / 1000.0 : 1.0 / 60.0;
-		_lastTimestampMs = timestampMs;
-		_time += (float)delta;
+
+		double delta;
+		if (_captureName is not null)
+		{
+			// Frozen clock: advance a fixed step per frame so the captured frame is deterministic.
+			delta = CaptureDelta;
+			_time = _frame * CaptureDelta;
+			if (_frame == CaptureFrame)
+				_engine.RequestCapture(_captureName);
+		}
+		else
+		{
+			delta = _lastTimestampMs > 0 ? (timestampMs - _lastTimestampMs) / 1000.0 : 1.0 / 60.0;
+			_lastTimestampMs = timestampMs;
+			_time += (float)delta;
+		}
+
 		try
 		{
 			_demo.Update(_time);
@@ -124,6 +164,7 @@ internal static class App
 			_faulted = true;
 			Host.SetStatus($"RENDER ERROR: {ex.GetType().Name}: {ex.Message}");
 		}
+		_frame++;
 	}
 }
 
