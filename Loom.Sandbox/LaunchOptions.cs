@@ -28,6 +28,10 @@ internal sealed record LaunchOptions
 	/// <summary>Request true HDR (scRGB) display output.</summary>
 	public bool Hdr { get; init; }
 
+	/// <summary>Draw the Dear ImGui overlay (menu bar + HUD). On by default; <c>--no-hud</c> suppresses it so a
+	/// capture holds only the demo's own output — the apples-to-apples reference for the chrome-free WebGPU backend.</summary>
+	public bool Hud { get; init; } = true;
+
 	/// <summary>Watch the loose shader directory and hot-reload rebuilt artifacts (dev only).</summary>
 	public bool WatchShaders { get; init; }
 
@@ -74,6 +78,7 @@ internal sealed record LaunchOptions
 		  --vsync <on|off>          Explicit form of the above.
 		  --max-fps <n>             Frame-rate cap for the no-vsync loop (0 = unlimited).
 		  --hdr                     Request true HDR (scRGB) display output.
+		  --no-hud                  Suppress the ImGui overlay (menu bar + HUD) for a chrome-free capture.
 
 		Demo selection:
 		  --demo <name|index>       Start on this demo: a 0-based index, an exact name, or a unique
@@ -101,6 +106,7 @@ internal sealed record LaunchOptions
 		var vsync = true;
 		var maxFps = 0.0;
 		var hdr = false;
+		var hud = true;
 		var watch = false;
 		string? demo = null;
 		string? dumpGraph = null;
@@ -153,6 +159,7 @@ internal sealed record LaunchOptions
 						if (maxFps < 0) return Fail("--max-fps must be non-negative.");
 						break;
 					case "--hdr": hdr = Flag(); break;
+					case "--no-hud": hud = false; break;
 					case "--watch-shaders": watch = Flag(); break;
 					case "--demo": demo = Value(); break;
 					case "--dump-graph": dumpGraph = Value(); break;
@@ -180,6 +187,7 @@ internal sealed record LaunchOptions
 			VSync = vsync,
 			MaxFps = maxFps,
 			Hdr = hdr,
+			Hud = hud,
 			WatchShaders = watch,
 			Demo = demo,
 			DumpGraph = dumpGraph,

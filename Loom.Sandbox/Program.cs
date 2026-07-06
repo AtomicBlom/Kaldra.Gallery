@@ -111,7 +111,9 @@ internal static class Program
 		ImGui.StyleColorsDark();
 		engine.ResourceInspectionEnabled = true;
 		var imguiPainter = ImGuiPainter.Create(engine);
-		DemoGraph.Overlay = imguiPainter;
+		// The demos bake a `hud` pass that composites this overlay; leaving it unset (--no-hud) makes that pass a
+		// no-op, so a capture holds only the demo's own output — the chrome-free reference for the WebGPU backend.
+		DemoGraph.Overlay = opts.Hud ? imguiPainter : null;
 		var inspectIds = new List<int>();
 		var showDemoWindow = false;
 		var showInspect = opts.Inspect; // auto-open for headless capture verification

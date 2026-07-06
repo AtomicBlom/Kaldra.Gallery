@@ -42,8 +42,13 @@ async Task BootAsync()
 	var settings = new WebGpuEngineSettings { EnableValidation = true, ShaderResolver = ResolveEmbeddedShader, CaptureViaPost = captureViaPost };
 	var backend = Engine.AvailableEngines.First(e => e.Name == "WebGPU");
 	// Render at the canvas's real display resolution (CSS size × devicePixelRatio) so the output fills the window
-	// crisply — the engine's size, the canvas backing store, and the viewport all agree.
-	var (width, height) = App.ParseSize(Host.GetCanvasSize("#loom-canvas"));
+	// crisply — the engine's size, the canvas backing store, and the viewport all agree. In capture mode, override
+	// to the desktop --capture framebuffer size instead: the frame is read off the backbuffer texture (independent
+	// of the canvas's display size), so a fixed size makes the browser capture pixel-comparable with the Vulkan
+	// reference regardless of the headless browser's viewport chrome.
+	var (width, height) = captureName is not null
+		? (App.CaptureWidth, App.CaptureHeight)
+		: App.ParseSize(Host.GetCanvasSize("#loom-canvas"));
 	var engine = backend.Create(surface, width, height, settings);
 
 	// Pick the demo from ?demo= (or the capture name, so the harness selects a demo by capturing it); default cube.
@@ -106,6 +111,11 @@ internal static class App
 	private const int CaptureFrame = 60;
 	private static int _frame;
 
+	/// <summary>The fixed render resolution used in capture mode — the desktop sandbox's <c>--capture</c> framebuffer
+	/// size, so a browser capture is pixel-comparable with the Vulkan reference no matter the headless viewport.</summary>
+	public const int CaptureWidth = 1280;
+	public const int CaptureHeight = 720;
+
 	public static void Attach(IEngine engine, IWebDemo demo, string? captureName)
 	{
 		_engine = engine;
@@ -118,7 +128,9 @@ internal static class App
 	/// <summary>Re-fit the render resolution and camera aspect to the canvas's new display size after a window resize.</summary>
 	public static void Resize()
 	{
-		if (_engine is null || _demo is null || _faulted)
+		// In capture mode the render size is pinned to the reference framebuffer size; ignore viewport resizes so
+		// the captured frame stays pixel-comparable with the desktop reference.
+		if (_engine is null || _demo is null || _faulted || _captureName is not null)
 			return;
 		var (width, height) = ParseSize(Host.GetCanvasSize("#loom-canvas"));
 		try
