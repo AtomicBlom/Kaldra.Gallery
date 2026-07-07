@@ -52,11 +52,13 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 
 float sampleCascade(int cascade, float2 uv)
 {
+	// SampleLevel (explicit LOD 0), not Sample: the cascade selection makes this non-uniform control flow, which WGSL
+	// forbids for the derivative-taking Sample. The shadow maps are single-mip, so the result is identical on desktop.
 	if (cascade == 0)
-		return cascade0.Sample(uv).r;
+		return cascade0.SampleLevel(uv, 0.0).r;
 	if (cascade == 1)
-		return cascade1.Sample(uv).r;
-	return cascade2.Sample(uv).r;
+		return cascade1.SampleLevel(uv, 0.0).r;
+	return cascade2.SampleLevel(uv, 0.0).r;
 }
 
 // 1.0 = lit, 0.25 = in shadow (ambient only). Projects the world position into the chosen cascade's clip space
@@ -64,13 +66,15 @@ float sampleCascade(int cascade, float2 uv)
 float sunVisibility(float3 worldPos, int cascade)
 {
 	float4 lightClip = mul(csm.cascadeViewProj[cascade], float4(worldPos, 1.0));
-	float3 ndc = lightClip.xyz / lightClip.w;
-	float2 uv = ndc.xy * 0.5 + 0.5; // clip [-1,1] → shadow uv [0,1] (Vulkan-convention clip space on both backends)
-	if (any(uv < 0.0) || any(uv > 1.0) || ndc.z > 1.0)
+	// Screen uv of the reprojected point (Y-flipped under WGSL, since the shadow map was rendered with the same
+	// uncorrected view-projection); depth stays lightClip.z/.w — the clip-space correction only flips Y, not Z.
+	float2 uv = LOOM_CLIP_TO_UV(lightClip);
+	float ndcZ = lightClip.z / lightClip.w;
+	if (any(uv < 0.0) || any(uv > 1.0) || ndcZ > 1.0)
 		return 1.0;
 	float bias = 0.0015 * (cascade + 1);
 	float nearest = sampleCascade(cascade, uv);
-	return ndc.z - bias > nearest ? 0.25 : 1.0;
+	return ndcZ - bias > nearest ? 0.25 : 1.0;
 }
 
 [shader("fragment")]

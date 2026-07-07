@@ -39,6 +39,7 @@
          browser demos can't drift from the desktop originals. These are pure Loom.Core/Graph code (no host coupling),
          so they compile into the WASM assembly unchanged under their own Loom.Sandbox.Demos namespace. -->
     <Compile Include="..\Loom.Sandbox\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
+    <Compile Include="..\Loom.Sandbox\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
   </ItemGroup>
 
   <ItemGroup>
