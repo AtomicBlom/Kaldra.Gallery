@@ -42,14 +42,18 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 float sunVisibility(float3 worldPos)
 {
 	float4 lightClip = mul(pc.sunViewProj, float4(worldPos, 1.0));
-	float3 ndc = lightClip.xyz / lightClip.w;
-	float2 uv = ndc.xy * 0.5 + 0.5; // clip [-1,1] → shadow-map uv [0,1] (Vulkan-convention clip space on both backends)
+	// Screen uv of the reprojected point (Y-flipped under WGSL — the shadow map was drawn with the same uncorrected
+	// view-projection); depth stays lightClip.z/.w, since the clip-space correction only flips Y, not Z.
+	float2 uv = LOOM_CLIP_TO_UV(lightClip);
+	float ndcZ = lightClip.z / lightClip.w;
 
-	if (any(uv < 0.0) || any(uv > 1.0) || ndc.z > 1.0)
+	if (any(uv < 0.0) || any(uv > 1.0) || ndcZ > 1.0)
 		return 1.0; // outside the sun's frustum — treat as lit
 
-	float nearest = shadowMap.Sample(uv).r;
-	return ndc.z - 0.0025 > nearest ? 0.25 : 1.0; // occluded → keep only ambient
+	// SampleLevel (explicit LOD 0), not Sample: this runs in non-uniform control flow (past the frustum test), which
+	// WGSL forbids for the derivative-taking Sample. The shadow map is single-mip, so it is identical on desktop.
+	float nearest = shadowMap.SampleLevel(uv, 0.0).r;
+	return ndcZ - 0.0025 > nearest ? 0.25 : 1.0; // occluded → keep only ambient
 }
 
 [shader("fragment")]

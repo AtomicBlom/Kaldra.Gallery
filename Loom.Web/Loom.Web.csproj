@@ -41,6 +41,7 @@
     <Compile Include="..\Loom.Sandbox\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
     <Compile Include="..\Loom.Sandbox\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\DemoSun.cs" Link="Demos\Shared\DemoSun.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SandboxVertexLayouts.cs" Link="Demos\Shared\SandboxVertexLayouts.cs" />
   </ItemGroup>
 
   <ItemGroup>
