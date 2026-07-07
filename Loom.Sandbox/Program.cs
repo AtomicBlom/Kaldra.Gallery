@@ -485,7 +485,10 @@ internal static class Program
 			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
 			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
 			// renders the list by id via the painter (scene.UI).
-			overlay.Root.Content = currentDemo == interactiveIndex ? interactivePage
+			// --no-hud clears the overlay too, so a capture holds only the demo's own output (the ImGui bar is
+			// suppressed via DemoGraph.Overlay above; this is its SUIsei game-UI counterpart).
+			overlay.Root.Content = !opts.Hud ? null
+				: currentDemo == interactiveIndex ? interactivePage
 				: currentDemo == groupOpacityIndex ? groupOpacityPanel
 				: mu1Panel;
 
