@@ -3,6 +3,10 @@
   <!-- Shared shader-build props (defines LoomShaderIncludeDir = Loom.Shaders/Shaders for the platform module). -->
   <Import Project="..\build\Loom.Sdk\Loom.Shaders.props" />
 
+  <!-- XAML → typed control-tree generator: registers UI/*.xaml as AdditionalFiles + the SUIsei.SourceGen analyzer,
+       so the interactive UI demo's page compiles to a typed tree + x:Bind/event glue (same wiring as the sandbox). -->
+  <Import Project="..\external\SUIsei\build\SUIsei.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -32,6 +36,18 @@
     <ProjectReference Include="..\Loom.Graph\Loom.Graph.csproj" />
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
     <ProjectReference Include="..\Loom.Concepts\Loom.Concepts.csproj" />
+    <!-- The SUIsei UI runtime (retained control tree + compositor, NativeAOT-clean, pure managed) and its
+         backend-neutral engine bridge (UIPainter, public-API-only). Both link into the WASM app unchanged, so the
+         browser drives a real UIHost exactly as the desktop sandbox does. -->
+    <ProjectReference Include="..\Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
+    <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The game-UI shader lives with its integration (Loom.UI.SUIsei/Shaders); pull it into this app's WGSL
+         emission so it embeds as "Loom.Web.Shaders.ui.wgsl" beside the demo shaders. It resolves the same
+         loom_platform.module.slang include the sandbox shaders do (LoomShaderIncludeDir is already set). -->
+    <LoomSlangEntry Include="..\Loom.UI.SUIsei\Shaders\ui.slang" />
   </ItemGroup>
 
   <ItemGroup>
@@ -58,5 +74,9 @@
   </ItemGroup>
 
   <Import Project="..\build\Loom.Sdk\Loom.Shaders.targets" />
+
+  <!-- Registers UI/*.xaml as AdditionalFiles for the SUIsei.SourceGen analyzer (imported after the body so the
+       source dir is set). -->
+  <Import Project="..\external\SUIsei\build\SUIsei.targets" />
 
 </Project>

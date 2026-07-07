@@ -485,11 +485,13 @@ internal static class Program
 			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
 			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
 			// renders the list by id via the painter (scene.UI).
-			// --no-hud clears the overlay too, so a capture holds only the demo's own output (the ImGui bar is
-			// suppressed via DemoGraph.Overlay above; this is its SUIsei game-UI counterpart).
-			overlay.Root.Content = !opts.Hud ? null
-				: currentDemo == interactiveIndex ? interactivePage
+			// The UI demos' page IS the demo subject, so it stays under --no-hud; the generic panel is chrome and is
+			// suppressed there (the ImGui bar is suppressed via DemoGraph.Overlay above). This makes a --no-hud capture
+			// of a UI demo page-only — the chrome-free reference the browser WebGPU backend (no ImGui) matches.
+			overlay.Root.Content =
+				currentDemo == interactiveIndex ? interactivePage
 				: currentDemo == groupOpacityIndex ? groupOpacityPanel
+				: !opts.Hud ? null
 				: mu1Panel;
 
 			// Deterministic capture: with no live mouse, inject one press+release over the page's button (Border at

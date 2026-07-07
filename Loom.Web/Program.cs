@@ -60,6 +60,7 @@ async Task BootAsync()
 	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
 	Host.StartResizeHandler(App.Resize);
+	Host.StartPointerHandler(App.Pointer);
 }
 
 // Extract a query-string value (e.g. "?capture=cube&post" → QueryValue(…, "capture") == "cube").
@@ -169,6 +170,10 @@ internal static class App
 		try
 		{
 			_demo.Update(_time);
+			// A UI-hosting demo advances its host (input → layout → composite) before the graph records, since the
+			// ui pass pulls this frame's composited draw list. In capture mode it also drives the deterministic click.
+			if (_demo is IWebInteractive interactive)
+				interactive.Advance((float)delta, _time, _frame, _captureName is not null);
 			_engine.Render(new FrameInputs { DeltaSeconds = delta, Time = _time });
 		}
 		catch (Exception ex)
@@ -177,6 +182,13 @@ internal static class App
 			Host.SetStatus($"RENDER ERROR: {ex.GetType().Name}: {ex.Message}");
 		}
 		_frame++;
+	}
+
+	/// <summary>Forward a DOM pointer event (device pixels; phase 0 = move, 1 = down, 2 = up) to the active demo.</summary>
+	public static void Pointer(double x, double y, double phase)
+	{
+		if (_demo is IWebInteractive interactive && !_faulted)
+			interactive.Pointer((float)x, (float)y, (int)phase);
 	}
 }
 
@@ -204,4 +216,7 @@ internal static partial class Host
 
 	[JSImport("startResizeHandler", "loom-webgpu")]
 	public static partial void StartResizeHandler([JSMarshalAs<JSType.Function>] Action onResize);
+
+	[JSImport("startPointerHandler", "loom-webgpu")]
+	public static partial void StartPointerHandler([JSMarshalAs<JSType.Function<JSType.Number, JSType.Number, JSType.Number>>] Action<double, double, double> onPointer);
 }
