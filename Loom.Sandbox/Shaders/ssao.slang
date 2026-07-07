@@ -59,12 +59,15 @@ float fragmentMain(VsOut input) : SV_Target
 	static const float intensity = 1.4;
 	static const float bias = 0.025;    // world units of view-space depth (see the in-front test below)
 
-	float4 origin = positionTex.Sample(input.uv);
+	// SampleLevel (explicit LOD 0), not Sample: these G-buffer targets are single-mip, so the result is identical,
+	// but the sampling happens inside non-uniform control flow (the early-out below and the kernel loop's continue),
+	// which WGSL forbids for the derivative-taking Sample. Explicit-LOD sampling has no such restriction.
+	float4 origin = positionTex.SampleLevel(input.uv, 0.0);
 	if (origin.a < 0.5)
 		return 1.0; // background — fully unoccluded
 
 	float3 p = origin.xyz;
-	float3 n = normalize(normalTex.Sample(input.uv).rgb * 2.0 - 1.0);
+	float3 n = normalize(normalTex.SampleLevel(input.uv, 0.0).rgb * 2.0 - 1.0);
 
 	// Per-pixel rotated tangent basis (Gram-Schmidt) so the fixed kernel varies across the image.
 	float angle = hash(input.uv) * 6.2831853;
@@ -80,11 +83,11 @@ float fragmentMain(VsOut input) : SV_Target
 		float3 q = p + dir * radius;                  // a point in the hemisphere
 
 		float4 qClip = mul(pc.viewProj, float4(q, 1.0));
-		float2 uv = qClip.xy / qClip.w * 0.5 + 0.5;
+		float2 uv = LOOM_CLIP_TO_UV(qClip);
 		if (any(uv < 0.0) || any(uv > 1.0))
 			continue;
 
-		float4 surf = positionTex.Sample(uv);
+		float4 surf = positionTex.SampleLevel(uv, 0.0);
 		if (surf.a < 0.5)
 			continue;                                 // sample landed on background
 
