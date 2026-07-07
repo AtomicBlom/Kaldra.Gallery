@@ -43,6 +43,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Demo assets embedded into the WASM assembly (no filesystem in the browser), resolved by logical name. -->
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\rigged_bar.glb" LogicalName="Loom.Web.Assets.rigged_bar.glb" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Hermetic slangc for compiling the demo shaders to WGSL (build-machine only). -->
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
