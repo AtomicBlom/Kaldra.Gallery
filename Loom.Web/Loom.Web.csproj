@@ -35,6 +35,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Reusable graph fragments the sandbox authors — shared verbatim by linking (not copying) the source, so the
+         browser demos can't drift from the desktop originals. These are pure Loom.Core/Graph code (no host coupling),
+         so they compile into the WASM assembly unchanged under their own Loom.Sandbox.Demos namespace. -->
+    <Compile Include="..\Loom.Sandbox\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Hermetic slangc for compiling the demo shaders to WGSL (build-machine only). -->
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
