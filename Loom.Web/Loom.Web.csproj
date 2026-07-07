@@ -40,11 +40,15 @@
          so they compile into the WASM assembly unchanged under their own Loom.Sandbox.Demos namespace. -->
     <Compile Include="..\Loom.Sandbox\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
     <Compile Include="..\Loom.Sandbox\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DemoSun.cs" Link="Demos\Shared\DemoSun.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Demo assets embedded into the WASM assembly (no filesystem in the browser), resolved by logical name. -->
     <EmbeddedResource Include="..\Loom.Sandbox\Assets\rigged_bar.glb" LogicalName="Loom.Web.Assets.rigged_bar.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\cube.gltf" LogicalName="Loom.Web.Assets.cube.gltf" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\brick_albedo.png" LogicalName="Loom.Web.Assets.brick_albedo.png" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\brick_normal.png" LogicalName="Loom.Web.Assets.brick_normal.png" />
   </ItemGroup>
 
   <ItemGroup>
