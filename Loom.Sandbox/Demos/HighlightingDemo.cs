@@ -92,7 +92,7 @@ internal sealed class HighlightingDemo : IDemo
 
 		// Nearest upscale from the low-res world to the native screen.
 		g.Pass("blit").Samples(outlined).Writes(screen).Draw(ctx => ctx.FullScreen("blit", outlined));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

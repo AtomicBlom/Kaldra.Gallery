@@ -109,7 +109,7 @@ internal sealed class Debug2DDemo : IDemo
 			.Writes(screen)
 			.Draw(ctx => ctx.FullScreen("gbufview2d", albedo, normal, lit));
 
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

@@ -53,7 +53,7 @@ internal sealed class BloomDemo : IDemo
 		var glow = g.Bloom(hdr, threshold: 1.0f, mips: 5, intensity: 1.0f);
 
 		g.Pass("blit").Samples(glow).Writes(screen).Draw(ctx => ctx.FullScreen("blit", glow));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

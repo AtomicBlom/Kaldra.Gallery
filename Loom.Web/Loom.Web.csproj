@@ -13,6 +13,22 @@
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Marks the browser build so demo source shared (linked) from the sandbox can compile out the few desktop-only
+         bits — chiefly the Dear ImGui debug panels, whose native library the browser build doesn't reference. -->
+    <DefineConstants>$(DefineConstants);LOOM_WEB</DefineConstants>
+    <!-- Drop the ICU database: the demos and SUIsei text do no culture-sensitive formatting, so invariant mode is
+         behaviourally identical here and saves the multi-hundred-KB ICU payload. Set unconditionally so a debug run
+         behaves the same as the shipped build. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- Release/publish shipping build: compile the engine + demo hot paths to native WebAssembly (the Mono interpreter
+       stays as the fallback for anything AOT can't cover) for game-grade frame times, and relink the runtime with the
+       unused ICALL/managed surface stripped. AOT roughly doubles the .wasm download but is the lever that makes the
+       real render loop fast; keep it off for debug builds so the inner-loop build stays quick. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -58,6 +74,36 @@
     <Compile Include="..\Loom.Sandbox\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\DemoSun.cs" Link="Demos\Shared\DemoSun.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\SandboxVertexLayouts.cs" Link="Demos\Shared\SandboxVertexLayouts.cs" />
+    <!-- The demo scaffolding shared with the sandbox: the shared-resource carrier, geometry builders, the per-draw
+         uniform block, the mesh-draw helper, and the graph helpers (its Dear ImGui HUD is #if'd out for the browser). -->
+    <Compile Include="..\Loom.Sandbox\Demos\IDemo.cs" Link="Demos\Shared\IDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DemoScene.cs" Link="Demos\Shared\DemoScene.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DemoCamera.cs" Link="Demos\Shared\DemoCamera.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\Geometry.cs" Link="Demos\Shared\Geometry.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\PerDraw.cs" Link="Demos\Shared\PerDraw.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DemoDraw.cs" Link="Demos\Shared\DemoDraw.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DemoGraph.cs" Link="Demos\Shared\DemoGraph.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DebugSlider.cs" Link="Demos\Shared\DebugSlider.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\DemoShell.cs" Link="Demos\Shared\DemoShell.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The demos themselves, shared verbatim with the sandbox (one IDemo per file). The browser host (Program.cs,
+         WebGallery) drives them exactly as the desktop launcher does; ImGui debug panels are #if'd out for the browser
+         and asset loads route through DemoScene.Asset (embedded resources here, files on desktop). -->
+    <Compile Include="..\Loom.Sandbox\Demos\CubeLightingDemo.cs" Link="Demos\CubeLightingDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\ParticlesDemo.cs" Link="Demos\ParticlesDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\HighlightingDemo.cs" Link="Demos\HighlightingDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\BloomDemo.cs" Link="Demos\BloomDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\TonemappingDemo.cs" Link="Demos\TonemappingDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SsaoDemo.cs" Link="Demos\SsaoDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\CascadedShadowsDemo.cs" Link="Demos\CascadedShadowsDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SkinningDemo.cs" Link="Demos\SkinningDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\GltfDemo.cs" Link="Demos\GltfDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\UIInteractiveDemo.cs" Link="Demos\UIInteractiveDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\UIGroupOpacityDemo.cs" Link="Demos\UIGroupOpacityDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\FullReferenceDemo.cs" Link="Demos\FullReferenceDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\InWorldUIDemo.cs" Link="Demos\InWorldUIDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -71,6 +117,8 @@
   <ItemGroup>
     <!-- Hermetic slangc for compiling the demo shaders to WGSL (build-machine only). -->
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
+    <!-- Source-gen MVVM for the demo shell's per-demo debug panels (shared with the sandbox via linked demo files). -->
+    <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
 
   <Import Project="..\build\Loom.Sdk\Loom.Shaders.targets" />

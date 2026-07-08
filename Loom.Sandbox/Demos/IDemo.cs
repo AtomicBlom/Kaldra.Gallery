@@ -50,11 +50,13 @@ internal interface IDemo
 	IReadOnlyList<(System.Numerics.Vector3 A, System.Numerics.Vector3 B)> DebugWorldLines(float time) => [];
 
 	/// <summary>
-	/// Optional Dear ImGui controls for this demo — drawn by the launcher inside a "Debug" menu/window so a
-	/// demo can expose its own toggles (cascade-tint, time-of-day scrubber, skeleton overlay, bind-vs-animated).
-	/// Default no-op. Only meaningful when ImGui is enabled.
+	/// Optional debug controls for this demo (cascade-tint, time-of-day scrubber, skeleton overlay,
+	/// bind-vs-animated) — a SUIsei element the shared demo shell hosts in its debug panel while this demo is
+	/// active. Built once and reused across frames; a demo backing it with an observable view-model (e.g.
+	/// <c>CommunityToolkit.Mvvm</c>'s <c>[ObservableProperty]</c>) keeps the panel's controls and the demo's own
+	/// state in sync without any host-side wiring. Default none.
 	/// </summary>
-	void DrawDebugUI() { }
+	UIElement? DebugPanel => null;
 
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;

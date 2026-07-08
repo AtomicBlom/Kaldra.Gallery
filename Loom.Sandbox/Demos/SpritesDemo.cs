@@ -94,7 +94,7 @@ internal sealed class SpritesDemo : IDemo
 			.Writes(screen)
 			.Draw(ctx => ctx.FullScreen("blit", lit));
 
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

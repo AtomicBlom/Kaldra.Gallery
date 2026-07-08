@@ -5,7 +5,11 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+#if LOOM_WEB
+using Loom.Web.UI;
+#else
 using Loom.Sandbox.UI;
+#endif
 using Loom.UI.SUIsei;
 using SUIsei;
 
@@ -66,8 +70,7 @@ internal sealed class InWorldUIDemo : IDemo
 
 		if (_panel is null)
 		{
-			DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
-			DemoGraph.Hud(g, screen);
+			DemoGraph.Hud(g, screen, scene);
 			g.Present(screen);
 			return;
 		}
@@ -103,8 +106,7 @@ internal sealed class InWorldUIDemo : IDemo
 				}
 			});
 
-		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

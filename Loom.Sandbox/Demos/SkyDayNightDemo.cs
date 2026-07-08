@@ -6,6 +6,9 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 
+using SUIsei;
+using SUIsei.Controls;
+
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
@@ -85,16 +88,29 @@ internal sealed class SkyDayNightDemo : IDemo
 		_engine.Write(_viewproj, _cam.ViewProjection);
 		for (var c = 0; c < CascadeCount; c++)
 			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
+		if (_sunHeightText is not null)
+			_sunHeightText.Text = $"sun height: {_sun.SunDir.Y:F2}";
 	}
 
-	public void DrawDebugUI()
+	private TextBlock? _sunHeightText;
+	private Slider? _phaseSlider;
+	private UIElement? _debugPanel;
+
+	public UIElement? DebugPanel => _debugPanel ??= BuildDebugPanel();
+
+	private UIElement BuildDebugPanel()
 	{
-		var scrub = _phaseOverride >= 0f;
-		if (ImGuiNET.ImGui.Checkbox("Scrub time of day", ref scrub))
-			_phaseOverride = scrub ? 0.25f : -1f;
-		if (_phaseOverride >= 0f)
-			ImGuiNET.ImGui.SliderFloat("Time of day", ref _phaseOverride, 0f, 1f);
-		ImGuiNET.ImGui.Text($"sun height: {_sun.SunDir.Y:F2}");
+		var scrub = new CheckBox { Content = "Scrub time of day", IsChecked = _phaseOverride >= 0f };
+		_phaseSlider = new Slider { Minimum = 0f, Maximum = 1f, Value = _phaseOverride >= 0f ? _phaseOverride : 0.25f, Visibility = _phaseOverride >= 0f ? Visibility.Visible : Visibility.Collapsed };
+		scrub.Checked += (_, _) => { _phaseOverride = _phaseSlider!.Value >= 0f ? (float)_phaseSlider.Value : 0.25f; _phaseSlider.Visibility = Visibility.Visible; };
+		scrub.Unchecked += (_, _) => { _phaseOverride = -1f; _phaseSlider!.Visibility = Visibility.Collapsed; };
+		_phaseSlider.ValueChanged += (_, _) => _phaseOverride = (float)_phaseSlider.Value;
+		_sunHeightText = new TextBlock { Text = $"sun height: {_sun.SunDir.Y:F2}", Margin = new Thickness(0f, 6f, 0f, 0f) };
+		var panel = new StackPanel();
+		panel.Children.Add(scrub);
+		panel.Children.Add(_phaseSlider);
+		panel.Children.Add(_sunHeightText);
+		return panel;
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -152,7 +168,7 @@ internal sealed class SkyDayNightDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("sky", PackSky(), depth));
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

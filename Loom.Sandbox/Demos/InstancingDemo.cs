@@ -74,7 +74,7 @@ internal sealed class InstancingDemo : IDemo
 				// The app hands the engine the culled draw list — the visible transforms compacted in Update().
 				.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "instanced", Instances = DrawCall.From(_visible.AsSpan(0, _drawn)) }));
 
-			DemoGraph.Hud(g, screen);
+			DemoGraph.Hud(g, screen, scene);
 			g.Present(screen);
 		});
 	}

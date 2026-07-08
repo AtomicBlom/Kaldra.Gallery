@@ -47,7 +47,7 @@ internal sealed class SpikeDemo : IDemo
 			.Draw(ctx => DemoDraw.Mesh(ctx, scene.Cube, "spike", Model));
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 }

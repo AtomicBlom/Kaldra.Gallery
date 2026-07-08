@@ -33,6 +33,8 @@
     <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel; the
          optional Loom.UI.ImGui package renders it through the public draw-list API (no backend ImGui dependency). -->
     <PackageReference Include="ImGui.NET" />
+    <!-- Source-gen MVVM for the demo shell's per-demo debug panels (shared with Loom.Web via linked demo files). -->
+    <PackageReference Include="CommunityToolkit.Mvvm" />
     <!-- Hermetic slangc for the SDK's shader compile (bundled in the package; win-x64 / win-arm64). -->
     <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
     <!-- Hermetic DXC for signing the app's DXIL shaders; same package every shader-compiling project references. -->

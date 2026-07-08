@@ -202,7 +202,7 @@ internal sealed class StylizedDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("grade", [1.06f, 0.98f, 0.82f, 0.7f, 1.1f, 0.9f, 0f, 0f], lit));
 
 		g.Pass("blit").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

@@ -71,7 +71,7 @@ internal sealed class ShadowsDemo : IDemo
 			.Writes(screen)
 			.Draw(ctx => ctx.FullScreen("light_shadow", DemoGraph.Mat(_sunCam.ViewProjection), albedo, normal, position, shadowMap));
 
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

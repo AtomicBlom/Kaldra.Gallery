@@ -1,11 +1,16 @@
 using System.Numerics;
 
+using CommunityToolkit.Mvvm.ComponentModel;
+
 using Loom.Assets;
 using Loom.Core.Animation;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+
+using SUIsei;
+using SUIsei.Controls;
 
 namespace Loom.Sandbox.Demos;
 
@@ -18,7 +23,7 @@ namespace Loom.Sandbox.Demos;
 /// unchanged techniques. The <c>.ReadWrites</c> → <c>.ReadsVertex</c> edges let the engine derive the
 /// compute→vertex barrier, exactly as for GPU particles.
 /// </summary>
-internal sealed class SkinningDemo : IDemo
+internal sealed partial class SkinningDemo : ObservableObject, IDemo
 {
 	public string Name => "Skinning";
 
@@ -28,9 +33,11 @@ internal sealed class SkinningDemo : IDemo
 	private AnimationClip _clip = null!;
 	private Matrix4x4[] _palette = [];
 	private Matrix4x4[] _jointWorld = [];
-	private bool _showSkeleton = true; // skeleton overlay (bones + joint axes), on by default for the demo
 	private IEngine _engine = null!;
 	private ConstantsHandle _viewproj = null!;
+
+	[ObservableProperty]
+	private bool _showSkeleton = true; // skeleton overlay (bones + joint axes), on by default for the demo
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -41,25 +48,13 @@ internal sealed class SkinningDemo : IDemo
 		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
-
-		// Load the committed rigged bar and mint a skinned mesh + capture its skeleton/clip for per-frame sampling.
-		var path = Path.Combine(AppContext.BaseDirectory, "assets", "rigged_bar.glb");
-		var model = GltfLoader.Load(path);
-		if (model.Skeleton is null || model.Clips.Count == 0)
-			throw new InvalidOperationException($"'{path}' is not rigged (no skeleton/clips) — the skinning demo needs an animated glTF.");
-		var prim = model.Primitives[0];
-		_mesh = engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
-		_vertexCount = prim.SkinnedVertices!.Length;
-		_skeleton = model.Skeleton;
-		_clip = model.Clips[0];
-		_palette = new Matrix4x4[_skeleton.JointCount];
 	}
 
 	// The skeleton as world-space line segments — each bone (parent→joint) plus a small axis gizmo per
 	// joint. The launcher projects these to screen and draws them as the debug overlay.
 	public IReadOnlyList<(Vector3 A, Vector3 B)> DebugWorldLines(float time)
 	{
-		if (!_showSkeleton || _skeleton.JointCount == 0)
+		if (!ShowSkeleton || _skeleton.JointCount == 0)
 			return [];
 		if (_jointWorld.Length != _skeleton.JointCount)
 			_jointWorld = new Matrix4x4[_skeleton.JointCount];
@@ -82,45 +77,69 @@ internal sealed class SkinningDemo : IDemo
 		return lines;
 	}
 
-	public void DrawDebugUI()
+	private UIElement? _debugPanel;
+
+	public UIElement? DebugPanel => _debugPanel ??= BuildDebugPanel();
+
+	private UIElement BuildDebugPanel()
 	{
-		ImGuiNET.ImGui.Checkbox("Show skeleton", ref _showSkeleton);
+		var skeleton = new CheckBox { Content = "Show skeleton", IsChecked = ShowSkeleton };
+		skeleton.Checked += (_, _) => ShowSkeleton = true;
+		skeleton.Unchecked += (_, _) => ShowSkeleton = false;
+		var panel = new StackPanel();
+		panel.Children.Add(skeleton);
+		return panel;
 	}
 
-	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
+	public RenderGraph Build(DemoScene scene)
 	{
-		var screen = g.Backbuffer;
-		var lit = g.Screen.Color("lit", Format.Rgba16F);
-		var depth = g.Screen.Depth("depth", Format.Depth32F);
-		var skinned = g.Buffer("skinned", _vertexCount * 48); // MeshStandard-shaped (48 bytes) compute output
-		_viewproj = g.Constants<Matrix4x4>("skinning.viewproj");
+		// Load the committed rigged bar and mint a skinned mesh + capture its skeleton/clip for per-frame sampling. The
+		// GLB bytes come through the scene resolver (a file on desktop, an embedded resource in the browser).
+		var model = GltfLoader.LoadGlb(scene.Asset("rigged_bar.glb"));
+		if (model.Skeleton is null || model.Clips.Count == 0)
+			throw new InvalidOperationException("The rigged bar asset is not rigged (no skeleton/clips) — the skinning demo needs an animated glTF.");
+		var prim = model.Primitives[0];
+		_mesh = _engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
+		_vertexCount = prim.SkinnedVertices!.Length;
+		_skeleton = model.Skeleton;
+		_clip = model.Clips[0];
+		_palette = new Matrix4x4[_skeleton.JointCount];
 
-		// Pre-skin the bar once: sample the clip at this frame's time (looping) into the palette, then dispatch.
-		g.Compute("skin")
-			.ReadWrites(skinned)
-			.Dispatch(ctx =>
-			{
-				var t = _clip.Duration > 0f ? ctx.Time % _clip.Duration : 0f;
-				AnimationSampler.Evaluate(_skeleton, _clip, t, _palette);
-				ctx.DispatchSkin("skin", _mesh, _palette, skinned, _vertexCount);
-			});
+		return RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var lit = g.Screen.Color("lit", Format.Rgba16F);
+			var depth = g.Screen.Depth("depth", Format.Depth32F);
+			var skinned = g.Buffer("skinned", _vertexCount * 48); // MeshStandard-shaped (48 bytes) compute output
+			_viewproj = g.Constants<Matrix4x4>("skinning.viewproj");
 
-		// Draw the skinned output (forward lit) + the ground plane; the .ReadsVertex edge derives the barrier.
-		g.Pass("scene")
-			.Reads(_viewproj)
-			.Writes(lit)
-			.WritesDepth(depth)
-			.ReadsVertex(skinned)
-			.Draw(ctx =>
-			{
-				DemoDraw.Skinned(ctx, _mesh, skinned, "lit", Matrix4x4.Identity);
-				DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity);
-			});
+			// Pre-skin the bar once: sample the clip at this frame's time (looping) into the palette, then dispatch.
+			g.Compute("skin")
+				.ReadWrites(skinned)
+				.Dispatch(ctx =>
+				{
+					var t = _clip.Duration > 0f ? ctx.Time % _clip.Duration : 0f;
+					AnimationSampler.Evaluate(_skeleton, _clip, t, _palette);
+					ctx.DispatchSkin("skin", _mesh, _palette, skinned, _vertexCount);
+				});
 
-		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
-		DemoGraph.Hud(g, screen);
-		g.Present(screen);
-	});
+			// Draw the skinned output (forward lit) + the ground plane; the .ReadsVertex edge derives the barrier.
+			g.Pass("scene")
+				.Reads(_viewproj)
+				.Writes(lit)
+				.WritesDepth(depth)
+				.ReadsVertex(skinned)
+				.Draw(ctx =>
+				{
+					DemoDraw.Skinned(ctx, _mesh, skinned, "lit", Matrix4x4.Identity);
+					DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity);
+				});
+
+			g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
+			DemoGraph.Hud(g, screen, scene);
+			g.Present(screen);
+		});
+	}
 
 	// Publish this frame's view-projection for the scene pass to read.
 	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);

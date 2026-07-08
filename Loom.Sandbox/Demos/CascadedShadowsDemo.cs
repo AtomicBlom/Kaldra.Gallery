@@ -1,10 +1,15 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+using CommunityToolkit.Mvvm.ComponentModel;
+
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+
+using SUIsei;
+using SUIsei.Controls;
 
 namespace Loom.Sandbox.Demos;
 
@@ -12,10 +17,10 @@ namespace Loom.Sandbox.Demos;
 /// Cascaded shadow maps. A cube on a large ground, lit by the sun, shadowed by three cascades fitted to
 /// the camera frustum (near→far) so the shadow stays crisp across distance where a single map would smear. The
 /// deferred g-buffer feeds a <c>lighting_csm</c> pass that selects a cascade per pixel by view depth and samples
-/// that cascade's map; the cascade matrices/splits ride the per-frame uniform seam. Press the debug toggle to tint
-/// pixels by cascade (red/green/blue).
+/// that cascade's map; the cascade matrices/splits ride the per-frame uniform seam. Toggle the debug panel's
+/// checkbox to tint pixels by cascade (red/green/blue).
 /// </summary>
-internal sealed class CascadedShadowsDemo : IDemo
+internal sealed partial class CascadedShadowsDemo : ObservableObject, IDemo
 {
 	public string Name => "Cascaded shadows";
 
@@ -34,8 +39,10 @@ internal sealed class CascadedShadowsDemo : IDemo
 	private ConstantsHandle _csmSplits = null!;
 	private ConstantsHandle _viewproj = null!;
 	private readonly ConstantsHandle[] _cascadeViewproj = new ConstantsHandle[CascadeCount];
+	private TextBlock? _splitsText;
 
-	public bool DebugTint { get; set; }
+	[ObservableProperty]
+	private bool _debugTint;
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -78,14 +85,24 @@ internal sealed class CascadedShadowsDemo : IDemo
 		_engine.Write(_viewproj, _cam.ViewProjection);
 		for (var c = 0; c < CascadeCount; c++)
 			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
+		if (_splitsText is not null)
+			_splitsText.Text = $"splits: {_splits[0]:F1} / {_splits[1]:F1} / {_splits[2]:F1}";
 	}
 
-	public void DrawDebugUI()
+	private UIElement? _debugPanel;
+
+	public UIElement? DebugPanel => _debugPanel ??= BuildDebugPanel();
+
+	private UIElement BuildDebugPanel()
 	{
-		var tint = DebugTint;
-		if (ImGuiNET.ImGui.Checkbox("Cascade tint (red/green/blue by distance)", ref tint))
-			DebugTint = tint;
-		ImGuiNET.ImGui.Text($"splits: {_splits[0]:F1} / {_splits[1]:F1} / {_splits[2]:F1}");
+		var tint = new CheckBox { Content = "Cascade tint (red/green/blue by distance)", IsChecked = DebugTint };
+		tint.Checked += (_, _) => DebugTint = true;
+		tint.Unchecked += (_, _) => DebugTint = false;
+		_splitsText = new TextBlock { Text = $"splits: {_splits[0]:F1} / {_splits[1]:F1} / {_splits[2]:F1}", Margin = new Thickness(0f, 6f, 0f, 0f) };
+		var panel = new StackPanel();
+		panel.Children.Add(tint);
+		panel.Children.Add(_splitsText);
+		return panel;
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -139,7 +156,7 @@ internal sealed class CascadedShadowsDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("lighting_csm", PackParams(), albedo, normal, position, cascadeMaps[0], cascadeMaps[1], cascadeMaps[2]));
 
 		g.Pass("blit").Samples(lit).Writes(screen).Draw(ctx => ctx.FullScreen("blit", lit));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

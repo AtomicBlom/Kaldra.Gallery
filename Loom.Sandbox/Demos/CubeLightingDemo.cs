@@ -3,7 +3,6 @@ using System.Numerics;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using SUIsei;
 
 namespace Loom.Sandbox.Demos;
 
@@ -38,13 +37,12 @@ internal sealed class CubeLightingDemo : IDemo
 			.Draw(ctx =>
 			{
 				DemoDraw.Mesh(ctx, scene.Cube, "lit", Matrix4x4.Identity);
-				DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity);
+				// A non-zero objectId opts the floor out of normal-derived albedo (see lit.slang) — its face-up
+				// normal is identical to the cube's top face, so without this the two would render the same colour.
+				DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity, objectId: 1);
 			});
 
-		// The game-UI overlay: the painter submits the composited HUD list through the public draw-list API, under
-		// the debug HUD so ImGui stays on top.
-		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

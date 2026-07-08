@@ -3,7 +3,6 @@ using System.Numerics;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using SUIsei;
 
 namespace Loom.Sandbox.Demos;
 
@@ -45,8 +44,7 @@ internal sealed class UIGroupOpacityDemo : IDemo
 				DemoDraw.Mesh(ctx, scene.Plane, "lit", Matrix4x4.Identity);
 			});
 
-		DemoGraph.UI(g, screen, scene.UI, UISurface.Hud);
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

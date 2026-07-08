@@ -66,7 +66,7 @@ internal sealed class SsaoDemo : IDemo
 			.Writes(screen)
 			.Draw(ctx => ctx.FullScreen("ssao_view", albedo, aoBlur));
 
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

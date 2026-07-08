@@ -164,7 +164,7 @@ internal sealed class PixelArtDemo : IDemo
 			.Writes(screen)
 			.Draw(ctx => ctx.FullScreen("blit", bloomed));
 
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

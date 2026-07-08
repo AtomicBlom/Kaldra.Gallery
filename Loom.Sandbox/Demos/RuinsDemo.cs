@@ -7,6 +7,9 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 
+using SUIsei;
+using SUIsei.Controls;
+
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
@@ -281,12 +284,18 @@ internal sealed class RuinsDemo : IDemo
 		_engine.Write(_sunViewproj, _sunCam.ViewProjection);
 	}
 
-	public void DrawDebugUI()
+	private UIElement? _debugPanel;
+
+	public UIElement? DebugPanel => _debugPanel ??= BuildDebugPanel();
+
+	private UIElement BuildDebugPanel()
 	{
-		ImGuiNET.ImGui.SliderFloat("Bloom threshold", ref _bloomThreshold, 0.2f, 4f);
-		ImGuiNET.ImGui.SliderFloat("Grade strength", ref _gradeStrength, 0f, 1f);
+		var panel = new StackPanel();
+		panel.Children.Add(DebugSlider.Labeled("Bloom threshold", _bloomThreshold, 0.2f, 4f, v => _bloomThreshold = v));
+		panel.Children.Add(DebugSlider.Labeled("Grade strength", _gradeStrength, 0f, 1f, v => _gradeStrength = v));
 		if (_clips.Length > 1)
-			ImGuiNET.ImGui.SliderInt("Animation clip", ref _clipIdx, 0, _clips.Length - 1);
+			panel.Children.Add(DebugSlider.Labeled("Animation clip", _clipIdx, 0, _clips.Length - 1, v => _clipIdx = (int)v));
+		return panel;
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -436,7 +445,7 @@ internal sealed class RuinsDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("grade", [1.05f, 1.0f, 0.93f, _gradeStrength, 1.12f, 1.0f, 0f, 0f], toned));
 
 		g.Pass("blit").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

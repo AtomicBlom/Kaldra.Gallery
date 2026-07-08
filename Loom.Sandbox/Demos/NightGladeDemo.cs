@@ -7,6 +7,9 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 
+using SUIsei;
+using SUIsei.Controls;
+
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
@@ -222,12 +225,21 @@ internal sealed class NightGladeDemo : IDemo
 			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
 	}
 
-	public void DrawDebugUI()
+	private UIElement? _debugPanel;
+
+	public UIElement? DebugPanel => _debugPanel ??= BuildDebugPanel();
+
+	private UIElement BuildDebugPanel()
 	{
-		ImGuiNET.ImGui.SliderFloat("Bloom threshold", ref _bloomThreshold, 0.2f, 5f);
-		ImGuiNET.ImGui.SliderFloat("Bloom intensity", ref _bloomIntensity, 0.1f, 2f);
-		ImGuiNET.ImGui.SliderFloat("Wind", ref _windStrength, 0f, 3f);
-		ImGuiNET.ImGui.Checkbox("Auto-orbit", ref _autoOrbit);
+		var autoOrbit = new CheckBox { Content = "Auto-orbit", IsChecked = _autoOrbit, Margin = new Thickness(0f, 0f, 0f, 6f) };
+		autoOrbit.Checked += (_, _) => _autoOrbit = true;
+		autoOrbit.Unchecked += (_, _) => _autoOrbit = false;
+		var panel = new StackPanel();
+		panel.Children.Add(autoOrbit);
+		panel.Children.Add(DebugSlider.Labeled("Bloom threshold", _bloomThreshold, 0.2f, 5f, v => _bloomThreshold = v));
+		panel.Children.Add(DebugSlider.Labeled("Bloom intensity", _bloomIntensity, 0.1f, 2f, v => _bloomIntensity = v));
+		panel.Children.Add(DebugSlider.Labeled("Wind", _windStrength, 0f, 3f, v => _windStrength = v));
+		return panel;
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -342,7 +354,7 @@ internal sealed class NightGladeDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("grade", [0.72f, 0.86f, 1.0f, 0.45f, 1.12f, 1.2f, 0f, 0f], bloomed));
 
 		g.Pass("blit").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

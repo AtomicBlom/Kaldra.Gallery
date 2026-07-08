@@ -173,7 +173,7 @@ internal sealed class FullReferenceDemo : IDemo
 
 		// Nearest upscale from the low-res world to the native screen.
 		g.Pass("upscale").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

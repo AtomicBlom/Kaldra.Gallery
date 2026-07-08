@@ -140,7 +140,7 @@ internal sealed class ToonDemo : IDemo
 			.Draw(ctx => ctx.FullScreen("grade", [1.08f, 0.94f, 0.72f, 0.8f, 1.12f, 0.82f, 0f, 0f], lit));
 
 		g.Pass("blit").Samples(graded).Writes(screen).Draw(ctx => ctx.FullScreen("blit", graded));
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

@@ -6,6 +6,9 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 
+using SUIsei;
+using SUIsei.Controls;
+
 namespace Loom.Sandbox.Demos;
 
 /// <summary>
@@ -131,10 +134,16 @@ internal sealed class PixelArtCastleDemo : IDemo
 		_engine.Write(_bossViewproj, _bossCam.ViewProjection);
 	}
 
-	public void DrawDebugUI()
+	private UIElement? _debugPanel;
+
+	public UIElement? DebugPanel => _debugPanel ??= BuildDebugPanel();
+
+	private UIElement BuildDebugPanel()
 	{
-		ImGuiNET.ImGui.SliderFloat("Boss scale", ref _bossScale, 0.5f, 2f);
-		ImGuiNET.ImGui.SliderFloat("Guard speed", ref _guardSpeed, 0.2f, 4f);
+		var panel = new StackPanel();
+		panel.Children.Add(DebugSlider.Labeled("Boss scale", _bossScale, 0.5f, 2f, v => _bossScale = v));
+		panel.Children.Add(DebugSlider.Labeled("Guard speed", _guardSpeed, 0.2f, 4f, v => _guardSpeed = v));
+		return panel;
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -211,7 +220,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 			.Writes(screen)
 			.Draw(ctx => ctx.FullScreen("pixel.composite", [0.37f, 0.30f, 0.63f, 0.86f, _aspect, WorldWidth / (float)WorldHeight, 0f, 0f], bloomed, bossColor, bossDepth));
 
-		DemoGraph.Hud(g, screen);
+		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
 

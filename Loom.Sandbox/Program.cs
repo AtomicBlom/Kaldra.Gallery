@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 
 using ImGuiNET;
@@ -67,7 +68,7 @@ internal static class Program
 		// the public API, then renders each composited overlay list. Created up front so the demo graphs capture it.
 		var uiHost = new UIHost();
 		var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
-		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter);
+		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter, name => File.ReadAllBytes(Path.Combine(assets, name)));
 
 		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
 		var (demos, graphs) = BuildGallery(engine, scene);
@@ -84,6 +85,10 @@ internal static class Program
 		// The group-opacity demo: when active the overlay shows a faded container of overlapping translucent
 		// children, exercising the backend's render-to-texture layer composite.
 		var groupOpacityIndex = Array.FindIndex(demos, d => d.Name == "UI Group Opacity");
+		// The in-world UI demo: its panel isn't on the shared overlay at all (it's its own InWorldPanel mapped onto
+		// a 3D quad), so its deterministic capture click routes through OnPointer only, at a screen position found
+		// empirically to land on the billboard panel's Increment button (see the click-injection comment below).
+		var inWorldIndex = Array.FindIndex(demos, d => d.Name == "In-World UI");
 
 		// --dump-graph=<prefix> writes "<prefix>.<demo>.dot" (data-flow) + ".json" for the active graph on startup
 		// and every swap; the ImGui "Export graph" menu item writes the same on demand.
@@ -111,38 +116,51 @@ internal static class Program
 		ImGui.StyleColorsDark();
 		engine.ResourceInspectionEnabled = true;
 		var imguiPainter = ImGuiPainter.Create(engine);
-		// The demos bake a `hud` pass that composites this overlay; leaving it unset (--no-hud) makes that pass a
-		// no-op, so a capture holds only the demo's own output — the chrome-free reference for the WebGPU backend.
-		DemoGraph.Overlay = opts.Hud ? imguiPainter : null;
 		var inspectIds = new List<int>();
 		var showDemoWindow = false;
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
 
-		// A screen-space overlay surface driven by the UIHost created above. Its compositor lays glyphs out against the
-		// same default font the painter uploaded, so UVs match. The single overlay surface carries one of two contents,
-		// swapped per active demo: the static panel (every other demo) and the interactive data-bound page.
-		var overlay = uiHost.CreateRoot(UILayer.Default);
-
-		// The static panel — the overlay content for every non-interactive demo.
-		UIElement mu1Panel = new Border
+		void SelectDemo(int index)
 		{
-			Width = 360f,
-			Height = 140f,
-			Margin = new Thickness(24f, 24f, 0f, 0f),
-			Padding = new Thickness(20f, 16f, 20f, 16f),
-			HorizontalAlignment = HorizontalAlignment.Left,
-			VerticalAlignment = VerticalAlignment.Top,
-			Background = HdrColor.FromRgb(28, 32, 44, 220),
-			BorderBrush = HdrColor.FromRgb(120, 180, 255),
-			BorderThickness = new Thickness(2f),
-			CornerRadius = 16f,
-			Child = new TextBlock
-			{
-				Text = "Loom UI - MU1",
-				FontSize = 28f,
-				Foreground = HdrColor.FromRgb(235, 240, 255),
-			},
-		};
+			if (index < 0 || index >= demos.Length || index == currentDemo)
+				return;
+			currentDemo = index;
+			engine.SetGraph(graphs[index]); // drains the GPU, releases the old transients, binds the new graph
+			Console.WriteLine($"[loom] demo → {demos[index].Name}");
+			if (dumpGraphPrefix is not null)
+				DumpGraph(index, dumpGraphPrefix);
+		}
+
+		// A real HUD control (freezes the orbit); also togglable from the shell's debug panel.
+		var pauseCamera = false;
+
+		// Detached debug camera + frustum freeze. F (or the debug-panel toggle) enters a free-fly camera; entering it
+		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
+		// fly around and see exactly what that camera framed. --frustum enables it for a deterministic capture.
+		var fly = new FlyCamera(engine);
+		var orbit = new Loom.Concepts.Camera(engine); // the default perspective orbit camera, reconfigured each frame
+		var debugCam = opts.Frustum;
+
+		// The shared SUIsei demo shell — the switcher, debug panel, and status bar every demo's `hud` pass composites
+		// (DemoGraph.Hud). It renders identically on desktop and in the browser; ImGui (below) narrows to the desktop
+		// dev tools the shell's checkboxes/buttons open (the demo window, the resource viewer, graph export).
+		var shell = new DemoShell([.. demos.Select(d => d.Name)], SelectDemo);
+		shell.AddHostToggle("Pause camera", () => pauseCamera, v => pauseCamera = v);
+		shell.AddHostToggle("Debug camera (fly) + frustum freeze [F]", () => debugCam, v => debugCam = v);
+		shell.AddHostToggle("GPU timing", () => engine.GpuTimingEnabled, v => engine.GpuTimingEnabled = v);
+		shell.AddHostToggle("ImGui demo window", () => showDemoWindow, v => showDemoWindow = v);
+		shell.AddHostToggle("Resource viewer", () => showInspect, v => showInspect = v);
+		shell.AddHostAction("Export graph (DOT/JSON)", () => DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph"));
+		// --no-hud gates both the shell chrome and the ImGui dev-tools pass — a chrome-free capture the WebGPU backend
+		// (which has no Dear ImGui bridge and, for non-UI demos, no centred content) matches byte-for-byte.
+		shell.SetHudVisible(opts.Hud);
+		DemoGraph.Overlay = opts.Hud ? imguiPainter : null;
+
+		// A screen-space overlay surface driven by the UIHost created above; its compositor lays glyphs out against the
+		// same default font the painter uploaded, so UVs match. The root's content is the shell; the UI-track demos'
+		// own page/panel is set into the shell's centred slot below, per active demo.
+		var overlay = uiHost.CreateRoot(UILayer.Default);
+		overlay.Root.Content = shell.Root;
 
 		// The interactive page: XAML → typed tree + {x:Bind} label + Click handler (UI/UIInteractiveView.*).
 		var interactivePage = new UIInteractiveView();
@@ -172,33 +190,9 @@ internal static class Program
 			Child = overlapCanvas,
 		};
 
-		overlay.Root.Content = mu1Panel;
-
 		engine.SetGraph(graphs[currentDemo]);
 		if (dumpGraphPrefix is not null)
 			DumpGraph(currentDemo, dumpGraphPrefix);
-
-		void SelectDemo(int index)
-		{
-			if (index < 0 || index >= demos.Length || index == currentDemo)
-				return;
-			currentDemo = index;
-			engine.SetGraph(graphs[index]); // drains the GPU, releases the old transients, binds the new graph
-			Console.WriteLine($"[loom] demo → {demos[index].Name}");
-			if (dumpGraphPrefix is not null)
-				DumpGraph(index, dumpGraphPrefix);
-		}
-
-		// A real HUD control (freezes the orbit); also togglable via the ImGui Window menu when built with ImGui.
-		// Declared unconditionally because the camera loop reads it whether or not ImGui is compiled in.
-		var pauseCamera = false;
-
-		// Detached debug camera + frustum freeze. F (or the Window menu) toggles a free-fly camera; entering it
-		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
-		// fly around and see exactly what that camera framed. --frustum enables it for a deterministic capture.
-		var fly = new FlyCamera(engine);
-		var orbit = new Loom.Concepts.Camera(engine); // the default perspective orbit camera, reconfigured each frame
-		var debugCam = opts.Frustum;
 		var debugCamInit = false;
 		var frozenViewProjection = Matrix4x4.Identity;
 		var debugSegments = new List<Vector4>(); // frustum wireframe + demo debug lines (skeleton)
@@ -306,9 +300,8 @@ internal static class Program
 			const float captureTime = 1.0f;
 			const double captureDelta = 1.0 / 60.0;
 			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed;
-			var eye = new Vector3(MathF.Sin(camTime) * 2.5f, 1.6f, MathF.Cos(camTime) * 2.5f);
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
-			orbit.Perspective(MathF.PI / 3f, aspect, 0.1f, 100f).LookAt(eye, Vector3.Zero);
+			DemoCamera.Orbit(orbit, camTime, aspect);
 
 			// A demo may override the camera — a 2D/sprite demo returns an orthographic view here; otherwise
 			// the perspective orbit above stands. Pulled each frame so a 2D camera can scroll (parallax).
@@ -403,45 +396,14 @@ internal static class Program
 
 			ImGui.NewFrame();
 
-			// Title bar: the Demo menu switches the active graph (same as keys 1..N / Tab); Window holds host
-			// toggles; the status rides the bar (a bottom footer needs SetNextWindowPos, HFA-broken on win-arm64).
-			if (ImGui.BeginMainMenuBar())
-			{
-				if (ImGui.BeginMenu("Demo"))
-				{
-					for (var i = 0; i < demos.Length; i++)
-						if (ImGui.MenuItem($"{i + 1}. {demos[i].Name}", "", currentDemo == i))
-							SelectDemo(i);
-					ImGui.EndMenu();
-				}
-				if (ImGui.BeginMenu("Window"))
-				{
-					ImGui.MenuItem("Pause camera", "", ref pauseCamera);
-					ImGui.MenuItem("Debug camera (fly) + frustum freeze", "F", ref debugCam);
-					ImGui.MenuItem("ImGui demo window", "", ref showDemoWindow);
-					var gpuTiming = engine.GpuTimingEnabled;
-					if (ImGui.MenuItem("GPU timing", "", ref gpuTiming))
-						engine.GpuTimingEnabled = gpuTiming;
-					ImGui.MenuItem("Resource viewer", "", ref showInspect);
-					if (ImGui.MenuItem("Export graph (DOT/JSON)"))
-						DumpGraph(currentDemo, dumpGraphPrefix ?? "loom-graph");
-					ImGui.EndMenu();
-				}
-				// The active demo's own debug controls (skeleton overlay, cascade tint, time-of-day, …).
-				if (ImGui.BeginMenu("Debug"))
-				{
-					demos[currentDemo].DrawDebugUI();
-					ImGui.EndMenu();
-				}
-
-				ImGui.Separator();
-				var status = $"{displayFps:F0} fps ({displayMs:F2} ms)   |   {demos[currentDemo].Name}   |   hovered {hoverId}   |   {engine.DeviceName}";
-				if (demos[currentDemo].HudStatus is { } demoStatus)
-					status += $"   |   {demoStatus}";
-				ImGui.Text(status);
-
-				ImGui.EndMainMenuBar();
-			}
+			// Drive the shared SUIsei shell: the switcher lives in its MenuBar (SelectDemo, wired at construction);
+			// everything else here just refreshes the bits that change per frame — the active demo's name + debug
+			// panel, the engine name, the smoothed fps, and the status line (hovered id + the demo's own HudStatus).
+			shell.SetActiveDemo(demos[currentDemo].Name, demos[currentDemo].DebugPanel);
+			shell.SetEngineName(engine.DeviceName);
+			shell.SetFps((float)displayFps, (float)displayMs);
+			shell.SetStatus($"hovered {hoverId}");
+			shell.SetStatusRight(demos[currentDemo].HudStatus);
 
 			if (showDemoWindow)
 				ImGui.ShowDemoWindow(ref showDemoWindow);
@@ -481,18 +443,17 @@ internal static class Program
 
 			ImGui.Render();
 
-			// Swap the overlay content for the active demo, then drive the host: Tick drains queued pointer input →
-			// hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view → DrawLists. The
-			// layout/visual caches + the compositor's frame-level no-op make a static tree near-free. The "ui" pass
-			// renders the list by id via the painter (scene.UI).
-			// The UI demos' page IS the demo subject, so it stays under --no-hud; the generic panel is chrome and is
-			// suppressed there (the ImGui bar is suppressed via DemoGraph.Overlay above). This makes a --no-hud capture
-			// of a UI demo page-only — the chrome-free reference the browser WebGPU backend (no ImGui) matches.
-			overlay.Root.Content =
+			// Swap the shell's centred content for the active demo, then drive the UI host: Tick drains queued pointer
+			// input → hit-tests → routes (bubble) → synthesizes Click → lays out; Render composites each view →
+			// DrawLists. The layout/visual caches + the compositor's frame-level no-op make a static tree near-free.
+			// The "hud" pass renders the whole shell (shell chrome + this centred content) via DemoGraph.Hud.
+			// The UI demos' page IS the demo subject, so it is never hidden by --no-hud (only the shell chrome is,
+			// via shell.SetHudVisible above) — a --no-hud capture of a UI demo is page-only, the chrome-free
+			// reference the browser WebGPU backend (no ImGui, and the shell renders identically there) matches.
+			shell.SetCenterContent(
 				currentDemo == interactiveIndex ? interactivePage
 				: currentDemo == groupOpacityIndex ? groupOpacityPanel
-				: !opts.Hud ? null
-				: mu1Panel;
+				: null);
 
 			// Deterministic capture: with no live mouse, inject one press+release over the page's button (Border at
 			// 24,24 + padding 20,16 → button at 44,40, sized 200x56 → centre 144,68) so the captured frame shows the
@@ -502,6 +463,17 @@ internal static class Program
 				var click = new Vector2(144f, 68f);
 				uiHost.QueuePointer(PointerInput.Press(click));
 				uiHost.QueuePointer(PointerInput.Release(click));
+			}
+
+			// Same idea for the in-world UI demo, but its panel isn't on the shared overlay — route through
+			// OnPointer only, matching the real mouse-click handlers below. The screen position was found
+			// empirically (by iterating against InWorldPanel.LastHitPixel) to land on the billboard panel's
+			// Increment button at the frozen --capture camera pose.
+			if (capturePath is not null && currentDemo == inWorldIndex && frame == 30)
+			{
+				var click = new Vector2(505f, 166f);
+				demos[currentDemo].OnPointer(PointerInput.Press(click));
+				demos[currentDemo].OnPointer(PointerInput.Release(click));
 			}
 
 			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));

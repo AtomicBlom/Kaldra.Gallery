@@ -2,9 +2,12 @@
 // sandbox demos. One pass: it reads a Loom.Core.Vertex stream, transforms by the app's view-projection (a
 // constants buffer the pass .Reads, clip-space-corrected) and the per-object model matrix (the per-draw Uniforms
 // block), and shades each fragment with a single directional key light plus a flat ambient. The albedo is derived
-// from the surface normal so each cube face reads as a distinct colour. Output is HDR (the key light pushes lit
-// faces above 1.0) so the bloom and tone-map demos have highlights to work with; a demo that just wants the lit
-// image blits it to an SDR backbuffer (which clamps).
+// from the surface normal so each cube face reads as a distinct colour — except a non-zero PerDraw.objectId, which
+// opts an object out of normal-derived albedo into a fixed neutral tone instead (a demo places a face-up floor
+// under a face-up cube top with DemoDraw.Mesh(..., objectId: 1) so the two don't render identically; objectId 0,
+// every existing call site, is untouched). Output is HDR (the key light pushes lit faces above 1.0) so the bloom
+// and tone-map demos have highlights to work with; a demo that just wants the lit image blits it to an SDR
+// backbuffer (which clamps).
 
 #include "loom_platform.module.slang"
 
@@ -54,7 +57,9 @@ VsOut vertexMain(VsIn input)
 float4 fragmentMain(VsOut input) : SV_Target
 {
 	float3 n = normalize(input.normal);
-	float3 albedo = n * 0.5 + 0.5;                          // distinct per-face colour
+	// distinct per-face colour, except an object opted into a fixed neutral tone (see the file header) so it never
+	// coincidentally matches another object's normal-derived colour (e.g. a face-up floor under a face-up cube top).
+	float3 albedo = draw.objectId != 0 ? float3(0.55, 0.52, 0.48) : (n * 0.5 + 0.5);
 	float3 lightDir = normalize(float3(0.45, 0.55, -0.6));   // matches the sandbox sun
 	float ndotl = max(dot(n, lightDir), 0.0);
 
