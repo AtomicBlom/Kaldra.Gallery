@@ -50,11 +50,13 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 
 float sampleCascade(int cascade, float2 uv)
 {
+	// SampleLevel (explicit LOD 0), not Sample: the cascade selection makes this non-uniform control flow, which WGSL
+	// disallows for implicit-LOD Sample (only SampleLevel/SampleGrad are legal there).
 	if (cascade == 0)
-		return cascade0.Sample(uv).r;
+		return cascade0.SampleLevel(uv, 0.0).r;
 	if (cascade == 1)
-		return cascade1.Sample(uv).r;
-	return cascade2.Sample(uv).r;
+		return cascade1.SampleLevel(uv, 0.0).r;
+	return cascade2.SampleLevel(uv, 0.0).r;
 }
 
 float sunVisibility(float3 worldPos, int cascade)

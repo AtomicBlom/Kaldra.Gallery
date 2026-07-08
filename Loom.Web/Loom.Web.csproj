@@ -72,8 +72,17 @@
          so they compile into the WASM assembly unchanged under their own Loom.Sandbox.Demos namespace. -->
     <Compile Include="..\Loom.Sandbox\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
     <Compile Include="..\Loom.Sandbox\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
+    <Compile Include="..\Loom.Sandbox\DayNight.cs" Link="Demos\Shared\DayNight.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\DemoSun.cs" Link="Demos\Shared\DemoSun.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\SandboxVertexLayouts.cs" Link="Demos\Shared\SandboxVertexLayouts.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SpriteInstance.cs" Link="Demos\Shared\SpriteInstance.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\Light2DInstance.cs" Link="Demos\Shared\Light2DInstance.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\BallAtlas.cs" Link="Demos\Shared\BallAtlas.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SpinnerAtlas.cs" Link="Demos\Shared\SpinnerAtlas.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SparkAtlas.cs" Link="Demos\Shared\SparkAtlas.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\TileAtlas.cs" Link="Demos\Shared\TileAtlas.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\CastleBackdrop.cs" Link="Demos\Shared\CastleBackdrop.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\GuardKnight.cs" Link="Demos\Shared\GuardKnight.cs" />
     <!-- The demo scaffolding shared with the sandbox: the shared-resource carrier, geometry builders, the per-draw
          uniform block, the mesh-draw helper, and the graph helpers (its Dear ImGui HUD is #if'd out for the browser). -->
     <Compile Include="..\Loom.Sandbox\Demos\IDemo.cs" Link="Demos\Shared\IDemo.cs" />
@@ -104,14 +113,49 @@
     <Compile Include="..\Loom.Sandbox\Demos\UIGroupOpacityDemo.cs" Link="Demos\UIGroupOpacityDemo.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\FullReferenceDemo.cs" Link="Demos\FullReferenceDemo.cs" />
     <Compile Include="..\Loom.Sandbox\Demos\InWorldUIDemo.cs" Link="Demos\InWorldUIDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\Debug2DDemo.cs" Link="Demos\Debug2DDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\FoliageDemo.cs" Link="Demos\FoliageDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\InstancingDemo.cs" Link="Demos\InstancingDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\Lighting2DDemo.cs" Link="Demos\Lighting2DDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\NightGladeDemo.cs" Link="Demos\NightGladeDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\NormalMappingDemo.cs" Link="Demos\NormalMappingDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\ParallaxDemo.cs" Link="Demos\ParallaxDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\PixelArtCastleDemo.cs" Link="Demos\PixelArtCastleDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\PixelArtDemo.cs" Link="Demos\PixelArtDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\RuinsDemo.cs" Link="Demos\RuinsDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\ShadowsDemo.cs" Link="Demos\ShadowsDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SkyDayNightDemo.cs" Link="Demos\SkyDayNightDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SpikeDemo.cs" Link="Demos\SpikeDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SpriteAnimationDemo.cs" Link="Demos\SpriteAnimationDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\SpritesDemo.cs" Link="Demos\SpritesDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\StylizedDemo.cs" Link="Demos\StylizedDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\TilemapDemo.cs" Link="Demos\TilemapDemo.cs" />
+    <Compile Include="..\Loom.Sandbox\Demos\ToonDemo.cs" Link="Demos\ToonDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Demo assets embedded into the WASM assembly (no filesystem in the browser), resolved by logical name. -->
+    <!-- Demo assets embedded into the WASM assembly (no filesystem in the browser), resolved by logical name.
+         DemoScene.Asset callers pass a relative desktop-style path (e.g. "kenney/castle/wall.glb"); WebAssets.Load
+         dot-joins it the same way these logical names are dot-separated, so both hosts address an asset identically. -->
     <EmbeddedResource Include="..\Loom.Sandbox\Assets\rigged_bar.glb" LogicalName="Loom.Web.Assets.rigged_bar.glb" />
     <EmbeddedResource Include="..\Loom.Sandbox\Assets\cube.gltf" LogicalName="Loom.Web.Assets.cube.gltf" />
     <EmbeddedResource Include="..\Loom.Sandbox\Assets\brick_albedo.png" LogicalName="Loom.Web.Assets.brick_albedo.png" />
     <EmbeddedResource Include="..\Loom.Sandbox\Assets\brick_normal.png" LogicalName="Loom.Web.Assets.brick_normal.png" />
+    <!-- The Kenney castle kit (Night Glade's tree ring; Ancient Ruins' walls/towers/rocks/stairs/trees), all
+         re-packed to embed their shared colormap texture (the original files referenced it by an external relative
+         URI, which only a file-based loader can resolve — see GltfLoader.LoadGlb's doc comment). -->
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\Textures\colormap.png" LogicalName="Loom.Web.Assets.kenney.castle.Textures.colormap.png" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\rocks-large.glb" LogicalName="Loom.Web.Assets.kenney.castle.rocks-large.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\rocks-small.glb" LogicalName="Loom.Web.Assets.kenney.castle.rocks-small.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\stairs-stone.glb" LogicalName="Loom.Web.Assets.kenney.castle.stairs-stone.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-arch.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-arch.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-base.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-base.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-mid.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-mid.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-top.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-top.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tree-large.glb" LogicalName="Loom.Web.Assets.kenney.castle.tree-large.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\wall-corner.glb" LogicalName="Loom.Web.Assets.kenney.castle.wall-corner.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\wall.glb" LogicalName="Loom.Web.Assets.kenney.castle.wall.glb" />
+    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\characters\character_animated.glb" LogicalName="Loom.Web.Assets.kenney.characters.character_animated.glb" />
   </ItemGroup>
 
   <ItemGroup>

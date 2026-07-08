@@ -50,7 +50,7 @@ internal sealed class RuinsDemo : IDemo
 	private Matrix4x4 _charModel;
 
 	private IEngine _engine = null!;
-	private string _assets = "";
+	private DemoScene _scene;
 	private Concepts.Camera _cam = null!;
 	private Concepts.Camera _sunCam = null!;
 	private readonly float[] _skyParams = new float[36];
@@ -80,7 +80,6 @@ internal sealed class RuinsDemo : IDemo
 	{
 		_engine = engine;
 		_cam = new Concepts.Camera(engine);
-		_assets = Path.Combine(AppContext.BaseDirectory, "assets");
 
 		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
@@ -105,35 +104,42 @@ internal sealed class RuinsDemo : IDemo
 		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", HasFragmentPush: true));
 		engine.DefineTechnique("grade", new TechniqueDescriptor("grade", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
+	}
+
+	// Loads every piece the courtyard/character need through the scene resolver — a file on desktop, an embedded
+	// resource in the browser — so the demo loads the same way on both hosts.
+	private void LoadCourtyard(DemoScene scene)
+	{
+		_scene = scene;
 
 		// The kit's shared colormap atlas — every castle piece's uvs index a flat palette region of this one image.
-		_stone = engine.CreateMaterial(engine.CreateTexture(
-			ImageLoader.Load(Path.Combine(_assets, "kenney", "castle", "Textures", "colormap.png"), TextureFormat.Rgba8Srgb)));
+		_stone = _engine.CreateMaterial(_engine.CreateTexture(
+			ImageLoader.Decode(scene.Asset("kenney/castle/Textures/colormap.png"), TextureFormat.Rgba8Srgb)));
 
 		BuildCourtyard();
 
 		// The summoning circle (a flat glowing ring) + the floating artifact gem at the centre.
 		var (ringV, ringI) = Geometry.BuildTorus(2.6f, 0.16f, 64, 12);
-		_ring = engine.CreateMesh(ringV, ringI);
+		_ring = _engine.CreateMesh(ringV, ringI);
 		_ringModel = Matrix4x4.CreateScale(0.8f, 0.4f, 0.8f) * Matrix4x4.CreateTranslation(0f, 0.06f, 0f);
 		var (artV, artI) = Geometry.BuildIcosphere(3);
-		_artifact = engine.CreateMesh(artV, artI);
+		_artifact = _engine.CreateMesh(artV, artI);
 		_artifactModel = Matrix4x4.CreateScale(0.8f) * Matrix4x4.CreateTranslation(0f, 1.7f, 0f);
 
 		// A stone ground plane sized to the courtyard.
 		const float s = 18f;
 		var up = Vector3.UnitY;
 		var t = new Vector4(1, 0, 0, 1);
-		_ground = engine.CreateMesh(
+		_ground = _engine.CreateMesh(
 			[new(new Vector3(-s, 0, -s), up, new Vector2(0, 0), t), new(new Vector3(s, 0, -s), up, new Vector2(1, 0), t),
 			 new(new Vector3(s, 0, s), up, new Vector2(1, 1), t), new(new Vector3(-s, 0, s), up, new Vector2(0, 1), t)],
 			[0, 1, 2, 0, 2, 3]);
 
 		// The compute-skinned character — the Kenney survivor (mesh + idle/run/jump clips) loaded through the
 		// neutral glTF path. Scale it from its measured height to stand a touch shorter than a wall, and ground it.
-		var model = GltfLoader.Load(Path.Combine(_assets, "kenney", "characters", "character_animated.glb"));
+		var model = GltfLoader.LoadGlb(scene.Asset("kenney/characters/character_animated.glb"));
 		var prim = model.Primitives[0];
-		_char = engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
+		_char = _engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
 		_charVerts = prim.SkinnedVertices!.Length;
 		_skeleton = model.Skeleton!;
 		_clips = [.. model.Clips];
@@ -149,7 +155,7 @@ internal sealed class RuinsDemo : IDemo
 			* Matrix4x4.CreateTranslation(0.9f, -cmin.Y * charScale, 1.4f);
 
 		// Frame the whole courtyard from the sun for the shadow pass (a wide ortho centred on the courtyard).
-		_sunCam = new Concepts.Camera(engine)
+		_sunCam = new Concepts.Camera(_engine)
 			.LookAt(SunDir * 26f, new Vector3(0f, 1.5f, 0f))
 			.Orthographic(30f, 30f, 0.1f, 52f);
 	}
@@ -208,7 +214,7 @@ internal sealed class RuinsDemo : IDemo
 		if (_library.TryGetValue(name, out var cached))
 			return cached;
 
-		var loaded = GltfLoader.Load(Path.Combine(_assets, "kenney", "castle", name + ".glb"));
+		var loaded = GltfLoader.LoadGlb(_scene.Asset($"kenney/castle/{name}.glb"));
 		var meshes = new List<Mesh>();
 		var min = new Vector3(float.MaxValue);
 		var max = new Vector3(float.MinValue);
@@ -298,7 +304,10 @@ internal sealed class RuinsDemo : IDemo
 		return panel;
 	}
 
-	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
+	public RenderGraph Build(DemoScene scene)
+	{
+		LoadCourtyard(scene);
+		return RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
 		var world = g.Domain("ruins", 1280, 720);
@@ -448,6 +457,7 @@ internal sealed class RuinsDemo : IDemo
 		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
+	}
 
 	// Draw every placed castle piece with the given technique (and optional colormap material for the g-buffer pass).
 	private void DrawPieces(IRenderContext ctx, string technique, Material? material)

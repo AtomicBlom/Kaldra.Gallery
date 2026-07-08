@@ -9,12 +9,15 @@ namespace Loom.Web.Demos;
 /// </summary>
 internal static class WebAssets
 {
-	/// <summary>The bytes of the embedded asset <paramref name="name"/> (e.g. <c>rigged_bar.glb</c>).</summary>
+	/// <summary>The bytes of the embedded asset <paramref name="name"/> (e.g. <c>rigged_bar.glb</c> or the
+	/// desktop-style relative path <c>kenney/castle/tree-large.glb</c> — embedded resource logical names can't
+	/// contain slashes, so they're embedded dot-separated and looked up the same way here).</summary>
 	public static byte[] Load(string name)
 	{
 		var assembly = Assembly.GetExecutingAssembly();
-		using var stream = assembly.GetManifestResourceStream($"Loom.Web.Assets.{name}")
-			?? throw new FileNotFoundException($"Embedded asset 'Loom.Web.Assets.{name}' not found.");
+		var logicalName = $"Loom.Web.Assets.{name.Replace('/', '.')}";
+		using var stream = assembly.GetManifestResourceStream(logicalName)
+			?? throw new FileNotFoundException($"Embedded asset '{logicalName}' not found.");
 		var bytes = new byte[stream.Length];
 		stream.ReadExactly(bytes);
 		return bytes;

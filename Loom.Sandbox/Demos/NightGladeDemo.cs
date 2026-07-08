@@ -116,8 +116,6 @@ internal sealed class NightGladeDemo : IDemo
 		engine.DefineTechnique("grade", new TechniqueDescriptor("grade", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 
-		var assets = Path.Combine(AppContext.BaseDirectory, "assets");
-
 		// A wide, dark ground plane.
 		const float s = 16f;
 		var up = Vector3.UnitY;
@@ -138,10 +136,6 @@ internal sealed class NightGladeDemo : IDemo
 		_stem = engine.CreateMesh(stemV, stemI);
 		var (capV, capI) = Geometry.BuildHemisphere(10, 28);
 		_cap = engine.CreateMesh(capV, capI);
-
-		// A ring of dark Kenney trees enclosing the glade — silhouettes against the moonlit sky, so the field reads
-		// as a clearing in a wood rather than a patch in a void. Textured from the kit's colormap, grounded by AABB.
-		LoadTrees(engine, assets);
 
 		// Foliage blade card + its cutout texture (a tall, thin, pointed blade — long grass).
 		_card = engine.CreateMesh(
@@ -164,10 +158,12 @@ internal sealed class NightGladeDemo : IDemo
 	}
 
 	// Load the Kenney "tree-large" piece once, measure its bounds, and place a ring of them around the glade
-	// (grounded so the trunk base sits on the floor). Textured from the castle kit's shared colormap.
-	private void LoadTrees(IEngine engine, string assets)
+	// (grounded so the trunk base sits on the floor). Textured from the castle kit's shared colormap. Bytes come
+	// through the scene resolver — a file on desktop, an embedded resource in the browser — so the demo loads the
+	// same way on both hosts.
+	private void LoadTrees(IEngine engine, DemoScene scene)
 	{
-		var model = GltfLoader.Load(Path.Combine(assets, "kenney", "castle", "tree-large.glb"));
+		var model = GltfLoader.LoadGlb(scene.Asset("kenney/castle/tree-large.glb"));
 		var meshes = new List<Mesh>();
 		var min = new Vector3(float.MaxValue);
 		var max = new Vector3(float.MinValue);
@@ -181,7 +177,7 @@ internal sealed class NightGladeDemo : IDemo
 			}
 		}
 		_bark = engine.CreateMaterial(engine.CreateTexture(
-			ImageLoader.Load(Path.Combine(assets, "kenney", "castle", "Textures", "colormap.png"), TextureFormat.Rgba8Srgb)));
+			ImageLoader.Decode(scene.Asset("kenney/castle/Textures/colormap.png"), TextureFormat.Rgba8Srgb)));
 
 		// A dense ring of trees enclosing the clearing at varied radius/scale, each grounded by the measured base + a
 		// yaw spin — a thick wood around the glade, not a sparse fringe.
@@ -242,7 +238,13 @@ internal sealed class NightGladeDemo : IDemo
 		return panel;
 	}
 
-	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
+	public RenderGraph Build(DemoScene scene)
+	{
+		// A ring of dark Kenney trees enclosing the glade — silhouettes against the moonlit sky, so the field reads
+		// as a clearing in a wood rather than a patch in a void. Textured from the kit's colormap, grounded by AABB.
+		LoadTrees(_engine, scene);
+
+		return RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
 		var albedo = g.Screen.Color("ng_albedo", Format.Rgba8Srgb);
@@ -357,6 +359,7 @@ internal sealed class NightGladeDemo : IDemo
 		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
+	}
 
 	// A mushroom stem: a thick capsule stalk translated so its rounded base sits on the ground (the unit capsule
 	// spans ±0.43 in Y → lift by 0.43·scale), widened in X/Z so the pale stalk reads clearly. Row-vector order.

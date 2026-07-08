@@ -85,15 +85,6 @@ internal sealed class StylizedDemo : IDemo
 			[0, 1, 2, 0, 2, 3]);
 		_blade = engine.CreateMaterial(engine.CreateTexture(BuildBladeTexture()));
 
-		// The rigged character (compute-skinned), scaled up a touch and standing on the ground.
-		var model = GltfLoader.Load(Path.Combine(AppContext.BaseDirectory, "assets", "rigged_bar.glb"));
-		var prim = model.Primitives[0];
-		_char = engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
-		_charVerts = prim.SkinnedVertices!.Length;
-		_skeleton = model.Skeleton!;
-		_clip = model.Clips[0];
-		_palette = new Matrix4x4[_skeleton.JointCount];
-
 		// Foliage field with a clearing around the character.
 		var rng = new Random(7);
 		var blades = new List<Blade>();
@@ -126,7 +117,24 @@ internal sealed class StylizedDemo : IDemo
 			_engine.Write(_cascadeViewproj[c], _cascades[c].ViewProjection);
 	}
 
-	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
+	// The rigged character (compute-skinned), scaled up a touch and standing on the ground. Bytes come through the
+	// scene resolver — a file on desktop, an embedded resource in the browser — so the demo loads the same way on
+	// both hosts.
+	private void LoadCharacter(DemoScene scene)
+	{
+		var model = GltfLoader.LoadGlb(scene.Asset("rigged_bar.glb"));
+		var prim = model.Primitives[0];
+		_char = _engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
+		_charVerts = prim.SkinnedVertices!.Length;
+		_skeleton = model.Skeleton!;
+		_clip = model.Clips[0];
+		_palette = new Matrix4x4[_skeleton.JointCount];
+	}
+
+	public RenderGraph Build(DemoScene scene)
+	{
+		LoadCharacter(scene);
+		return RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;
 		var albedo = g.Screen.Color("albedo", Format.Rgba8Srgb);
@@ -205,6 +213,7 @@ internal sealed class StylizedDemo : IDemo
 		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
+	}
 
 	private ReadOnlySpan<float> PackLighting()
 	{
