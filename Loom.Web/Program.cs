@@ -65,27 +65,33 @@ async Task BootAsync()
 	var engine = backend.Create(surface, width, height, settings);
 
 	// The shared, app-owned resources every demo draws — the same set the desktop sandbox uploads (meshes, the brick
-	// material, a UIHost + painter for the overlay), plus the asset resolver that reads embedded resources (the browser
-	// has no filesystem). Handed to each demo's Build so a demo authors identically on both hosts.
+	// material, a UIHost + painter for the overlay), plus the async asset resolver (an HTTP fetch — the browser has
+	// no filesystem). Handed to each demo's Build so a demo authors identically on both hosts. Awaited directly
+	// (not through the pump below) since nothing else touches the engine yet — this is the one moment startup is
+	// genuinely linear, with no concurrent GPU-creating call to race.
 	var (cubeVerts, cubeIndices) = Geometry.BuildCube();
 	var (planeVerts, planeIndices) = Geometry.BuildPlane();
 	var (quadVerts, quadIndices) = Geometry.BuildQuad();
 	var brick = engine.CreateMaterial(
-		engine.CreateTexture(ImageLoader.Decode(WebAssets.Load("brick_albedo.png"), TextureFormat.Rgba8Srgb)),
-		engine.CreateTexture(ImageLoader.Decode(WebAssets.Load("brick_normal.png"), TextureFormat.Rgba8Unorm)));
+		engine.CreateTexture(ImageLoader.Decode(await WebAssets.LoadAsync("brick_albedo.png"), TextureFormat.Rgba8Srgb)),
+		engine.CreateTexture(ImageLoader.Decode(await WebAssets.LoadAsync("brick_normal.png"), TextureFormat.Rgba8Unorm)));
 	var uiHost = new UIHost();
 	var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
 	var scene = new DemoScene(
 		engine.CreateMesh(cubeVerts, cubeIndices),
 		engine.CreateMesh(planeVerts, planeIndices),
 		engine.CreateMesh(quadVerts, quadIndices),
-		brick, uiPainter, WebAssets.Load);
+		brick, uiPainter, WebAssets.LoadAsync);
 
 	// Select the demo from ?demo= (or the capture name, so the harness selects a demo by capturing it); default cube.
 	var demoKey = WebGallery.Resolve(QueryValue(query, "demo") ?? captureName);
 	var demo = WebGallery.Create(demoKey);
 	demo.DefineTechniques(engine);
-	engine.SetGraph(demo.Build(scene));
+	// No frame loop is running yet (it starts below), so nothing else drains the engine's queued texture/mesh
+	// uploads a PreloadAsync might await — pump it explicitly until the preload resolves.
+	await App.PumpUntilReady(engine, demo.PreloadAsync(scene));
+	var graph = demo.Build(scene);
+	engine.SetGraph(graph);
 
 	// The shared SUIsei demo shell — the same switcher/debug-panel/status chrome the desktop sandbox renders,
 	// giving the browser a real demo switcher for the first time (App.SwitchDemo drives it: define techniques,
@@ -104,7 +110,7 @@ async Task BootAsync()
 	var overlay = uiHost.CreateRoot(UILayer.Default);
 	overlay.Root.Content = shell.Root;
 
-	App.Attach(engine, demo, uiHost, shell, demoKey, captureName, width, height);
+	App.Attach(engine, demo, graph, uiHost, shell, demoKey, captureName, width, height);
 	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
 	Host.StartResizeHandler(App.Resize);
@@ -192,7 +198,11 @@ internal static class App
 		return sb.ToString();
 	}
 
-	public static void Attach(IEngine engine, IDemo demo, UIHost uiHost, DemoShell shell, string demoKey, string? captureName, int width, int height)
+	// Demos already loaded (preloaded + built) at least once, keyed by ?demo= key, so revisiting one is instant
+	// instead of re-fetching/re-decoding its assets from scratch.
+	private static readonly Dictionary<string, (IDemo Demo, RenderGraph Graph)> _loaded = new(StringComparer.OrdinalIgnoreCase);
+
+	public static void Attach(IEngine engine, IDemo demo, RenderGraph graph, UIHost uiHost, DemoShell shell, string demoKey, string? captureName, int width, int height)
 	{
 		_engine = engine;
 		_demo = demo;
@@ -200,27 +210,60 @@ internal static class App
 		_shell = shell;
 		_orbit = new Camera(engine);
 		_demoKey = demoKey;
+		_loaded[demoKey] = (demo, graph);
 		_captureClickPosition = WebGallery.CaptureClickPosition(demoKey);
 		_captureName = captureName;
 		_width = width;
 		_height = height;
 	}
 
-	/// <summary>Switch the active demo at runtime — the shell's "Demos" menu calls this. Mirrors the desktop
-	/// launcher's <c>SelectDemo</c>: define the new demo's techniques, rebuild the graph, and swap the shell's
-	/// active-demo state (name, debug panel, centred UI content).</summary>
+	// Tracks the most recently *requested* switch, so a slower-loading switch that's since been superseded by
+	// another click doesn't clobber it when its preload finally resolves.
+	private static string? _pendingDemoKey;
+
+	/// <summary>Switch the active demo at runtime — the shell's "Demos" menu calls this. Fire-and-forget: the frame
+	/// loop keeps rendering the current demo while the new one preloads (its own per-frame ServicePendingUploads
+	/// call drains whatever the preload queues — no explicit pump needed here, unlike the very first demo at boot,
+	/// because that loop is already running), so a switch never shows a blank/frozen frame while it loads.</summary>
 	public static void SwitchDemo(string key, IEngine engine, DemoScene scene)
 	{
 		if (_shell is null || key == _demoKey)
 			return;
-		var demo = WebGallery.Create(key);
-		demo.DefineTechniques(engine);
-		engine.SetGraph(demo.Build(scene)); // drains the GPU, releases the old transients, binds the new graph
-		_demo = demo;
+		_pendingDemoKey = key;
+		_ = SwitchDemoAsync(key, engine, scene);
+	}
+
+	private static async Task SwitchDemoAsync(string key, IEngine engine, DemoScene scene)
+	{
+		if (!_loaded.TryGetValue(key, out var cached))
+		{
+			var demo = WebGallery.Create(key);
+			demo.DefineTechniques(engine);
+			await demo.PreloadAsync(scene);
+			if (_pendingDemoKey != key)
+				return; // superseded by a later switch while this one was still loading
+			cached = (demo, demo.Build(scene));
+			_loaded[key] = cached;
+		}
+		engine.SetGraph(cached.Graph); // drains the GPU, releases the old transients, binds the new graph
+		_demo = cached.Demo;
 		_demoKey = key;
 		_captureClickPosition = WebGallery.CaptureClickPosition(key);
-		_shell.SetActiveDemo(demo.Name, demo.DebugPanel);
-		_shell.SetCenterContent(WebGallery.OverlayContent(key));
+		_shell?.SetActiveDemo(cached.Demo.Name, cached.Demo.DebugPanel);
+		_shell?.SetCenterContent(WebGallery.OverlayContent(key));
+	}
+
+	/// <summary>Drive <paramref name="task"/> to completion by draining the engine's queued GPU-creation calls
+	/// (<see cref="IEngine.ServicePendingUploads"/>) on this thread — needed only when no frame loop is running yet
+	/// to service them (the very first demo at boot; every later switch rides the already-running frame loop).</summary>
+	public static async Task PumpUntilReady(IEngine engine, Task task)
+	{
+		while (!task.IsCompleted)
+		{
+			engine.ServicePendingUploads();
+			await Task.Yield();
+		}
+		await task;
 	}
 
 	private static bool _faulted;
@@ -377,6 +420,12 @@ internal static partial class Host
 
 	[JSImport("initDevice", "loom-webgpu")]
 	public static partial Task<string> InitDevice(string canvasSelector, int protocolVersion);
+
+	/// <summary>Fetch a demo asset's bytes (base64-encoded — see loom-webgpu.js's fetchAsset for why) over HTTP,
+	/// relative to the served root (e.g. "assets/rigged_bar.glb") — the browser counterpart to a desktop file read.
+	/// Backs <see cref="Loom.Web.Demos.WebAssets.LoadAsync"/>, which decodes the base64 back to bytes.</summary>
+	[JSImport("fetchAsset", "loom-webgpu")]
+	public static partial Task<string> FetchAssetBase64(string url);
 
 	[JSImport("setStatus", "loom-webgpu")]
 	public static partial void SetStatus(string text);

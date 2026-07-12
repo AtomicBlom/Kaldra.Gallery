@@ -35,6 +35,15 @@ internal sealed class RuinsDemo : IDemo
 	private readonly Dictionary<string, PieceDef> _library = [];
 	private readonly List<(Mesh Mesh, Matrix4x4 Model)> _pieces = [];
 
+	// The distinct Kenney castle-kit piece names BuildCourtyard places — preloaded concurrently up front so a
+	// repeated piece (e.g. "wall", placed a dozen times) costs one fetch+parse, and different pieces load in
+	// parallel rather than one-at-a-time on first use. Keep in sync with BuildCourtyard's Place(...) calls.
+	private static readonly string[] PieceNames =
+	[
+		"wall", "tower-square-arch", "tower-square-base", "tower-square-mid", "tower-square-top",
+		"rocks-large", "rocks-small", "stairs-stone", "tree-large",
+	];
+
 	private Mesh _ring;
 	private Mesh _artifact;
 	private Mesh _ground;
@@ -106,40 +115,49 @@ internal sealed class RuinsDemo : IDemo
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}
 
-	// Loads every piece the courtyard/character need through the scene resolver — a file on desktop, an embedded
-	// resource in the browser — so the demo loads the same way on both hosts.
-	private void LoadCourtyard(DemoScene scene)
+	// Loads every piece the courtyard/character need through the scene resolver — a file read on desktop, an HTTP
+	// fetch in the browser — fetched concurrently (all pieces + the colormap + the character), so the demo loads
+	// the same way, and considerably faster (parallel instead of serial), on both hosts.
+	public async Task PreloadAsync(DemoScene scene)
 	{
 		_scene = scene;
 
-		// The kit's shared colormap atlas — every castle piece's uvs index a flat palette region of this one image.
-		_stone = _engine.CreateMaterial(_engine.CreateTexture(
-			ImageLoader.Decode(scene.Asset("kenney/castle/Textures/colormap.png"), TextureFormat.Rgba8Srgb)));
+		var colormapBytesTask = scene.Asset("kenney/castle/Textures/colormap.png");
+		var characterBytesTask = scene.Asset("kenney/characters/character_animated.glb");
+		var pieceBytesTasks = PieceNames.ToDictionary(name => name, name => scene.Asset($"kenney/castle/{name}.glb"));
+		await Task.WhenAll([.. pieceBytesTasks.Values, colormapBytesTask, characterBytesTask]);
+
+		// Parse + upload each piece now that every fetch has resolved. Sequential, not concurrent: every GPU-creating
+		// call — including the *Async ones — only ever actually runs on the single thread draining EngineBase's
+		// pending-work queue, so awaiting each piece one at a time here doesn't cost real parallelism (the fetches
+		// above already overlapped; this part was never the slow part), it just keeps the code simple.
+		foreach (var (name, bytesTask) in pieceBytesTasks)
+			_library[name] = await BuildPieceAsync(bytesTask.Result);
 
 		BuildCourtyard();
 
 		// The summoning circle (a flat glowing ring) + the floating artifact gem at the centre.
 		var (ringV, ringI) = Geometry.BuildTorus(2.6f, 0.16f, 64, 12);
-		_ring = _engine.CreateMesh(ringV, ringI);
+		_ring = await _engine.CreateMeshAsync(ringV, ringI);
 		_ringModel = Matrix4x4.CreateScale(0.8f, 0.4f, 0.8f) * Matrix4x4.CreateTranslation(0f, 0.06f, 0f);
 		var (artV, artI) = Geometry.BuildIcosphere(3);
-		_artifact = _engine.CreateMesh(artV, artI);
+		_artifact = await _engine.CreateMeshAsync(artV, artI);
 		_artifactModel = Matrix4x4.CreateScale(0.8f) * Matrix4x4.CreateTranslation(0f, 1.7f, 0f);
 
 		// A stone ground plane sized to the courtyard.
 		const float s = 18f;
 		var up = Vector3.UnitY;
 		var t = new Vector4(1, 0, 0, 1);
-		_ground = _engine.CreateMesh(
+		_ground = await _engine.CreateMeshAsync(
 			[new(new Vector3(-s, 0, -s), up, new Vector2(0, 0), t), new(new Vector3(s, 0, -s), up, new Vector2(1, 0), t),
 			 new(new Vector3(s, 0, s), up, new Vector2(1, 1), t), new(new Vector3(-s, 0, s), up, new Vector2(0, 1), t)],
 			[0, 1, 2, 0, 2, 3]);
 
 		// The compute-skinned character — the Kenney survivor (mesh + idle/run/jump clips) loaded through the
 		// neutral glTF path. Scale it from its measured height to stand a touch shorter than a wall, and ground it.
-		var model = GltfLoader.LoadGlb(scene.Asset("kenney/characters/character_animated.glb"));
+		var model = GltfLoader.LoadGlb(characterBytesTask.Result);
 		var prim = model.Primitives[0];
-		_char = _engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
+		_char = await _engine.CreateSkinnedMeshAsync(prim.SkinnedVertices!, prim.Indices);
 		_charVerts = prim.SkinnedVertices!.Length;
 		_skeleton = model.Skeleton!;
 		_clips = [.. model.Clips];
@@ -154,10 +172,32 @@ internal sealed class RuinsDemo : IDemo
 			* Matrix4x4.CreateRotationY(-2.6f)
 			* Matrix4x4.CreateTranslation(0.9f, -cmin.Y * charScale, 1.4f);
 
+		// The kit's shared colormap atlas — every castle piece's uvs index a flat palette region of this one image.
+		var colormap = await Task.Run(() => ImageLoader.Decode(colormapBytesTask.Result, TextureFormat.Rgba8Srgb));
+		var stoneTexture = await _engine.CreateTextureAsync(colormap);
+		_stone = await _engine.CreateMaterialAsync(stoneTexture);
+
 		// Frame the whole courtyard from the sun for the shadow pass (a wide ortho centred on the courtyard).
 		_sunCam = new Concepts.Camera(_engine)
 			.LookAt(SunDir * 26f, new Vector3(0f, 1.5f, 0f))
 			.Orthographic(30f, 30f, 0.1f, 52f);
+	}
+
+	// Parse an already-fetched castle-kit piece and measure its bounding box (for grounding + footprint-based layout).
+	private async Task<PieceDef> BuildPieceAsync(byte[] bytes)
+	{
+		var loaded = GltfLoader.LoadGlb(bytes);
+		var meshes = new List<Mesh>();
+		var min = new Vector3(float.MaxValue);
+		var max = new Vector3(float.MinValue);
+		foreach (var prim in loaded.Primitives)
+		{
+			meshes.Add(await _engine.CreateMeshAsync(prim.Vertices, prim.Indices));
+			var (pmin, pmax) = Bounds(prim.Vertices);
+			min = Vector3.Min(min, pmin);
+			max = Vector3.Max(max, pmax);
+		}
+		return new PieceDef([.. meshes], min.Y, max.Y - min.Y, max.X - min.X, max.Z - min.Z);
 	}
 
 	// Lay out the courtyard from the measured piece footprint, so rows stay flush and each wall's long face runs
@@ -208,27 +248,12 @@ internal sealed class RuinsDemo : IDemo
 		Place("tree-large", half * 0.85f, half * 0.2f, 0.85f);
 	}
 
-	// Load a piece's geometry once and measure its bounding box (for grounding + footprint-based layout).
-	private PieceDef Load(string name)
-	{
-		if (_library.TryGetValue(name, out var cached))
-			return cached;
-
-		var loaded = GltfLoader.LoadGlb(_scene.Asset($"kenney/castle/{name}.glb"));
-		var meshes = new List<Mesh>();
-		var min = new Vector3(float.MaxValue);
-		var max = new Vector3(float.MinValue);
-		foreach (var prim in loaded.Primitives)
-		{
-			meshes.Add(_engine.CreateMesh(prim.Vertices, prim.Indices));
-			var (pmin, pmax) = Bounds(prim.Vertices);
-			min = Vector3.Min(min, pmin);
-			max = Vector3.Max(max, pmax);
-		}
-		var def = new PieceDef([.. meshes], min.Y, max.Y - min.Y, max.X - min.X, max.Z - min.Z);
-		_library[name] = def;
-		return def;
-	}
+	// Look up a piece already preloaded into _library by PreloadAsync. A miss means BuildCourtyard placed a name
+	// that PieceNames doesn't list — a bug to fail loudly on, not a normal lazy-load path (everything it might
+	// place was preloaded, concurrently, before this ever runs).
+	private PieceDef Load(string name) => _library.TryGetValue(name, out var def)
+		? def
+		: throw new InvalidOperationException($"Piece '{name}' was not preloaded — add it to {nameof(PieceNames)}.");
 
 	// Place a piece at (x,z): scale, optional yaw, lift so its measured base sits at baseY. Returns the world-space
 	// top (baseY + scaled height) so a caller can stack the next tier flush on top.
@@ -306,7 +331,6 @@ internal sealed class RuinsDemo : IDemo
 
 	public RenderGraph Build(DemoScene scene)
 	{
-		LoadCourtyard(scene);
 		return RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;

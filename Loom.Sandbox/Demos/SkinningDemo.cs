@@ -91,20 +91,24 @@ internal sealed partial class SkinningDemo : ObservableObject, IDemo
 		return panel;
 	}
 
-	public RenderGraph Build(DemoScene scene)
+	// Load the committed rigged bar and mint a skinned mesh + capture its skeleton/clip for per-frame sampling. The
+	// GLB bytes come through the scene resolver (a file read on desktop, an HTTP fetch in the browser).
+	public async Task PreloadAsync(DemoScene scene)
 	{
-		// Load the committed rigged bar and mint a skinned mesh + capture its skeleton/clip for per-frame sampling. The
-		// GLB bytes come through the scene resolver (a file on desktop, an embedded resource in the browser).
-		var model = GltfLoader.LoadGlb(scene.Asset("rigged_bar.glb"));
+		var bytes = await scene.Asset("rigged_bar.glb");
+		var model = GltfLoader.LoadGlb(bytes);
 		if (model.Skeleton is null || model.Clips.Count == 0)
 			throw new InvalidOperationException("The rigged bar asset is not rigged (no skeleton/clips) — the skinning demo needs an animated glTF.");
 		var prim = model.Primitives[0];
-		_mesh = _engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
+		_mesh = await _engine.CreateSkinnedMeshAsync(prim.SkinnedVertices!, prim.Indices);
 		_vertexCount = prim.SkinnedVertices!.Length;
 		_skeleton = model.Skeleton;
 		_clip = model.Clips[0];
 		_palette = new Matrix4x4[_skeleton.JointCount];
+	}
 
+	public RenderGraph Build(DemoScene scene)
+	{
 		return RenderGraph.Define(g =>
 		{
 			var screen = g.Backbuffer;

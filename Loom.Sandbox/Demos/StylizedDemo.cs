@@ -118,13 +118,14 @@ internal sealed class StylizedDemo : IDemo
 	}
 
 	// The rigged character (compute-skinned), scaled up a touch and standing on the ground. Bytes come through the
-	// scene resolver — a file on desktop, an embedded resource in the browser — so the demo loads the same way on
-	// both hosts.
-	private void LoadCharacter(DemoScene scene)
+	// scene resolver — a file read on desktop, an HTTP fetch in the browser — so the demo loads the same way, and
+	// just as non-blockingly, on both hosts.
+	public async Task PreloadAsync(DemoScene scene)
 	{
-		var model = GltfLoader.LoadGlb(scene.Asset("rigged_bar.glb"));
+		var bytes = await scene.Asset("rigged_bar.glb");
+		var model = GltfLoader.LoadGlb(bytes);
 		var prim = model.Primitives[0];
-		_char = _engine.CreateSkinnedMesh(prim.SkinnedVertices!, prim.Indices);
+		_char = await _engine.CreateSkinnedMeshAsync(prim.SkinnedVertices!, prim.Indices);
 		_charVerts = prim.SkinnedVertices!.Length;
 		_skeleton = model.Skeleton!;
 		_clip = model.Clips[0];
@@ -133,7 +134,6 @@ internal sealed class StylizedDemo : IDemo
 
 	public RenderGraph Build(DemoScene scene)
 	{
-		LoadCharacter(scene);
 		return RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;

@@ -134,28 +134,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Demo assets embedded into the WASM assembly (no filesystem in the browser), resolved by logical name.
-         DemoScene.Asset callers pass a relative desktop-style path (e.g. "kenney/castle/wall.glb"); WebAssets.Load
-         dot-joins it the same way these logical names are dot-separated, so both hosts address an asset identically. -->
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\rigged_bar.glb" LogicalName="Loom.Web.Assets.rigged_bar.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\cube.gltf" LogicalName="Loom.Web.Assets.cube.gltf" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\brick_albedo.png" LogicalName="Loom.Web.Assets.brick_albedo.png" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\brick_normal.png" LogicalName="Loom.Web.Assets.brick_normal.png" />
-    <!-- The Kenney castle kit (Night Glade's tree ring; Ancient Ruins' walls/towers/rocks/stairs/trees), all
-         re-packed to embed their shared colormap texture (the original files referenced it by an external relative
-         URI, which only a file-based loader can resolve — see GltfLoader.LoadGlb's doc comment). -->
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\Textures\colormap.png" LogicalName="Loom.Web.Assets.kenney.castle.Textures.colormap.png" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\rocks-large.glb" LogicalName="Loom.Web.Assets.kenney.castle.rocks-large.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\rocks-small.glb" LogicalName="Loom.Web.Assets.kenney.castle.rocks-small.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\stairs-stone.glb" LogicalName="Loom.Web.Assets.kenney.castle.stairs-stone.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-arch.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-arch.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-base.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-base.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-mid.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-mid.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tower-square-top.glb" LogicalName="Loom.Web.Assets.kenney.castle.tower-square-top.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\tree-large.glb" LogicalName="Loom.Web.Assets.kenney.castle.tree-large.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\wall-corner.glb" LogicalName="Loom.Web.Assets.kenney.castle.wall-corner.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\castle\wall.glb" LogicalName="Loom.Web.Assets.kenney.castle.wall.glb" />
-    <EmbeddedResource Include="..\Loom.Sandbox\Assets\kenney\characters\character_animated.glb" LogicalName="Loom.Web.Assets.kenney.characters.character_animated.glb" />
+    <!-- Demo assets served as real static files (fetch()'d by WebAssets.LoadAsync over HTTP), not embedded
+         resources — copied from the sandbox's committed Assets folder into this project's wwwroot/assets/ at build
+         time (LinkBase preserves the relative path, so e.g. kenney/castle/wall.glb lands at
+         wwwroot/assets/kenney/castle/wall.glb) rather than duplicating the binary assets into this project. -->
+    <Content Include="..\Loom.Sandbox\Assets\**" LinkBase="wwwroot\assets\" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

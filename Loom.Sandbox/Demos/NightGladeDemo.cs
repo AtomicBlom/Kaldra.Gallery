@@ -159,25 +159,30 @@ internal sealed class NightGladeDemo : IDemo
 
 	// Load the Kenney "tree-large" piece once, measure its bounds, and place a ring of them around the glade
 	// (grounded so the trunk base sits on the floor). Textured from the castle kit's shared colormap. Bytes come
-	// through the scene resolver — a file on desktop, an embedded resource in the browser — so the demo loads the
-	// same way on both hosts.
-	private void LoadTrees(IEngine engine, DemoScene scene)
+	// through the scene resolver — a file read on desktop, an HTTP fetch in the browser — fetched concurrently with
+	// the texture, so the demo loads the same way, and just as non-blockingly, on both hosts.
+	private async Task LoadTreesAsync(IEngine engine, DemoScene scene)
 	{
-		var model = GltfLoader.LoadGlb(scene.Asset("kenney/castle/tree-large.glb"));
+		var modelBytesTask = scene.Asset("kenney/castle/tree-large.glb");
+		var colormapBytesTask = scene.Asset("kenney/castle/Textures/colormap.png");
+		await Task.WhenAll(modelBytesTask, colormapBytesTask);
+
+		var model = GltfLoader.LoadGlb(modelBytesTask.Result);
 		var meshes = new List<Mesh>();
 		var min = new Vector3(float.MaxValue);
 		var max = new Vector3(float.MinValue);
 		foreach (var prim in model.Primitives)
 		{
-			meshes.Add(engine.CreateMesh(prim.Vertices, prim.Indices));
+			meshes.Add(await engine.CreateMeshAsync(prim.Vertices, prim.Indices));
 			foreach (var v in prim.Vertices)
 			{
 				min = Vector3.Min(min, v.Position);
 				max = Vector3.Max(max, v.Position);
 			}
 		}
-		_bark = engine.CreateMaterial(engine.CreateTexture(
-			ImageLoader.Decode(scene.Asset("kenney/castle/Textures/colormap.png"), TextureFormat.Rgba8Srgb)));
+		var colormap = await Task.Run(() => ImageLoader.Decode(colormapBytesTask.Result, TextureFormat.Rgba8Srgb));
+		var barkTexture = await engine.CreateTextureAsync(colormap);
+		_bark = await engine.CreateMaterialAsync(barkTexture);
 
 		// A dense ring of trees enclosing the clearing at varied radius/scale, each grounded by the measured base + a
 		// yaw spin — a thick wood around the glade, not a sparse fringe.
@@ -238,12 +243,12 @@ internal sealed class NightGladeDemo : IDemo
 		return panel;
 	}
 
+	// A ring of dark Kenney trees enclosing the glade — silhouettes against the moonlit sky, so the field reads as a
+	// clearing in a wood rather than a patch in a void. Textured from the kit's colormap, grounded by AABB.
+	public Task PreloadAsync(DemoScene scene) => LoadTreesAsync(_engine, scene);
+
 	public RenderGraph Build(DemoScene scene)
 	{
-		// A ring of dark Kenney trees enclosing the glade — silhouettes against the moonlit sky, so the field reads
-		// as a clearing in a wood rather than a patch in a void. Textured from the kit's colormap, grounded by AABB.
-		LoadTrees(_engine, scene);
-
 		return RenderGraph.Define(g =>
 	{
 		var screen = g.Backbuffer;

@@ -68,16 +68,43 @@ internal static class Program
 		// the public API, then renders each composited overlay list. Created up front so the demo graphs capture it.
 		var uiHost = new UIHost();
 		var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
-		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter, name => File.ReadAllBytes(Path.Combine(assets, name)));
+		var scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter, name => File.ReadAllBytesAsync(Path.Combine(assets, name)));
 
-		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame.
-		var (demos, graphs) = BuildGallery(engine, scene);
+		// The demo gallery — one focused, legible graph per capability, plus the composed reference frame. Only
+		// registers techniques (cheap, synchronous — this is also the backend-capability filter, see BuildGallery)
+		// up front; each demo's actual asset preload + graph build is lazy (see EnsureLoadedAsync below), so opening
+		// the sandbox no longer pays every demo's asset cost regardless of whether it's ever viewed.
+		var demos = BuildGallery(engine);
 
 		// Start on the first (simplest) demo; --demo overrides (index / exact name / unique substring). An
 		// unresolved query (ambiguous or no match) prints why and exits — the window + engine dispose via `using`.
 		var currentDemo = ResolveDemoIndex(demos, opts.Demo);
 		if (currentDemo < 0)
 			return;
+
+		// Per-demo lazy load state: graphs[i] / loadTasks[i] are populated the first time demo i is loaded (the
+		// start demo, blocked on below; any other demo, the first time it's selected — see EnsureLoadedAsync).
+		// loadTasks caches the in-flight/completed task per index so a repeated request (e.g. mashing Tab) awaits
+		// the same load instead of double-loading, and a revisit after the first load resolves instantly.
+		var graphs = new RenderGraph?[demos.Length];
+		var loadTasks = new Task<RenderGraph>?[demos.Length];
+		var pendingDemo = currentDemo;
+
+		Task<RenderGraph> EnsureLoadedAsync(int index) => loadTasks[index] ??= LoadAsync(index);
+
+		async Task<RenderGraph> LoadAsync(int index)
+		{
+			await demos[index].PreloadAsync(scene);
+			var graph = demos[index].Build(scene);
+			graphs[index] = graph;
+			return graph;
+		}
+
+		// Block this (startup) thread until the start demo's assets have loaded — deliberately not `await`ed here:
+		// `Main` must stay synchronous so `window`'s creation and `window.Run()` below run on the exact same thread
+		// (Win32 windows are thread-affine), while the preload itself still runs concurrently underneath via real
+		// background I/O/decode threads. There's no frame loop yet for this to block, so blocking here costs nothing.
+		PumpUntilReady(engine, EnsureLoadedAsync(currentDemo)).GetAwaiter().GetResult();
 
 		// The interactive UI demo: when it is active the overlay shows the data-bound page + routes pointer
 		// input; otherwise the static panel. -1 if its techniques were dropped on this backend (then never shown).
@@ -96,11 +123,13 @@ internal static class Program
 
 		void DumpGraph(int index, string prefix)
 		{
+			// Only ever called with an already-loaded index (the start demo, or a demo just activated).
+			var graph = graphs[index] ?? throw new InvalidOperationException($"DumpGraph called on unloaded demo '{demos[index].Name}'.");
 			var safe = string.Concat(demos[index].Name.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
 			var dot = $"{prefix}.{safe}.dot";
 			var json = $"{prefix}.{safe}.json";
-			File.WriteAllText(dot, graphs[index].ToDot());
-			File.WriteAllText(json, graphs[index].ToJson());
+			File.WriteAllText(dot, graph.ToDot());
+			File.WriteAllText(json, graph.ToJson());
 			Console.WriteLine($"[loom] graph → {dot} + {json}");
 		}
 
@@ -120,15 +149,36 @@ internal static class Program
 		var showDemoWindow = false;
 		var showInspect = opts.Inspect; // auto-open for headless capture verification
 
-		void SelectDemo(int index)
+		// Swap in an already-loaded demo's graph. currentDemo (and therefore every demos[currentDemo] read in the
+		// frame loop below) only changes here, once the new demo's graph actually exists, so the previous demo
+		// keeps rendering uninterrupted while a switch's load runs in the background.
+		void ActivateDemo(int index, RenderGraph graph)
 		{
-			if (index < 0 || index >= demos.Length || index == currentDemo)
-				return;
 			currentDemo = index;
-			engine.SetGraph(graphs[index]); // drains the GPU, releases the old transients, binds the new graph
+			engine.SetGraph(graph); // drains the GPU, releases the old transients, binds the new graph
 			Console.WriteLine($"[loom] demo → {demos[index].Name}");
 			if (dumpGraphPrefix is not null)
 				DumpGraph(index, dumpGraphPrefix);
+		}
+
+		// Fire-and-forget switch: loads (or reuses the cached load of) the target demo, then activates it — unless
+		// a later switch has since superseded this one (pendingDemo no longer matches), in which case this load's
+		// result is simply discarded. The per-frame engine.Render call already drains ServicePendingUploads once
+		// the frame loop below is running, so no explicit pump is needed here (only the very first, pre-loop load
+		// above needs one).
+		async Task SwitchDemoAsync(int index)
+		{
+			pendingDemo = index;
+			var graph = await EnsureLoadedAsync(index);
+			if (pendingDemo == index)
+				ActivateDemo(index, graph);
+		}
+
+		void SelectDemo(int index)
+		{
+			if (index < 0 || index >= demos.Length || index == currentDemo || index == pendingDemo)
+				return;
+			_ = SwitchDemoAsync(index);
 		}
 
 		// A real HUD control (freezes the orbit); also togglable from the shell's debug panel.
@@ -190,7 +240,7 @@ internal static class Program
 			Child = overlapCanvas,
 		};
 
-		engine.SetGraph(graphs[currentDemo]);
+		engine.SetGraph(graphs[currentDemo]!);
 		if (dumpGraphPrefix is not null)
 			DumpGraph(currentDemo, dumpGraphPrefix);
 		var debugCamInit = false;
@@ -275,9 +325,21 @@ internal static class Program
 
 			// Smoke mode also validates the runtime graph-swap: render each demo in turn (2 frames each) so a
 			// headless run exercises a SetGraph into every pipeline. Skipped under capture (which wants a steady
-			// frame of the selected demo).
+			// frame of the selected demo). Unlike the interactive SelectDemo path, this blocks on each demo's load
+			// (rather than firing-and-forgetting it) so a heavy demo is guaranteed to actually be exercised within
+			// its 2-frame budget instead of possibly being skipped by a later switch before it finishes loading.
 			if (smokeFrames > 0 && capturePath is null)
-				SelectDemo(Math.Min((frame - 1) / 2, demos.Length - 1));
+			{
+				var target = Math.Min((frame - 1) / 2, demos.Length - 1);
+				if (target != currentDemo)
+				{
+					pendingDemo = target;
+					var task = EnsureLoadedAsync(target);
+					while (!task.IsCompleted)
+						engine.ServicePendingUploads();
+					ActivateDemo(target, task.GetAwaiter().GetResult());
+				}
+			}
 
 			if (!pauseCamera)
 				elapsed += (float)delta;
@@ -613,8 +675,9 @@ internal static class Program
 	// whose shaders don't cross-compile on this backend/toolchain (e.g. a fragment stage with no DirectX12 DXIL on
 	// win-arm64) — DefineTechniques throws NotSupportedException for the missing stage, so that demo is dropped from
 	// the gallery rather than crashing the whole harness (the same spirit as the SetGraph-time capability guards).
-	// Returns the live demos and their built graphs in lockstep.
-	private static (IDemo[] Demos, RenderGraph[] Graphs) BuildGallery(IEngine engine, DemoScene scene)
+	// This is the backend-capability filter for the menu, so it stays eager (and is cheap — no async asset I/O);
+	// each demo's actual preload + graph build happens lazily, the first time it's viewed (see Main).
+	private static IDemo[] BuildGallery(IEngine engine)
 	{
 		IDemo[] all =
 		[
@@ -664,9 +727,21 @@ internal static class Program
 				Console.WriteLine($"[loom] skipping demo '{demo.Name}' — {ex.Message}");
 			}
 		}
-		var demos = live.ToArray();
-		var graphs = demos.Select(d => d.Build(scene)).ToArray();
-		return (demos, graphs);
+		return live.ToArray();
+	}
+
+	// Drive `task` to completion by draining the engine's queued texture uploads (IEngine.CreateTextureAsync) on
+	// this thread — needed whenever a task can be awaiting an upload but no frame loop is running yet to service it
+	// (every backend's Render also does this once per frame, for uploads requested during live rendering). Runs the
+	// drain from this one call site so concurrent backends' CreateTexture calls can never race each other.
+	private static async Task PumpUntilReady(IEngine engine, Task task)
+	{
+		while (!task.IsCompleted)
+		{
+			engine.ServicePendingUploads();
+			await Task.Yield();
+		}
+		await task; // rethrow any faulting demo's exception rather than swallowing it
 	}
 
 	// Resolve the start demo from --demo into a gallery index, or -1 (having printed why) when the query can't be

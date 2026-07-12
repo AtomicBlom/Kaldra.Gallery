@@ -22,7 +22,16 @@ internal interface IDemo
 	/// <summary>Register the techniques this demo draws with. Called once at startup; idempotent across demos that share a technique.</summary>
 	void DefineTechniques(IEngine engine);
 
-	/// <summary>Build this demo's render graph. <paramref name="scene"/> carries the shared meshes the host uploaded.</summary>
+	/// <summary>
+	/// Optional async asset preload, called once before <see cref="Build"/>. A demo that loads textures/models
+	/// fetches its bytes (<see cref="DemoScene.Asset"/>), decodes, and uploads (<see cref="IEngine.CreateTextureAsync"/>)
+	/// here — concurrently, across as many assets as it needs — and stashes the resulting handles into its own
+	/// fields for <see cref="Build"/> to read. Default no-op, so a demo with nothing to load needs no override.
+	/// </summary>
+	Task PreloadAsync(DemoScene scene) => Task.CompletedTask;
+
+	/// <summary>Build this demo's render graph. <paramref name="scene"/> carries the shared meshes the host uploaded.
+	/// Called after <see cref="PreloadAsync"/> has completed, so any fields it populated are ready to read.</summary>
 	RenderGraph Build(DemoScene scene);
 
 	/// <summary>

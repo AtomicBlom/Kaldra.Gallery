@@ -35,28 +35,39 @@ internal sealed class GltfDemo : IDemo
 		engine.DefineTechnique("light_shadow", new TechniqueDescriptor("light_shadow", HasFragmentPush: true));
 	}
 
-	public RenderGraph Build(DemoScene scene)
+	// Load the committed glTF and mint engine resources from it (geometry + decoded textures). The bytes come
+	// through the scene resolver — a file read on desktop, an HTTP fetch in the browser — fetched concurrently, so
+	// the demo loads the model the same way, and just as non-blockingly, on both hosts. The cube references its
+	// brick textures by these sibling names.
+	public async Task PreloadAsync(DemoScene scene)
 	{
-		// Load the committed glTF once and mint engine resources from it (geometry + decoded textures). The bytes come
-		// through the scene resolver — a file on desktop, an embedded resource in the browser — so the demo loads the
-		// model the same way on both hosts. The cube references its brick textures by these sibling names.
+		var cubeTask = scene.Asset("cube.gltf");
+		var albedoTask = scene.Asset("brick_albedo.png");
+		var normalTask = scene.Asset("brick_normal.png");
+		await Task.WhenAll(cubeTask, albedoTask, normalTask);
+
 		var files = new Dictionary<string, byte[]>
 		{
-			["cube.gltf"] = scene.Asset("cube.gltf"),
-			["brick_albedo.png"] = scene.Asset("brick_albedo.png"),
-			["brick_normal.png"] = scene.Asset("brick_normal.png"),
+			["cube.gltf"] = cubeTask.Result,
+			["brick_albedo.png"] = albedoTask.Result,
+			["brick_normal.png"] = normalTask.Result,
 		};
 		var model = GltfLoader.LoadGltf(files, "cube.gltf");
 		_primitives.Clear();
 		foreach (var prim in model.Primitives)
 		{
-			var mesh = _engine.CreateMesh(prim.Vertices, prim.Indices);
+			var mesh = await _engine.CreateMeshAsync(prim.Vertices, prim.Indices);
 			if (prim.Material?.BaseColor is not { } baseColor || prim.Material?.Normal is not { } normalMap)
 				throw new InvalidOperationException("The glTF primitive lacks a base-colour or normal texture (this demo draws with gbuffer.nm, which needs both).");
-			var material = _engine.CreateMaterial(_engine.CreateTexture(baseColor), _engine.CreateTexture(normalMap));
+			var baseColorTexture = await _engine.CreateTextureAsync(baseColor);
+			var normalTexture = await _engine.CreateTextureAsync(normalMap);
+			var material = await _engine.CreateMaterialAsync(baseColorTexture, normalTexture);
 			_primitives.Add((mesh, material));
 		}
+	}
 
+	public RenderGraph Build(DemoScene scene)
+	{
 		return RenderGraph.Define(g =>
 		{
 			var screen = g.Backbuffer;
