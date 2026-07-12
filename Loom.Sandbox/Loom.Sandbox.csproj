@@ -23,8 +23,8 @@
   </PropertyGroup>
 
   <!-- The Vulkan backend reference is supplied by the SDK via <UseVulkan> (default true); the host still
-       names VulkanEngineSettings, the one sanctioned backend type, so it compiles against Loom.Vulkan.
-       Engine-owned shaders ship embedded in Loom.Vulkan, so the app no longer references Loom.Shaders. -->
+       names VulkanEngineSettings, the one sanctioned backend type, so it compiles against Loom.Backend.Vulkan.
+       Engine-owned shaders ship embedded in Loom.Backend.Vulkan, so the app no longer references Loom.Shaders. -->
 
   <!-- The host owns the window + input and hands the backend the surface. -->
   <ItemGroup>

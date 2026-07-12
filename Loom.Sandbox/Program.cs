@@ -9,7 +9,7 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 #if LOOM_DIRECTX12
-using Loom.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type
+using Loom.Backend.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type
 #endif
 using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
@@ -21,7 +21,7 @@ using SUIsei.Controls;
 using SUIsei.Drawing;
 using SUIsei.Input;
 #if LOOM_VULKAN
-using Loom.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type
+using Loom.Backend.Vulkan; // for VulkanEngineSettings only — the one sanctioned Vulkan backend type
 #endif
 using Silk.NET.Input;
 using Silk.NET.Maths;
