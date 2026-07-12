@@ -1,8 +1,8 @@
 namespace Loom.Sandbox;
 
 /// <summary>
-/// The sandbox's command-line configuration — the single replacement for the pile of <c>LOOM_*</c> environment
-/// variables earlier milestones used to steer the launcher. Everything that used to be an env var is now an
+/// The sandbox's command-line configuration — the single place the launcher is steered, in lieu of any
+/// <c>LOOM_*</c> environment variables. Every setting is an
 /// explicit option (run <c>dotnet run --project Loom.Sandbox -- --help</c>), so a run is self-describing and a
 /// verification script passes flags instead of mutating process state. (The engine assemblies read no environment
 /// variables at all; the only remaining one is <c>LOOM_GOLDEN_DIR</c>, which configures <c>dotnet test</c>, not

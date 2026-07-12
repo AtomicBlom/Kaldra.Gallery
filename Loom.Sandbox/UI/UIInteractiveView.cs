@@ -1,4 +1,5 @@
 using SUIsei;
+using SUIsei.RoutedEvents;
 
 namespace Loom.Sandbox.UI;
 
@@ -23,7 +24,7 @@ internal sealed partial class UIInteractiveView
 		// Style both buttons identically (demonstrates the Style system applied via code-behind).
 		var btnColor = HdrColor.FromRgb(50, 100, 200);
 		IncrementButton.Background = btnColor;
-		ResetButton.Background     = btnColor;
+		ResetButton.Background = btnColor;
 	}
 
 	private void OnIncrementClick(object sender, RoutedEventArgs e) => ViewModel.Bump();

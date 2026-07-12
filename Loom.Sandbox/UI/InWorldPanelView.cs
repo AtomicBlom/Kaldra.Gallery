@@ -2,6 +2,7 @@ using System.Numerics;
 
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.RoutedEvents;
 
 namespace Loom.Sandbox.UI;
 
@@ -29,7 +30,7 @@ internal sealed partial class InWorldPanelView
 
 		var btnColor = HdrColor.FromRgb(30, 120, 80);
 		IncrementButton.Background = btnColor;
-		ResetButton.Background     = btnColor;
+		ResetButton.Background = btnColor;
 	}
 
 	private void OnIncrementClick(object sender, RoutedEventArgs e) => ViewModel.Bump();
