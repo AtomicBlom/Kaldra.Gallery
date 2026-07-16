@@ -1,0 +1,98 @@
+name: Software rasterizer (WARP) capture
+
+# A GPU-less regression net for the tracked demos. GitHub-hosted runners have no GPU, so the golden-image and
+# cross-backend parity captures (tools/golden.ps1) only run locally today. windows-latest ships WARP (Microsoft's
+# software D3D12 rasterizer) out of the box, so this workflow forces the DirectX12 backend onto it
+# (--software-adapter) and asserts each tracked demo actually renders something — a colorcount SMOKE test, not a
+# pixel-parity gate. It catches "a demo crashes or renders black under software rasterization" without a GPU
+# runner. See docs/ci-software-rasterizer.md for the recipe, the fidelity measurement, and the deferred
+# parity-baseline decision.
+#
+# Built in Release: the D3D12 debug layer's GPU-based validation (on by default in Debug —
+# DirectX12EngineSettings.GpuBasedValidation) patches shaders in a way WARP does not reliably support and can
+# crash the process outright. Release leaves the debug layer's ordinary (non-GPU-based) validation on.
+
+on:
+  push:
+    branches: [master, Milestone13, loom-ui]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  warp-capture:
+    # windows-latest is the one GitHub-hosted runner with WARP preinstalled (part of the Windows SDK).
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Loom.Sandbox references the SUIsei submodule (Loom.UI.SUIsei) and, via the Vulkan backend, VMASharp —
+      # both submodules are needed to build the real sandbox (unlike the neutral-layers-only job in ci.yml).
+      # SUIsei is private; fetch it with a PAT that has contents:read on AtomicBlom/SUIsei.
+      - name: Checkout submodules (PAT for private SUIsei)
+        env:
+          GH_PAT: ${{ secrets.PAT }}
+        shell: bash
+        run: |
+          git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"
+          git submodule update --init --recursive
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Loom.Sandbox/Loom.Sandbox.csproj
+
+      - name: Build (Release)
+        run: dotnet build Loom.Sandbox/Loom.Sandbox.csproj -c Release --no-restore
+
+      # One capture per demo with a committed golden baseline (Loom.Tests/Goldens/ — keep this list in sync with
+      # tools/golden.ps1's own $demos map). Each is captured on DX12 forced onto WARP, then colorcount.ps1 counts
+      # its distinct RGB colours: a real scene lands in the thousands, a black/failed frame is ~1.
+      - name: Capture + colorcount each tracked demo on DirectX12 + WARP
+        shell: pwsh
+        run: |
+          $demos = [ordered]@{
+            "FullReference"     = "Full reference frame"
+            "Bloom"             = "Bloom"
+            "Particles"         = "Particles"
+            "PixelArt"          = "Pixel Art"
+            "StylizedReference" = "Stylized reference"
+          }
+          $outDir = "warp-captures"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $failed = $false
+
+          foreach ($entry in $demos.GetEnumerator()) {
+            $out = Join-Path $outDir "$($entry.Key).png"
+            Write-Host "[warp] capturing '$($entry.Value)' -> $out"
+            dotnet run --project Loom.Sandbox -c Release --no-build -- --backend dx12 --software-adapter --demo $entry.Value --capture $out
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::'$($entry.Value)' failed to capture on DirectX12+WARP (exit $LASTEXITCODE)."
+              $failed = $true
+              continue
+            }
+
+            $result = pwsh Scripts/Verification/colorcount.ps1 -Path $out
+            Write-Host "[warp] $result"
+            if ($result -notmatch ': (\d+) distinct') {
+              Write-Host "::error::could not parse colorcount output for '$($entry.Value)': $result"
+              $failed = $true
+              continue
+            }
+            if ([int]$Matches[1] -lt 10) {
+              Write-Host "::error::'$($entry.Value)' rendered a near-empty frame under WARP ($($Matches[1]) distinct colours)."
+              $failed = $true
+            }
+          }
+
+          if ($failed) { exit 1 }
+
+      - name: Upload captures (debugging aid on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: warp-captures
+          path: warp-captures/

@@ -35,6 +35,10 @@ internal sealed record LaunchOptions
 	/// <summary>Watch the loose shader directory and hot-reload rebuilt artifacts (dev only).</summary>
 	public bool WatchShaders { get; init; }
 
+	/// <summary>Request a CPU/software rendering adapter (DX12 WARP; a Vulkan CPU device) for GPU-less CI or
+	/// deterministic software rendering. Maps onto <c>EngineSettings.PreferSoftwareAdapter</c>.</summary>
+	public bool SoftwareAdapter { get; init; }
+
 	/// <summary>Demo to start on — a 0-based index, an exact name, or a unique case-insensitive substring (e.g.
 	/// "bloom"). Null starts on the first demo; an ambiguous or unmatched value is reported and the sandbox exits.</summary>
 	public string? Demo { get; init; }
@@ -89,6 +93,8 @@ internal sealed record LaunchOptions
 		  --dump-graph <prefix>     Write "<prefix>.<demo>.dot/.json" on startup and every swap.
 		  --inspect                 Open the resource viewer on startup.
 		  --frustum                 Enable the detached debug camera + frozen-frustum wireframe.
+		  --software-adapter        Force a CPU/software rendering adapter (DX12 WARP; a Vulkan CPU device) for
+		                            GPU-less CI or deterministic software rendering.
 
 		Headless / capture:
 		  --smoke-frames <n>        Render N frames (cycling demos) then exit.
@@ -112,6 +118,7 @@ internal sealed record LaunchOptions
 		string? dumpGraph = null;
 		var inspect = false;
 		var frustum = false;
+		var softwareAdapter = false;
 		var smokeFrames = 0;
 		string? capture = null;
 		var captureAnimate = false;
@@ -165,6 +172,7 @@ internal sealed record LaunchOptions
 					case "--dump-graph": dumpGraph = Value(); break;
 					case "--inspect": inspect = Flag(); break;
 					case "--frustum": frustum = Flag(); break;
+					case "--software-adapter": softwareAdapter = Flag(); break;
 					case "--smoke-frames":
 						smokeFrames = int.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture);
 						if (smokeFrames <= 0) return Fail("--smoke-frames must be a positive frame count (a headless run needs N > 0 frames to render then exit).");
@@ -193,6 +201,7 @@ internal sealed record LaunchOptions
 			DumpGraph = dumpGraph,
 			Inspect = inspect,
 			Frustum = frustum,
+			SoftwareAdapter = softwareAdapter,
 			SmokeFrames = smokeFrames,
 			Capture = capture,
 			CaptureAnimate = captureAnimate,

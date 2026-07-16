@@ -635,6 +635,7 @@ internal static class Program
 				PreferredBackend = "Vulkan",
 				// Shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
 				WatchShaderDirectory = opts.WatchShaders,
+				PreferSoftwareAdapter = opts.SoftwareAdapter,
 			};
 			return Resolve(window.VkSurface, window, vk);
 		}
@@ -654,6 +655,7 @@ internal static class Program
 				WatchShaderDirectory = opts.WatchShaders,
 				// The Loom SDK copies the app shaders' signed DXIL + reflection JSON next to the exe under shaders\.
 				ShaderDirectory = Path.Combine(AppContext.BaseDirectory, "shaders"),
+				PreferSoftwareAdapter = opts.SoftwareAdapter,
 			};
 			return Resolve(hwnd, window, dx);
 		}
