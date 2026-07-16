@@ -312,7 +312,7 @@ internal static class Program
 		if (smokeFrames > 0)
 			engine.GpuTimingEnabled = true;
 		var frame = 0;
-		var elapsed = 0f;
+		var elapsed = 0.0;
 		var fpsTimer = 0f;
 		var fpsFrames = 0;
 		var displayFps = 0.0;
@@ -342,7 +342,7 @@ internal static class Program
 			}
 
 			if (!pauseCamera)
-				elapsed += (float)delta;
+				elapsed += delta;
 
 			fpsTimer += (float)delta;
 			fpsFrames++;
@@ -361,7 +361,7 @@ internal static class Program
 			// backends — captured at the same frame, the dynamic demos diff like the static ones.
 			const float captureTime = 1.0f;
 			const double captureDelta = 1.0 / 60.0;
-			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed;
+			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : (float)elapsed;
 			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
 			DemoCamera.Orbit(orbit, camTime, aspect);
 
@@ -404,7 +404,7 @@ internal static class Program
 
 			// The active demo's world-space debug lines (e.g. the skinning demo's skeleton), projected
 			// against the render camera and merged with any frustum wireframe.
-			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : elapsed);
+			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : (float)elapsed);
 			if (demoLines.Count > 0)
 			{
 				var vp = renderCamera.View * renderCamera.Projection;
@@ -538,7 +538,7 @@ internal static class Program
 				demos[currentDemo].OnPointer(PointerInput.Release(click));
 			}
 
-			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
+			uiHost.Tick(delta, (float)elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
 			uiHost.Render();
 
 			// Per-frame CPU work for the active demo — runs here, after any mid-frame demo switch via the ImGui
@@ -546,7 +546,7 @@ internal static class Program
 			// In freeze mode the demo still culls against the main frustum while we fly the detached camera.
 			demos[currentDemo].Update(camera);
 
-			demos[currentDemo].PreFrame(delta, elapsed, renderCamera, new Vector2(fbW, fbH));
+			demos[currentDemo].PreFrame(delta, (float)elapsed, renderCamera, new Vector2(fbW, fbH));
 
 			engine.Render(new FrameInputs
 			{
