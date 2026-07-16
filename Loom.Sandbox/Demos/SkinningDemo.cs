@@ -122,7 +122,7 @@ internal sealed partial class SkinningDemo : ObservableObject, IDemo
 				.ReadWrites(skinned)
 				.Dispatch(ctx =>
 				{
-					var t = _clip.Duration > 0f ? ctx.Time % _clip.Duration : 0f;
+					var t = _clip.Duration > 0f ? (float)(ctx.Time % _clip.Duration) : 0f;
 					AnimationSampler.Evaluate(_skeleton, _clip, t, _palette);
 					ctx.DispatchSkin("skin", _mesh, _palette, skinned, _vertexCount);
 				});

@@ -53,7 +53,7 @@ internal sealed class TonemappingDemo : IDemo
 		g.Compute("exposure")
 			.Samples(lit)
 			.ReadWrites(exposure)
-			.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * ctx.DeltaTime], [lit], [exposure]));
+			.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * (float)ctx.DeltaTime], [lit], [exposure]));
 
 		// Scale by exposure + roll off highlights (SDR), or preserve the extended range (HDR output).
 		g.Pass("tonemap")

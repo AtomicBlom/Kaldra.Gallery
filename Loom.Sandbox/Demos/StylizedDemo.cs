@@ -159,7 +159,7 @@ internal sealed class StylizedDemo : IDemo
 			.ReadWrites(skinned)
 			.Dispatch(ctx =>
 			{
-				var t = _clip.Duration > 0f ? ctx.Time % _clip.Duration : 0f;
+				var t = _clip.Duration > 0f ? (float)ctx.Time % _clip.Duration : 0f;
 				AnimationSampler.Evaluate(_skeleton, _clip, t, _palette);
 				ctx.DispatchSkin("skin", _char, _palette, skinned, _charVerts);
 			});
@@ -189,7 +189,7 @@ internal sealed class StylizedDemo : IDemo
 			{
 				DemoDraw.Skinned(ctx, _char, skinned, "gbuffer", Matrix4x4.Identity);
 				DemoDraw.Mesh(ctx, _ground, "gbuffer", Matrix4x4.Identity);
-				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
+				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = (float)ctx.Time; _wind[3] = 0f;
 				_wind[4] = 0.16f; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
 				var foliage = new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field) };
 				foliage.SetUniforms<float>(_wind);

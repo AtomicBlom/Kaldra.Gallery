@@ -170,9 +170,9 @@ internal sealed class PixelArtCastleDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _back, Technique = "sprite", Instances = DrawCall.From(BuildBackground(ctx.Time).AsSpan()) });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _back, Technique = "sprite", Instances = DrawCall.From(BuildBackground((float)ctx.Time).AsSpan()) });
 				ctx.Draw(new DrawCall { Mesh = _mapQuad, Material = _tiles, Technique = "tilemap" });
-				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _guards, Technique = "sprite", Instances = DrawCall.From(BuildGuards(ctx.Time).AsSpan()) });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _guards, Technique = "sprite", Instances = DrawCall.From(BuildGuards((float)ctx.Time).AsSpan()) });
 			});
 
 		g.Pass("ambient")
@@ -187,7 +187,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 			.Draw(ctx =>
 			{
 				ReadOnlySpan<ResourceHandle> gbuffer = [albedo, normal];
-				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildTorches(ctx.Time).AsSpan()), Sampled = gbuffer });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildTorches((float)ctx.Time).AsSpan()), Sampled = gbuffer });
 			});
 
 		// Bloom the lit 2D scene (torch glow). The composite below scales it to the screen (aspect-preserving,
@@ -202,7 +202,7 @@ internal sealed class PixelArtCastleDemo : IDemo
 			.Draw(ctx =>
 			{
 				// A stocky golem standing on the floor (feet at y≈0): two legs, a wide body, a big head, two thick arms.
-				var spin = Matrix4x4.CreateRotationY(ctx.Time * 0.6f);
+				var spin = Matrix4x4.CreateRotationY((float)ctx.Time * 0.6f);
 				var s = _bossScale;
 				DemoDraw.Mesh(ctx, _arm, "toon", Matrix4x4.CreateScale(1.7f * s, 0.9f * s, 1.7f * s) * Matrix4x4.CreateTranslation(-0.26f * s, 0.30f * s, 0f) * spin);
 				DemoDraw.Mesh(ctx, _arm, "toon", Matrix4x4.CreateScale(1.7f * s, 0.9f * s, 1.7f * s) * Matrix4x4.CreateTranslation(0.26f * s, 0.30f * s, 0f) * spin);
