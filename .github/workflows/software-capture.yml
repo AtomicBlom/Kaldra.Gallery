@@ -13,8 +13,6 @@ name: Software rasterizer (WARP) capture
 # crash the process outright. Release leaves the debug layer's ordinary (non-GPU-based) validation on.
 
 on:
-  push:
-    branches: [master, Milestone13, loom-ui]
   pull_request:
   workflow_dispatch:
 
