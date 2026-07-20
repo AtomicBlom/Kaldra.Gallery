@@ -48,6 +48,9 @@
     <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.ImGui\Loom.UI.ImGui.csproj" />
+    <!-- The reusable desktop input pump (Silk devices -> neutral Loom.Input events). The sandbox owns its own
+         window, so it feeds the pump its own IInputContext rather than running under DesktopAppHost. -->
+    <ProjectReference Include="..\Loom.Hosting.Desktop\Loom.Hosting.Desktop.csproj" />
   </ItemGroup>
 
   <!-- Committed demo assets (brick textures + the glTF cube). The Loom SDK copies only shaders, so these are
