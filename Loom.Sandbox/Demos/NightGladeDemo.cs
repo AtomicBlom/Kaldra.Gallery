@@ -298,7 +298,7 @@ internal sealed class NightGladeDemo : IDemo
 					DemoDraw.Mesh(ctx, _treeMeshes[i], "gbuffer.tex", _treeModels[i], 0, _bark);
 				DemoDraw.Mesh(ctx, _ground, "gbuffer.nm", Matrix4x4.Identity, 0, _groundMat); // dark-earth ground
 
-				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = ctx.Time; _wind[3] = 0f;
+				_wind[0] = 1f; _wind[1] = 0.35f; _wind[2] = (float)ctx.Time; _wind[3] = 0f;
 				_wind[4] = 0.14f * _windStrength; _wind[5] = 2.0f; _wind[6] = 0f; _wind[7] = 0f;
 				var foliage = new DrawCall { Mesh = _card, Material = _blade, Technique = "foliage", Instances = DrawCall.From<Blade>(_field) };
 				foliage.SetUniforms<float>(_wind);
@@ -341,7 +341,7 @@ internal sealed class NightGladeDemo : IDemo
 		// reads it as the per-instance stream and additively blends warm glowing billboards drifting through the air.
 		g.Compute("firefly.update")
 			.ReadWrites(fireflies)
-			.Dispatch(ctx => ctx.Dispatch("firefly.update", (1, 1, 1), [ctx.Time], [], [fireflies]));
+			.Dispatch(ctx => ctx.Dispatch("firefly.update", (1, 1, 1), [(float)ctx.Time], [], [fireflies]));
 
 		g.Pass("fireflies")
 			.Reads(_viewproj)

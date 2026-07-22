@@ -51,8 +51,14 @@ internal static class Program
 		// Pick a backend from the set actually compiled into this build (--backend chooses; otherwise the first
 		// compiled-in backend, Vulkan when present). The window surface and engine settings both follow from it.
 		var backend = ChooseBackend(opts.Backend);
-		using var window = CreateWindow(backend, opts);
-		using var engine = CreateEngine(backend, window, opts);
+		// --headless brings the engine up with no window (Surface.Offscreen), for capture/smoke on a machine with no
+		// usable interactive desktop — e.g. a CI runner, especially one running as a service (a Windows service lives
+		// in Session 0, which has no desktop, so GLFW can't open a window there). The per-frame body is identical
+		// either way; only the surface and the frame driver (window event vs. fixed-step loop) differ.
+		var size = new Vector2D<int>(1280, 720);
+		using var window = opts.Headless ? null : CreateWindow(backend, opts, size);
+		var framebufferSize = window?.FramebufferSize ?? size;
+		using var engine = CreateEngine(backend, window, size, opts);
 
 		// Shared geometry every demo draws, uploaded once.
 		var (cubeVerts, cubeIndices) = Geometry.BuildCube();
@@ -139,7 +145,7 @@ internal static class Program
 		ImGui.CreateContext();
 		var io = ImGui.GetIO();
 		unsafe { io.NativePtr->IniFilename = null; } // don't persist a layout .ini next to the exe
-		io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+		io.DisplaySize = new Vector2(framebufferSize.X, framebufferSize.Y);
 		io.DisplayFramebufferScale = Vector2.One;
 		io.Fonts.AddFontDefault();
 		ImGui.StyleColorsDark();
@@ -249,9 +255,9 @@ internal static class Program
 
 		Console.WriteLine($"Loom - demo gallery (keys 1-{demos.Length} / Tab) on {engine.DeviceName} ({engine.BackendName}). On Object Highlighting / Full, hover the cube. Close the window to exit.");
 
-		using var input = window.CreateInput();
-		var mouse = input.Mice.Count > 0 ? input.Mice[0] : null;
-		var keyboard = input.Keyboards.Count > 0 ? input.Keyboards[0] : null;
+		using var input = window?.CreateInput();
+		var mouse = input is { Mice.Count: > 0 } ? input.Mice[0] : null;
+		var keyboard = input is { Keyboards.Count: > 0 } ? input.Keyboards[0] : null;
 		if (keyboard is not null)
 		{
 			keyboard.KeyDown += (kb, key, _) =>
@@ -312,14 +318,16 @@ internal static class Program
 		if (smokeFrames > 0)
 			engine.GpuTimingEnabled = true;
 		var frame = 0;
-		var elapsed = 0f;
+		var elapsed = 0.0;
 		var fpsTimer = 0f;
 		var fpsFrames = 0;
 		var displayFps = 0.0;
 		var displayMs = 0.0;
 
-		window.FramebufferResize += size => engine.Resize(size.X, size.Y);
-		window.Render += delta =>
+		// The per-frame body — driven by the window's Render event when interactive, or by a fixed-step loop when
+		// headless. It sets `done` when the capture/smoke exit condition trips; each driver reacts to that below.
+		var done = false;
+		void RenderFrame(double delta)
 		{
 			frame++;
 
@@ -342,7 +350,7 @@ internal static class Program
 			}
 
 			if (!pauseCamera)
-				elapsed += (float)delta;
+				elapsed += delta;
 
 			fpsTimer += (float)delta;
 			fpsFrames++;
@@ -361,8 +369,8 @@ internal static class Program
 			// backends — captured at the same frame, the dynamic demos diff like the static ones.
 			const float captureTime = 1.0f;
 			const double captureDelta = 1.0 / 60.0;
-			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : elapsed;
-			var aspect = window.FramebufferSize.Y == 0 ? 1f : (float)window.FramebufferSize.X / window.FramebufferSize.Y;
+			var camTime = capturePath is not null ? (captureAnimate ? frame * (float)captureDelta : captureTime) : (float)elapsed;
+			var aspect = framebufferSize.Y == 0 ? 1f : (float)framebufferSize.X / framebufferSize.Y;
 			DemoCamera.Orbit(orbit, camTime, aspect);
 
 			// A demo may override the camera — a 2D/sprite demo returns an orthographic view here; otherwise
@@ -373,8 +381,8 @@ internal static class Program
 			// frustum as a yellow wireframe. Entering debug mode freezes the current view; the host projects the frozen
 			// frustum's 8 corners to screen pixels and hands the 12 edges to the engine's overlay.
 			var renderCamera = camera;
-			var fbW = window.FramebufferSize.X;
-			var fbH = window.FramebufferSize.Y;
+			var fbW = framebufferSize.X;
+			var fbH = framebufferSize.Y;
 			debugSegments.Clear();
 			if (debugCam)
 			{
@@ -404,7 +412,7 @@ internal static class Program
 
 			// The active demo's world-space debug lines (e.g. the skinning demo's skeleton), projected
 			// against the render camera and merged with any frustum wireframe.
-			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : elapsed);
+			var demoLines = demos[currentDemo].DebugWorldLines(capturePath is not null ? captureTime : (float)elapsed);
 			if (demoLines.Count > 0)
 			{
 				var vp = renderCamera.View * renderCamera.Projection;
@@ -430,8 +438,8 @@ internal static class Program
 				else if (mouse is not null)
 				{
 					var (pw, ph) = pickTarget.Resolve();
-					var px = (int)(mouse.Position.X / Math.Max(window.FramebufferSize.X, 1) * pw);
-					var py = (int)(mouse.Position.Y / Math.Max(window.FramebufferSize.Y, 1) * ph);
+					var px = (int)(mouse.Position.X / Math.Max(framebufferSize.X, 1) * pw);
+					var py = (int)(mouse.Position.Y / Math.Max(framebufferSize.Y, 1) * ph);
 					var pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(engine.Read(pickTarget));
 					var i = py * pw + px;
 					if ((uint)i < (uint)pixels.Length)
@@ -445,7 +453,7 @@ internal static class Program
 
 			// Drive ImGui: feed input, build the bar; the Loom.UI.ImGui bridge renders the resulting draw data in
 			// the hud pass (it reads ImGui.GetDrawData() from the pass closure — no draw-data pointer plumbing).
-			io.DisplaySize = new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y);
+			io.DisplaySize = new Vector2(framebufferSize.X, framebufferSize.Y);
 			io.DisplayFramebufferScale = Vector2.One;
 			io.DeltaTime = delta > 0 ? (float)delta : 1f / 60f;
 			if (mouse is not null)
@@ -538,7 +546,7 @@ internal static class Program
 				demos[currentDemo].OnPointer(PointerInput.Release(click));
 			}
 
-			uiHost.Tick(delta, elapsed, new Vector2(window.FramebufferSize.X, window.FramebufferSize.Y));
+			uiHost.Tick(delta, (float)elapsed, new Vector2(framebufferSize.X, framebufferSize.Y));
 			uiHost.Render();
 
 			// Per-frame CPU work for the active demo — runs here, after any mid-frame demo switch via the ImGui
@@ -546,7 +554,7 @@ internal static class Program
 			// In freeze mode the demo still culls against the main frustum while we fly the detached camera.
 			demos[currentDemo].Update(camera);
 
-			demos[currentDemo].PreFrame(delta, elapsed, renderCamera, new Vector2(fbW, fbH));
+			demos[currentDemo].PreFrame(delta, (float)elapsed, renderCamera, new Vector2(fbW, fbH));
 
 			engine.Render(new FrameInputs
 			{
@@ -555,7 +563,7 @@ internal static class Program
 			});
 
 			if (capturePath is not null && frame >= 62)
-				window.Close();
+				done = true;
 			else if (smokeFrames > 0 && frame >= smokeFrames)
 			{
 				// Dump the last completed frame's GPU timings (cross-backend sanity: sum ≤ frame total ≤ wall).
@@ -566,11 +574,22 @@ internal static class Program
 						Console.WriteLine($"  {t.Name,-18} {t.GpuMilliseconds,7:F3} ms");
 					Console.WriteLine($"  {"frame total",-18} {engine.LastFrameGpuMilliseconds,7:F3} ms");
 				}
-				window.Close();
+				done = true;
 			}
-		};
+		}
 
-		window.Run();
+		if (window is not null)
+		{
+			window.FramebufferResize += s => { engine.Resize(s.X, s.Y); framebufferSize = s; };
+			window.Render += delta => { RenderFrame(delta); if (done) window.Close(); };
+			window.Run();
+		}
+		else
+		{
+			// Headless: drive the same body at a fixed 60 Hz until the capture/smoke exit condition trips.
+			while (!done)
+				RenderFrame(1.0 / 60.0);
+		}
 		engine.WaitIdle();
 		ImGui.DestroyContext();
 	}
@@ -602,9 +621,8 @@ internal static class Program
 	// or a context-less Win32 window (the DirectX12 backend binds its swapchain to the raw HWND). The window is the only
 	// place the two backends diverge before the (shared) render loop. Both option sets are plain Silk types, so this
 	// needs no per-backend #if — only the engine settings below name a backend assembly.
-	private static IWindow CreateWindow(BackendChoice backend, LaunchOptions opts)
+	private static IWindow CreateWindow(BackendChoice backend, LaunchOptions opts, Vector2D<int> size)
 	{
-		var size = new Vector2D<int>(1280, 720);
 		var options = backend == BackendChoice.DirectX12
 			? WindowOptions.Default with { Size = size, Title = "Loom - DirectX12 demo gallery", API = GraphicsAPI.None, FramesPerSecond = opts.MaxFps }
 			: WindowOptions.DefaultVulkan with { Size = size, Title = "Loom - Vulkan demo gallery", FramesPerSecond = opts.MaxFps };
@@ -619,13 +637,16 @@ internal static class Program
 	// backend assembly, which self-registers into Engine.AvailableEngines. Each branch is gated on the same LOOM_*
 	// constant ChooseBackend used, so the branch for the chosen backend is always present; the trailing throw is
 	// therefore unreachable (it only guards against a future BackendChoice with no factory here).
-	private static IEngine CreateEngine(BackendChoice backend, IWindow window, LaunchOptions opts)
+	private static IEngine CreateEngine(BackendChoice backend, IWindow? window, Vector2D<int> size, LaunchOptions opts)
 	{
+		// Windowed: the backend binds to the host window's native surface (IVkSurface / HWND). Headless (--headless,
+		// no window): it renders into an owned offscreen image (Surface.Offscreen) sized to `size` — the windowless
+		// path RequestCapture reads back from exactly as it would a swapchain frame.
+		var width = window?.FramebufferSize.X ?? size.X;
+		var height = window?.FramebufferSize.Y ?? size.Y;
 #if LOOM_VULKAN
 		if (backend == BackendChoice.Vulkan)
 		{
-			if (window.VkSurface is null)
-				throw new InvalidOperationException("The windowing platform did not expose a Vulkan surface.");
 			var vk = new VulkanEngineSettings
 			{
 				EnableValidation = true,
@@ -635,15 +656,17 @@ internal static class Program
 				PreferredBackend = "Vulkan",
 				// Shader hot-reload (dev opt-in): watch the loose shader dir for rebuilt .spv/.json artifacts.
 				WatchShaderDirectory = opts.WatchShaders,
+				PreferSoftwareAdapter = opts.SoftwareAdapter,
 			};
-			return Resolve(window.VkSurface, window, vk);
+			object surface = window is not null
+				? window.VkSurface ?? throw new InvalidOperationException("The windowing platform did not expose a Vulkan surface.")
+				: Surface.Offscreen(width, height);
+			return Resolve(surface, width, height, vk);
 		}
 #endif
 #if LOOM_DIRECTX12
 		if (backend == BackendChoice.DirectX12)
 		{
-			var hwnd = window.Native?.Win32?.Hwnd
-				?? throw new InvalidOperationException("The DirectX12 backend needs the window's Win32 HWND.");
 			var dx = new DirectX12EngineSettings
 			{
 				EnableValidation = true,
@@ -654,8 +677,12 @@ internal static class Program
 				WatchShaderDirectory = opts.WatchShaders,
 				// The Loom SDK copies the app shaders' signed DXIL + reflection JSON next to the exe under shaders\.
 				ShaderDirectory = Path.Combine(AppContext.BaseDirectory, "shaders"),
+				PreferSoftwareAdapter = opts.SoftwareAdapter,
 			};
-			return Resolve(hwnd, window, dx);
+			object surface = window is not null
+				? window.Native?.Win32?.Hwnd ?? throw new InvalidOperationException("The DirectX12 backend needs the window's Win32 HWND.")
+				: Surface.Offscreen(width, height);
+			return Resolve(surface, width, height, dx);
 		}
 #endif
 		throw new InvalidOperationException($"No engine factory for backend {backend} in this build.");
@@ -664,11 +691,11 @@ internal static class Program
 	// Create the engine on the registered backend matching the settings' PreferredBackend. The name is guaranteed
 	// present (ChooseBackend only returns a compiled-in backend, and constructing its settings registered it), so a
 	// miss means the backend assembly failed to self-register — a clear, rare error rather than a silent fallback.
-	private static IEngine Resolve(object surface, IWindow window, EngineSettings settings)
+	private static IEngine Resolve(object surface, int width, int height, EngineSettings settings)
 	{
 		var backend = Engine.AvailableEngines.FirstOrDefault(e => e.Name == settings.PreferredBackend)
 			?? throw new InvalidOperationException($"The {settings.PreferredBackend} backend did not register into Engine.AvailableEngines.");
-		return backend.Create(surface, window.FramebufferSize.X, window.FramebufferSize.Y, settings);
+		return backend.Create(surface, width, height, settings);
 	}
 
 	// Build the demo gallery: register every demo's techniques (idempotent across demos that share one), skipping any

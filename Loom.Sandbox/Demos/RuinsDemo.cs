@@ -366,7 +366,7 @@ internal sealed class RuinsDemo : IDemo
 			.Dispatch(ctx =>
 			{
 				var clip = _clips[Math.Clamp(_clipIdx, 0, _clips.Length - 1)];
-				var tt = clip.Duration > 0f ? ctx.Time % clip.Duration : 0f;
+				var tt = clip.Duration > 0f ? (float)ctx.Time % clip.Duration : 0f;
 				AnimationSampler.Evaluate(_skeleton, clip, tt, _palette);
 				ctx.DispatchSkin("skin", _char, _palette, skinned, _charVerts);
 			});
@@ -465,7 +465,7 @@ internal sealed class RuinsDemo : IDemo
 		g.Compute("exposure")
 			.Samples(lit)
 			.ReadWrites(exposure)
-			.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * ctx.DeltaTime], [lit], [exposure]));
+			.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * (float)ctx.DeltaTime], [lit], [exposure]));
 
 		g.Pass("tonemap")
 			.Samples(bloomed, exposure)

@@ -97,7 +97,7 @@ internal sealed class Lighting2DDemo : IDemo
 			.Blends(lit)
 			.Draw(ctx =>
 			{
-				var t = ctx.Time;
+				var t = (float)ctx.Time;
 				var centre = new Vector2(WorldWidth * 0.5f, WorldHeight * 0.5f);
 				Span<Light2DInstance> lights =
 				[

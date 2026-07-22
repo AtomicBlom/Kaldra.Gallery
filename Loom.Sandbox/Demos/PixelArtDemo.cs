@@ -122,9 +122,9 @@ internal sealed class PixelArtDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _balls, Technique = "sprite", Instances = DrawCall.From(BuildBackground(ctx.Time).AsSpan()) });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _balls, Technique = "sprite", Instances = DrawCall.From(BuildBackground((float)ctx.Time).AsSpan()) });
 				ctx.Draw(new DrawCall { Mesh = _mapQuad, Material = _tiles, Technique = "tilemap" });
-				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _spinners, Technique = "sprite", Instances = DrawCall.From(BuildSprites(ctx.Time).AsSpan()) });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _spinners, Technique = "sprite", Instances = DrawCall.From(BuildSprites((float)ctx.Time).AsSpan()) });
 			});
 
 		// Ambient + emissive base, then the dynamic coloured lights accumulate additively (normal-mapped relief).
@@ -140,7 +140,7 @@ internal sealed class PixelArtDemo : IDemo
 			.Draw(ctx =>
 			{
 				ReadOnlySpan<ResourceHandle> gbuffer = [albedo, normal];
-				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()), Sampled = gbuffer });
+				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(BuildLights((float)ctx.Time).AsSpan()), Sampled = gbuffer });
 			});
 
 		// Generalized GPU particles: a compute fountain writes the wide particle stream (the demo pushes the
@@ -148,7 +148,7 @@ internal sealed class PixelArtDemo : IDemo
 		// bloom. Two edges — .ReadWrites then .ReadsVertex — and the engine derives the compute→vertex-input barrier.
 		g.Compute("particle.glow.update")
 			.ReadWrites(glow)
-			.Dispatch(ctx => ctx.Dispatch("particle.glow.update", ((uint)(GlowParticleCount / 64), 1, 1), GlowEmitter(ctx.Time), [], [glow]));
+			.Dispatch(ctx => ctx.Dispatch("particle.glow.update", ((uint)(GlowParticleCount / 64), 1, 1), GlowEmitter((float)ctx.Time), [], [glow]));
 
 		g.Pass("glow")
 			.Reads(_viewproj)

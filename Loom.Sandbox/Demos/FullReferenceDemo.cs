@@ -113,7 +113,7 @@ internal sealed class FullReferenceDemo : IDemo
 
 		g.Compute("particle.update")
 			.ReadWrites(particles)
-			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [ctx.Time], [], [particles]));
+			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [(float)ctx.Time], [], [particles]));
 
 		g.Pass("particle.draw")
 			.Reads(_viewproj)
@@ -164,7 +164,7 @@ internal sealed class FullReferenceDemo : IDemo
 		g.Compute("exposure")
 			.Samples(lit)
 			.ReadWrites(exposure)
-			.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * ctx.DeltaTime], [lit], [exposure]));
+			.Dispatch(ctx => ctx.Dispatch("exposure", (1, 1, 1), [8f * (float)ctx.DeltaTime], [lit], [exposure]));
 
 		g.Pass("tonemap")
 			.Samples(glow, exposure)

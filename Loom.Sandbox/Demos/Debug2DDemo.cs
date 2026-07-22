@@ -92,7 +92,7 @@ internal sealed class Debug2DDemo : IDemo
 			.Blends(lit)
 			.Draw(ctx =>
 			{
-				var lights = BuildLights(ctx.Time);
+				var lights = BuildLights((float)ctx.Time);
 				ReadOnlySpan<ResourceHandle> gbuffer = [albedo, normal];
 				ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "light2d", Instances = DrawCall.From(lights.AsSpan()), Sampled = gbuffer });
 			});
@@ -101,7 +101,7 @@ internal sealed class Debug2DDemo : IDemo
 		g.Pass("gizmos")
 			.Reads(_viewproj)
 			.Blends(lit)
-			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "gizmo2d", Instances = DrawCall.From(BuildLights(ctx.Time).AsSpan()) }));
+			.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Quad, Technique = "gizmo2d", Instances = DrawCall.From(BuildLights((float)ctx.Time).AsSpan()) }));
 
 		// Terminal pass: tile the G-buffer channels + lit into four quadrants, upscaled to the screen.
 		g.Pass("inspect")

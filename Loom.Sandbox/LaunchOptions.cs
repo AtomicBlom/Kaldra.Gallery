@@ -35,6 +35,10 @@ internal sealed record LaunchOptions
 	/// <summary>Watch the loose shader directory and hot-reload rebuilt artifacts (dev only).</summary>
 	public bool WatchShaders { get; init; }
 
+	/// <summary>Request a CPU/software rendering adapter (DX12 WARP; a Vulkan CPU device) for GPU-less CI or
+	/// deterministic software rendering. Maps onto <c>EngineSettings.PreferSoftwareAdapter</c>.</summary>
+	public bool SoftwareAdapter { get; init; }
+
 	/// <summary>Demo to start on — a 0-based index, an exact name, or a unique case-insensitive substring (e.g.
 	/// "bloom"). Null starts on the first demo; an ambiguous or unmatched value is reported and the sandbox exits.</summary>
 	public string? Demo { get; init; }
@@ -47,6 +51,12 @@ internal sealed record LaunchOptions
 
 	/// <summary>Enable the detached debug camera + frozen-frustum wireframe on startup.</summary>
 	public bool Frustum { get; init; }
+
+	/// <summary>Render with no window: bring the engine up on an offscreen surface (<c>Surface.Offscreen</c>) instead
+	/// of a swapchain, for capture/smoke on a machine with no usable interactive desktop (a CI runner, or a runner
+	/// running as a service — a Windows service has no desktop, so a window can't be created there). Requires
+	/// <see cref="Capture"/> or <see cref="SmokeFrames"/> (there is no window to interact with).</summary>
+	public bool Headless { get; init; }
 
 	/// <summary>Headless: render N frames (cycling demos) then exit. 0 = run interactively.</summary>
 	public int SmokeFrames { get; init; }
@@ -89,8 +99,13 @@ internal sealed record LaunchOptions
 		  --dump-graph <prefix>     Write "<prefix>.<demo>.dot/.json" on startup and every swap.
 		  --inspect                 Open the resource viewer on startup.
 		  --frustum                 Enable the detached debug camera + frozen-frustum wireframe.
+		  --software-adapter        Force a CPU/software rendering adapter (DX12 WARP; a Vulkan CPU device) for
+		                            GPU-less CI or deterministic software rendering.
 
 		Headless / capture:
+		  --headless                Render with no window (offscreen surface) — for capture/smoke on a machine with
+		                            no interactive desktop (CI, or a runner running as a service). Needs --capture
+		                            or --smoke-frames.
 		  --smoke-frames <n>        Render N frames (cycling demos) then exit.
 		  --capture <path>          Capture one frame to a PNG (deterministic time) then exit.
 		  --capture-animate         With --capture: advance time instead of freezing (surfaces cross-frame hazards).
@@ -112,6 +127,8 @@ internal sealed record LaunchOptions
 		string? dumpGraph = null;
 		var inspect = false;
 		var frustum = false;
+		var softwareAdapter = false;
+		var headless = false;
 		var smokeFrames = 0;
 		string? capture = null;
 		var captureAnimate = false;
@@ -165,6 +182,8 @@ internal sealed record LaunchOptions
 					case "--dump-graph": dumpGraph = Value(); break;
 					case "--inspect": inspect = Flag(); break;
 					case "--frustum": frustum = Flag(); break;
+					case "--software-adapter": softwareAdapter = Flag(); break;
+					case "--headless": headless = Flag(); break;
 					case "--smoke-frames":
 						smokeFrames = int.Parse(Value(), System.Globalization.CultureInfo.InvariantCulture);
 						if (smokeFrames <= 0) return Fail("--smoke-frames must be a positive frame count (a headless run needs N > 0 frames to render then exit).");
@@ -181,6 +200,9 @@ internal sealed record LaunchOptions
 			}
 		}
 
+		if (headless && capture is null && smokeFrames == 0)
+			return Fail("--headless needs --capture <path> or --smoke-frames <n>: with no window there is nothing to interact with, so a headless run must render a bounded number of frames then exit.");
+
 		return new LaunchOptions
 		{
 			Backend = backend,
@@ -193,6 +215,8 @@ internal sealed record LaunchOptions
 			DumpGraph = dumpGraph,
 			Inspect = inspect,
 			Frustum = frustum,
+			SoftwareAdapter = softwareAdapter,
+			Headless = headless,
 			SmokeFrames = smokeFrames,
 			Capture = capture,
 			CaptureAnimate = captureAnimate,

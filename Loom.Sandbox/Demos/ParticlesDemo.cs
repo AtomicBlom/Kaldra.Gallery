@@ -51,7 +51,7 @@ internal sealed class ParticlesDemo : IDemo
 
 		g.Compute("particle.update")
 			.ReadWrites(particles)
-			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [ctx.Time], [], [particles]));
+			.Dispatch(ctx => ctx.Dispatch("particle.update", ((uint)(particleCount / 64), 1, 1), [(float)ctx.Time], [], [particles]));
 
 		g.Pass("particles")
 			.Reads(_viewproj)

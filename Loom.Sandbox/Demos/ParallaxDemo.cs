@@ -83,7 +83,7 @@ internal sealed class ParallaxDemo : IDemo
 			.WritesDepth(depth)
 			.Draw(ctx =>
 			{
-				var sprites = BuildLayers(ctx.Time);
+				var sprites = BuildLayers((float)ctx.Time);
 				ctx.Draw(new DrawCall { Mesh = scene.Quad, Material = _atlas, Technique = "sprite", Instances = DrawCall.From(sprites.AsSpan()) });
 			});
 
