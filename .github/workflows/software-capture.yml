@@ -52,6 +52,8 @@ jobs:
       # One capture per demo with a committed golden baseline (Loom.Tests/Goldens/ — keep this list in sync with
       # tools/golden.ps1's own $demos map). Each is captured on DX12 forced onto WARP, then colorcount.ps1 counts
       # its distinct RGB colours: a real scene lands in the thousands, a black/failed frame is ~1.
+      # --headless renders offscreen (no window): the runner has no interactive desktop for GLFW to open one on
+      # (and as a service it never will — Session 0 has no desktop), so the capture must be windowless.
       - name: Capture + colorcount each tracked demo on DirectX12 + WARP
         shell: pwsh
         run: |
@@ -69,7 +71,7 @@ jobs:
           foreach ($entry in $demos.GetEnumerator()) {
             $out = Join-Path $outDir "$($entry.Key).png"
             Write-Host "[warp] capturing '$($entry.Value)' -> $out"
-            dotnet run --project Loom.Sandbox -c Release --no-build -- --backend dx12 --software-adapter --demo $entry.Value --capture $out
+            dotnet run --project Loom.Sandbox -c Release --no-build -- --headless --backend dx12 --software-adapter --demo $entry.Value --capture $out
             if ($LASTEXITCODE -ne 0) {
               Write-Host "::error::'$($entry.Value)' failed to capture on DirectX12+WARP (exit $LASTEXITCODE)."
               $failed = $true
