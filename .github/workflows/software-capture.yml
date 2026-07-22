@@ -1,12 +1,12 @@
 name: Software rasterizer (WARP) capture
 
-# A GPU-less regression net for the tracked demos. GitHub-hosted runners have no GPU, so the golden-image and
-# cross-backend parity captures (tools/golden.ps1) only run locally today. windows-latest ships WARP (Microsoft's
-# software D3D12 rasterizer) out of the box, so this workflow forces the DirectX12 backend onto it
-# (--software-adapter) and asserts each tracked demo actually renders something — a colorcount SMOKE test, not a
-# pixel-parity gate. It catches "a demo crashes or renders black under software rasterization" without a GPU
-# runner. See docs/ci-software-rasterizer.md for the recipe, the fidelity measurement, and the deferred
-# parity-baseline decision.
+# A GPU-less regression net for the tracked demos. A runner without a GPU can't produce the golden-image and
+# cross-backend parity captures (tools/golden.ps1). Any Windows host ships WARP (Microsoft's software D3D12
+# rasterizer) out of the box, so this workflow forces the DirectX12 backend onto it (--software-adapter) and
+# asserts each tracked demo actually renders something — a colorcount SMOKE test, not a pixel-parity gate. It
+# catches "a demo crashes or renders black under software rasterization" without a GPU. See
+# docs/ci-software-rasterizer.md for the recipe, the fidelity measurement, and the deferred parity-baseline
+# decision.
 #
 # Built in Release: the D3D12 debug layer's GPU-based validation (on by default in Debug —
 # DirectX12EngineSettings.GpuBasedValidation) patches shaders in a way WARP does not reliably support and can
@@ -18,8 +18,11 @@ on:
 
 jobs:
   warp-capture:
-    # windows-latest is the one GitHub-hosted runner with WARP preinstalled (part of the Windows SDK).
-    runs-on: windows-latest
+    # Self-hosted Windows runner (WARP is part of the Windows SDK, so any Windows host has it), which keeps this
+    # off GitHub-hosted minutes.
+    # SECURITY: safe only while this repo is PRIVATE. Before making it public, remove the self-hosted runner (a
+    # fork's PR could otherwise run arbitrary code on it) and switch back to `runs-on: windows-latest`.
+    runs-on: [self-hosted, windows]
 
     steps:
       - uses: actions/checkout@v7
@@ -49,6 +52,8 @@ jobs:
       # One capture per demo with a committed golden baseline (Loom.Tests/Goldens/ — keep this list in sync with
       # tools/golden.ps1's own $demos map). Each is captured on DX12 forced onto WARP, then colorcount.ps1 counts
       # its distinct RGB colours: a real scene lands in the thousands, a black/failed frame is ~1.
+      # --headless renders offscreen (no window): the runner has no interactive desktop for GLFW to open one on
+      # (and as a service it never will — Session 0 has no desktop), so the capture must be windowless.
       - name: Capture + colorcount each tracked demo on DirectX12 + WARP
         shell: pwsh
         run: |
@@ -66,7 +71,7 @@ jobs:
           foreach ($entry in $demos.GetEnumerator()) {
             $out = Join-Path $outDir "$($entry.Key).png"
             Write-Host "[warp] capturing '$($entry.Value)' -> $out"
-            dotnet run --project Loom.Sandbox -c Release --no-build -- --backend dx12 --software-adapter --demo $entry.Value --capture $out
+            dotnet run --project Loom.Sandbox -c Release --no-build -- --headless --backend dx12 --software-adapter --demo $entry.Value --capture $out
             if ($LASTEXITCODE -ne 0) {
               Write-Host "::error::'$($entry.Value)' failed to capture on DirectX12+WARP (exit $LASTEXITCODE)."
               $failed = $true
