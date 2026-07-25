@@ -1,6 +1,6 @@
 using System.Numerics;
 
-using Loom.Sandbox.Demos;
+using Loom.Gallery.Demos;
 using Loom.Web.UI;
 
 using SUIsei;

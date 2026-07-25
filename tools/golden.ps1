@@ -1,89 +1,43 @@
 <#
 .SYNOPSIS
-  Golden-image + cross-backend parity harness (local). Captures each tracked demo deterministically on BOTH
-  backends, diffs each against the committed baselines in Loom.Tests/Goldens (GoldenImageTests), and diffs the
-  Vulkan and DirectX12 captures against each other (CrossBackendParityTests).
+  Regenerate the committed golden-image baselines (Loom.Tests/Goldens) from a fresh in-process render.
 
 .DESCRIPTION
-  The capture step needs a GPU, so this runs locally (GitHub-hosted CI runners have none — the CI workflow only
-  builds + runs the no-GPU unit tests, which SKIP the golden + parity tests). The sandbox's --capture freezes
-  time + camera, so a re-run reproduces the baseline bit-for-bit within tolerance.
+  Golden + cross-backend parity are ordinary GPU-gated unit tests now (GalleryGoldenTests / GalleryParityTests
+  in Loom.Tests): they render the gallery demos offscreen in-process — no sandbox window, no --capture. They run
+  as part of `dotnet run --project Loom.Tests` on a machine with a GPU and SKIP on the no-GPU CI runner.
 
-.PARAMETER Backend
-  Which backend's captures define the committed baseline for GoldenImageTests: "Vulkan" (default) or "DirectX12".
-  Both backends are always captured (the parity test needs both); this only selects the baseline source.
-  Note: on DirectX12 a demo whose shader stage has no DXIL on this toolchain (e.g. ssao_blur on win-arm64) is
-  skipped, so the parity test simply doesn't compare a frame missing from one backend.
-
-.PARAMETER Update
-  Overwrite the committed baselines with the chosen backend's fresh captures (accept new goldens).
+  This script only handles the one thing a test can't do for you: accepting new baselines. It runs
+  GalleryGoldenTests with LOOM_GOLDEN_UPDATE set, which re-renders each tracked demo and overwrites its PNG under
+  Loom.Tests/Goldens. Review the diff and commit. Omit -Update to just run the golden + parity tests once.
 
 .EXAMPLE
-  pwsh tools/golden.ps1            # capture both backends; diff vs baselines + cross-backend parity
-  pwsh tools/golden.ps1 -Update    # regenerate baselines from the chosen backend
+  pwsh tools/golden.ps1            # run the golden + parity tests once (GPU required)
+  pwsh tools/golden.ps1 -Update    # regenerate the committed baselines, then review + commit the PNG diff
 #>
 param(
-	[string]$Backend = "Vulkan",
 	[switch]$Update
 )
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-$goldens = Join-Path $repo "Loom.Tests/Goldens"
-$captureRoot = Join-Path ([IO.Path]::GetTempPath()) ("loom-golden-" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
-$vulkanDir = Join-Path $captureRoot "vulkan"
-$dx12Dir = Join-Path $captureRoot "dx12"
-New-Item -ItemType Directory -Force -Path $vulkanDir, $dx12Dir | Out-Null
-
-# filename (without .png) -> exact demo Name (--demo). Keep in sync with the committed baselines.
-$demos = [ordered]@{
-	"FullReference"     = "Full reference frame"
-	"Bloom"             = "Bloom"
-	"Particles"         = "Particles"
-	"PixelArt"          = "Pixel Art"
-	"StylizedReference" = "Stylized reference"
-}
-
-Write-Host "[golden] building..."
-dotnet build (Join-Path $repo "Loom.slnx") -c Debug --nologo | Out-Null
-
-# Capture every demo on BOTH backends. --capture freezes time + camera and exits after one frame; --backend
-# selects DirectX12 (Vulkan is the default). 'dx12' is the accepted backend value (aliased to directx12).
-$targets = @(
-	@{ Name = "Vulkan"; Dir = $vulkanDir; Extra = @() },
-	@{ Name = "DirectX12"; Dir = $dx12Dir; Extra = @('--backend', 'dx12') }
-)
-foreach ($target in $targets) {
-	foreach ($entry in $demos.GetEnumerator()) {
-		$out = Join-Path $target.Dir ($entry.Key + ".png")
-		Write-Host "[golden] capturing '$($entry.Value)' -> $($target.Name)/$($entry.Key).png"
-		dotnet run --project (Join-Path $repo "Loom.Sandbox") -c Debug --no-build -- --demo $entry.Value --capture $out @($target.Extra) | Out-Null
-	}
-}
-
-$baselineDir = if ($Backend -eq "DirectX12") { $dx12Dir } else { $vulkanDir }
+$tests = Join-Path $repo "Loom.Tests"
 
 if ($Update) {
-	New-Item -ItemType Directory -Force -Path $goldens | Out-Null
-	Copy-Item (Join-Path $baselineDir "*.png") $goldens -Force
-	Write-Host "[golden] baselines updated in $goldens (from $Backend captures)"
+	Write-Host "[golden] regenerating baselines in Loom.Tests/Goldens (LOOM_GOLDEN_UPDATE) ..."
+	$env:LOOM_GOLDEN_UPDATE = "1"
+	try {
+		dotnet run --project $tests -c Debug -- --treenode-filter "/*/*/GalleryGoldenTests/*"
+	}
+	finally {
+		$env:LOOM_GOLDEN_UPDATE = $null
+	}
+	Write-Host "[golden] done — review 'git diff Loom.Tests/Goldens' and commit if the new renders are correct."
 	exit 0
 }
 
-Write-Host "[golden] diffing captures against baselines + cross-backend parity..."
-# LOOM_GOLDEN_DIR drives GoldenImageTests (vs committed baselines); LOOM_VULKAN_DIR/LOOM_DIRECTX12_DIR drive
-# CrossBackendParityTests (the two backends vs each other). MTP syntax (.NET 10): --project + --treenode-filter.
-$env:LOOM_GOLDEN_DIR = $baselineDir
-$env:LOOM_VULKAN_DIR = $vulkanDir
-$env:LOOM_DIRECTX12_DIR = $dx12Dir
-try {
-	dotnet test --project (Join-Path $repo "Loom.Tests/Loom.Tests.csproj") --treenode-filter "/*/*/GoldenImageTests/*"
-	$golden = $LASTEXITCODE
-	dotnet test --project (Join-Path $repo "Loom.Tests/Loom.Tests.csproj") --treenode-filter "/*/*/CrossBackendParityTests/*"
-	$parity = $LASTEXITCODE
-}
-finally {
-	$env:LOOM_GOLDEN_DIR = $null
-	$env:LOOM_VULKAN_DIR = $null
-	$env:LOOM_DIRECTX12_DIR = $null
-}
+Write-Host "[golden] running golden + parity tests (GPU required; skips without one) ..."
+dotnet run --project $tests -c Debug -- --treenode-filter "/*/*/GalleryGoldenTests/*"
+$golden = $LASTEXITCODE
+dotnet run --project $tests -c Debug -- --treenode-filter "/*/*/GalleryParityTests/*"
+$parity = $LASTEXITCODE
 exit ([Math]::Max($golden, $parity))

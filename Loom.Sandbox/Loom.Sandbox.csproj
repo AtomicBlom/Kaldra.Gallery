@@ -1,68 +1,42 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Consume the Loom MSBuild SDK explicitly (SDK-style imports; equivalent to Sdk="Loom.Sdk" once the
-       SDK is packaged). Brings in Slang shader compilation (Content mode) + UseVulkan/UseDirectX12 backend
-       selection. The engine feature flags live in the repo-root Directory.Build.props. -->
+  <!-- The Loom MSBuild SDK: adds the backend reference(s) for this build (UseVulkan/UseDirectX12) and the desktop
+       host, and generates the module-initializer bootstrap that registers them — so this exe is just a
+       LoomApplication + one LoomApplication.Run line. The engine feature flags live in the repo-root
+       Directory.Build.props. -->
   <Import Project="..\build\Loom.Sdk\Sdk\Sdk.props" />
-
-  <!-- XAML → typed control-tree generator (MU2): registers UI/*.xaml as AdditionalFiles + the SUIsei.SourceGen
-       analyzer so the interactive demo's view compiles to a typed tree + x:Bind/event glue. -->
-  <Import Project="..\external\SUIsei\build\SUIsei.props" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- The host hands the executor ImGui's native ImDrawData* each frame — one pointer cast. -->
+    <!-- The host builds the dev HUD and hands the executor ImGui's native ImDrawData* each frame — one pointer cast. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-
-    <!-- App/demo shaders, compiled by the Loom SDK to loose content under shaders\ next to the exe. -->
-    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</LoomShaderSourceDir>
-    <LoomShaderOutputMode>Content</LoomShaderOutputMode>
+    <!-- The gallery owns the shaders + assets now; this exe compiles none of its own — they flow in beside the exe
+         through the Loom.Gallery ProjectReference. -->
+    <LoomShaderOutputMode>None</LoomShaderOutputMode>
   </PropertyGroup>
 
-  <!-- The Vulkan backend reference is supplied by the SDK via <UseVulkan> (default true); the host still
-       names VulkanEngineSettings, the one sanctioned backend type, so it compiles against Loom.Backend.Vulkan.
-       Engine-owned shaders ship embedded in Loom.Backend.Vulkan, so the app no longer references Loom.Shaders. -->
-
-  <!-- The host owns the window + input and hands the backend the surface. -->
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Windowing" />
-    <PackageReference Include="Silk.NET.Input" />
-    <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the host builds the control panel; the
-         optional Loom.UI.ImGui package renders it through the public draw-list API (no backend ImGui dependency). -->
+    <!-- Dear ImGui bindings (native cimgui bundled, incl. win-arm64) — the sandbox builds the dev control panel; the
+         optional Loom.UI.ImGui bridge renders it through the public draw-list API (no backend ImGui dependency). -->
     <PackageReference Include="ImGui.NET" />
-    <!-- Source-gen MVVM for the demo shell's per-demo debug panels (shared with Loom.Web via linked demo files). -->
-    <PackageReference Include="CommunityToolkit.Mvvm" />
-    <!-- Slang.Sdk (hermetic slangc) is supplied by the Loom SDK; the app only adds the DXC signer below. -->
-    <!-- Hermetic DXC for signing the app's DXIL shaders; same package every shader-compiling project references. -->
-    <PackageReference Include="Microsoft.Direct3D.DXC" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
-  <!-- The neutral asset loaders (image + glTF) the M11 demos use to load committed textures/models, plus the
-       backend-neutral UI runtime (the host builds an overlay UIRoot + composites it each frame, MU1). -->
   <ItemGroup>
+    <!-- The demo gallery (demos + their shaders/assets/UI views); the sandbox is its interactive host. -->
+    <ProjectReference Include="..\Loom.Gallery\Loom.Gallery.csproj" />
+    <!-- The engine-tier libraries the host itself names: the neutral asset loaders (brick material), the app-side
+         camera/frustum helpers, the SUIsei UI runtime + its neutral engine bridge, and the ImGui HUD bridge. The
+         desktop host + backend(s) come from the Loom SDK above. -->
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
     <ProjectReference Include="..\Loom.Concepts\Loom.Concepts.csproj" />
     <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
     <ProjectReference Include="..\Loom.UI.ImGui\Loom.UI.ImGui.csproj" />
-    <!-- The reusable desktop input pump (Silk devices -> neutral Loom.Input events). The sandbox owns its own
-         window, so it feeds the pump its own IInputContext rather than running under DesktopAppHost. -->
-    <ProjectReference Include="..\Loom.Hosting.Desktop\Loom.Hosting.Desktop.csproj" />
-  </ItemGroup>
-
-  <!-- Committed demo assets (brick textures + the glTF cube). The Loom SDK copies only shaders, so these are
-       copied explicitly into an assets\ folder next to the exe (where the demos resolve them). -->
-  <ItemGroup>
-    <Content Include="Assets\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
-    </Content>
   </ItemGroup>
 
   <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
-  <Import Project="..\external\SUIsei\build\SUIsei.targets" />
 
 </Project>

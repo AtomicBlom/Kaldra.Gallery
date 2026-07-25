@@ -34,7 +34,7 @@
   <PropertyGroup>
     <!-- Hand-ported demos reuse the sandbox's shaders verbatim, compiled to WGSL and embedded under
          "Loom.Web.Shaders." (the host's ShaderResolver resolves them). Only WGSL is needed in the browser. -->
-    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\..\Loom.Sandbox\Shaders</LoomShaderSourceDir>
+    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\..\Loom.Gallery\Shaders</LoomShaderSourceDir>
     <LoomShaderOutputMode>Embed</LoomShaderOutputMode>
     <LoomEmitDxil>false</LoomEmitDxil>
     <LoomEmitWgsl>true</LoomEmitWgsl>
@@ -69,68 +69,68 @@
   <ItemGroup>
     <!-- Reusable graph fragments the sandbox authors — shared verbatim by linking (not copying) the source, so the
          browser demos can't drift from the desktop originals. These are pure Loom.Core/Graph code (no host coupling),
-         so they compile into the WASM assembly unchanged under their own Loom.Sandbox.Demos namespace. -->
-    <Compile Include="..\Loom.Sandbox\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
-    <Compile Include="..\Loom.Sandbox\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
-    <Compile Include="..\Loom.Sandbox\DayNight.cs" Link="Demos\Shared\DayNight.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DemoSun.cs" Link="Demos\Shared\DemoSun.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SandboxVertexLayouts.cs" Link="Demos\Shared\SandboxVertexLayouts.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SpriteInstance.cs" Link="Demos\Shared\SpriteInstance.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\Light2DInstance.cs" Link="Demos\Shared\Light2DInstance.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\BallAtlas.cs" Link="Demos\Shared\BallAtlas.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SpinnerAtlas.cs" Link="Demos\Shared\SpinnerAtlas.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SparkAtlas.cs" Link="Demos\Shared\SparkAtlas.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\TileAtlas.cs" Link="Demos\Shared\TileAtlas.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\CastleBackdrop.cs" Link="Demos\Shared\CastleBackdrop.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\GuardKnight.cs" Link="Demos\Shared\GuardKnight.cs" />
+         so they compile into the WASM assembly unchanged under their own Loom.Gallery.Demos namespace. -->
+    <Compile Include="..\Loom.Gallery\Demos\BloomGraph.cs" Link="Demos\Shared\BloomGraph.cs" />
+    <Compile Include="..\Loom.Gallery\Cascades.cs" Link="Demos\Shared\Cascades.cs" />
+    <Compile Include="..\Loom.Gallery\DayNight.cs" Link="Demos\Shared\DayNight.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DemoSun.cs" Link="Demos\Shared\DemoSun.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SandboxVertexLayouts.cs" Link="Demos\Shared\SandboxVertexLayouts.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SpriteInstance.cs" Link="Demos\Shared\SpriteInstance.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\Light2DInstance.cs" Link="Demos\Shared\Light2DInstance.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\BallAtlas.cs" Link="Demos\Shared\BallAtlas.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SpinnerAtlas.cs" Link="Demos\Shared\SpinnerAtlas.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SparkAtlas.cs" Link="Demos\Shared\SparkAtlas.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\TileAtlas.cs" Link="Demos\Shared\TileAtlas.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\CastleBackdrop.cs" Link="Demos\Shared\CastleBackdrop.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\GuardKnight.cs" Link="Demos\Shared\GuardKnight.cs" />
     <!-- The demo scaffolding shared with the sandbox: the shared-resource carrier, geometry builders, the per-draw
          uniform block, the mesh-draw helper, and the graph helpers (its Dear ImGui HUD is #if'd out for the browser). -->
-    <Compile Include="..\Loom.Sandbox\Demos\IDemo.cs" Link="Demos\Shared\IDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DemoScene.cs" Link="Demos\Shared\DemoScene.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DemoCamera.cs" Link="Demos\Shared\DemoCamera.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\Geometry.cs" Link="Demos\Shared\Geometry.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\PerDraw.cs" Link="Demos\Shared\PerDraw.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DemoDraw.cs" Link="Demos\Shared\DemoDraw.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DemoGraph.cs" Link="Demos\Shared\DemoGraph.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DebugSlider.cs" Link="Demos\Shared\DebugSlider.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\DemoShell.cs" Link="Demos\Shared\DemoShell.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\IDemo.cs" Link="Demos\Shared\IDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DemoScene.cs" Link="Demos\Shared\DemoScene.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DemoCamera.cs" Link="Demos\Shared\DemoCamera.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\Geometry.cs" Link="Demos\Shared\Geometry.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\PerDraw.cs" Link="Demos\Shared\PerDraw.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DemoDraw.cs" Link="Demos\Shared\DemoDraw.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DemoGraph.cs" Link="Demos\Shared\DemoGraph.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DebugSlider.cs" Link="Demos\Shared\DebugSlider.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\DemoShell.cs" Link="Demos\Shared\DemoShell.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The demos themselves, shared verbatim with the sandbox (one IDemo per file). The browser host (Program.cs,
          WebGallery) drives them exactly as the desktop launcher does; ImGui debug panels are #if'd out for the browser
          and asset loads route through DemoScene.Asset (embedded resources here, files on desktop). -->
-    <Compile Include="..\Loom.Sandbox\Demos\CubeLightingDemo.cs" Link="Demos\CubeLightingDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\ParticlesDemo.cs" Link="Demos\ParticlesDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\HighlightingDemo.cs" Link="Demos\HighlightingDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\BloomDemo.cs" Link="Demos\BloomDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\TonemappingDemo.cs" Link="Demos\TonemappingDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SsaoDemo.cs" Link="Demos\SsaoDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\CascadedShadowsDemo.cs" Link="Demos\CascadedShadowsDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SkinningDemo.cs" Link="Demos\SkinningDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\GltfDemo.cs" Link="Demos\GltfDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\UIInteractiveDemo.cs" Link="Demos\UIInteractiveDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\UIGroupOpacityDemo.cs" Link="Demos\UIGroupOpacityDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\FullReferenceDemo.cs" Link="Demos\FullReferenceDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\InWorldUIDemo.cs" Link="Demos\InWorldUIDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\Debug2DDemo.cs" Link="Demos\Debug2DDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\FoliageDemo.cs" Link="Demos\FoliageDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\InstancingDemo.cs" Link="Demos\InstancingDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\Lighting2DDemo.cs" Link="Demos\Lighting2DDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\NightGladeDemo.cs" Link="Demos\NightGladeDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\NormalMappingDemo.cs" Link="Demos\NormalMappingDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\ParallaxDemo.cs" Link="Demos\ParallaxDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\PixelArtCastleDemo.cs" Link="Demos\PixelArtCastleDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\PixelArtDemo.cs" Link="Demos\PixelArtDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\RuinsDemo.cs" Link="Demos\RuinsDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\ShadowsDemo.cs" Link="Demos\ShadowsDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SkyDayNightDemo.cs" Link="Demos\SkyDayNightDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SpikeDemo.cs" Link="Demos\SpikeDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SpriteAnimationDemo.cs" Link="Demos\SpriteAnimationDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\SpritesDemo.cs" Link="Demos\SpritesDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\StylizedDemo.cs" Link="Demos\StylizedDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\TilemapDemo.cs" Link="Demos\TilemapDemo.cs" />
-    <Compile Include="..\Loom.Sandbox\Demos\ToonDemo.cs" Link="Demos\ToonDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\CubeLightingDemo.cs" Link="Demos\CubeLightingDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\ParticlesDemo.cs" Link="Demos\ParticlesDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\HighlightingDemo.cs" Link="Demos\HighlightingDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\BloomDemo.cs" Link="Demos\BloomDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\TonemappingDemo.cs" Link="Demos\TonemappingDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SsaoDemo.cs" Link="Demos\SsaoDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\CascadedShadowsDemo.cs" Link="Demos\CascadedShadowsDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SkinningDemo.cs" Link="Demos\SkinningDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\GltfDemo.cs" Link="Demos\GltfDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\UIInteractiveDemo.cs" Link="Demos\UIInteractiveDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\UIGroupOpacityDemo.cs" Link="Demos\UIGroupOpacityDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\FullReferenceDemo.cs" Link="Demos\FullReferenceDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\InWorldUIDemo.cs" Link="Demos\InWorldUIDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\Debug2DDemo.cs" Link="Demos\Debug2DDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\FoliageDemo.cs" Link="Demos\FoliageDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\InstancingDemo.cs" Link="Demos\InstancingDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\Lighting2DDemo.cs" Link="Demos\Lighting2DDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\NightGladeDemo.cs" Link="Demos\NightGladeDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\NormalMappingDemo.cs" Link="Demos\NormalMappingDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\ParallaxDemo.cs" Link="Demos\ParallaxDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\PixelArtCastleDemo.cs" Link="Demos\PixelArtCastleDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\PixelArtDemo.cs" Link="Demos\PixelArtDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\RuinsDemo.cs" Link="Demos\RuinsDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\ShadowsDemo.cs" Link="Demos\ShadowsDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SkyDayNightDemo.cs" Link="Demos\SkyDayNightDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SpikeDemo.cs" Link="Demos\SpikeDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SpriteAnimationDemo.cs" Link="Demos\SpriteAnimationDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\SpritesDemo.cs" Link="Demos\SpritesDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\StylizedDemo.cs" Link="Demos\StylizedDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\TilemapDemo.cs" Link="Demos\TilemapDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\ToonDemo.cs" Link="Demos\ToonDemo.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -138,7 +138,7 @@
          resources — copied from the sandbox's committed Assets folder into this project's wwwroot/assets/ at build
          time (LinkBase preserves the relative path, so e.g. kenney/castle/wall.glb lands at
          wwwroot/assets/kenney/castle/wall.glb) rather than duplicating the binary assets into this project. -->
-    <Content Include="..\Loom.Sandbox\Assets\**" LinkBase="wwwroot\assets\" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\Loom.Gallery\Assets\**" LinkBase="wwwroot\assets\" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

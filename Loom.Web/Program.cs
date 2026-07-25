@@ -11,7 +11,7 @@ using Loom.Concepts;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Sandbox.Demos;
+using Loom.Gallery.Demos;
 using Loom.UI.SUIsei;
 using Loom.Web.Demos;
 
