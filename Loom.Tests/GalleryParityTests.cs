@@ -23,12 +23,12 @@ public class GalleryParityTests
 
 	// A spread of pure-render demos (no input needed for a deterministic frame). A demo unsupported on one backend
 	// is dropped by the capability filter rather than compared. (The normal-mapping demo is deliberately absent: it
-	// diverges ~0.9% of pixels across the backends, just over the strict bar. It isolates cleanly — the encoded
-	// world-normal G-buffer is bit-clean between backends, and the deferred lighting is parity-clean on smooth
-	// normals (Shadows, same light_shadow pass, passes) — so this is not a diverging stage but amplification:
-	// light_shadow's per-pixel normalize + N·L magnify sub-threshold FP rounding where it shades the high-frequency
-	// normal-mapped relief of the strongly-lit face (≤14/255, no artifact, both renders correct). A precision quirk
-	// of lighting high-frequency normals, not a backend bug worth gating on.)
+	// diverges ~0.9% of pixels across the backends, just over the strict bar. It isolates to the tangent-space
+	// reconstruction in gbuffer_normalmap — the encoded normal alone already diverges ~0.7% while the SAME shader's
+	// albedo (a plain texture sample) stays clean at ~0.02%, so it is the normalize/cross/normalize rounding
+	// differently between SPIR-V and DXIL, not the sampler; the deferred lighting only nudges 0.7% up to 0.9%
+	// (≤68/255, no artifact, both renders correct). TargetedParityTests pins this and bounds the gap. A benign
+	// backend precision quirk, not a bug worth gating the demo suite on.)
 	private static readonly (string Name, Func<IDemo> Factory)[] Demos =
 	[
 		("FullReference", () => new FullReferenceDemo()),
