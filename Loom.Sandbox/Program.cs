@@ -8,14 +8,17 @@ using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+using Loom.Hosting.Desktop;
+using Loom.Input;
 #if LOOM_DIRECTX12
 using Loom.Backend.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type
 #endif
 using Loom.Sandbox.Demos;
 using Loom.Sandbox.UI;
 using Loom.UI.SUIsei;
-// Alias the painter type only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare `ImGui`.
+// Alias the painter + input-layer types only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare `ImGui`.
 using ImGuiPainter = Loom.UI.ImGui.ImGuiPainter;
+using ImGuiInputLayer = Loom.UI.ImGui.ImGuiInputLayer;
 using SUIsei;
 using SUIsei.Controls;
 using SUIsei.Drawing;
@@ -193,7 +196,7 @@ internal static class Program
 		// Detached debug camera + frustum freeze. F (or the debug-panel toggle) enters a free-fly camera; entering it
 		// freezes the scripted camera's frustum, which the engine draws as a yellow screen-space wireframe so you can
 		// fly around and see exactly what that camera framed. --frustum enables it for a deterministic capture.
-		var fly = new FlyCamera(engine);
+		var fly = new Loom.Concepts.FlyCamera(engine);
 		var orbit = new Loom.Concepts.Camera(engine); // the default perspective orbit camera, reconfigured each frame
 		var debugCam = opts.Frustum;
 
@@ -255,54 +258,31 @@ internal static class Program
 
 		Console.WriteLine($"Loom - demo gallery (keys 1-{demos.Length} / Tab) on {engine.DeviceName} ({engine.BackendName}). On Object Highlighting / Full, hover the cube. Close the window to exit.");
 
-		using var input = window?.CreateInput();
-		var mouse = input is { Mice.Count: > 0 } ? input.Mice[0] : null;
-		var keyboard = input is { Keyboards.Count: > 0 } ? input.Keyboards[0] : null;
-		if (keyboard is not null)
-		{
-			keyboard.KeyDown += (kb, key, _) =>
-			{
-				// When the interactive UI demo is active, route keys to the UI host first (for focus + keyboard
-				// activation). Tab is consumed by the UI for focus navigation and must not also switch demos.
-				if (currentDemo == interactiveIndex)
-				{
-					var vk = ToVirtualKey(key);
-					if (vk != VirtualKey.None)
-						uiHost.QueueKey(new KeyInput(vk, Down: true, Repeat: false, GetModifiers(kb), 0));
-					if (key == Key.Tab)
-						return;
-				}
-				if (key == Key.Tab)
-					SelectDemo((currentDemo + 1) % demos.Length);
-				else if (key >= Key.Number1 && key < Key.Number1 + demos.Length)
-					SelectDemo(key - Key.Number1);
-				else if (key == Key.F)
-					debugCam = !debugCam;
-			};
-			keyboard.KeyUp += (kb, key, _) =>
-			{
-				if (currentDemo != interactiveIndex)
-					return;
-				var vk = ToVirtualKey(key);
-				if (vk != VirtualKey.None)
-					uiHost.QueueKey(new KeyInput(vk, Down: false, Repeat: false, GetModifiers(kb), 0));
-			};
-			keyboard.KeyChar += (_, ch) =>
-			{
-				if (currentDemo == interactiveIndex)
-					uiHost.QueueText(ch.ToString());
-			};
-		}
+		// Neutral input: the reusable desktop pump (Loom.Hosting.Desktop) translates this hand-rolled window's Silk
+		// devices into Loom.Input events, a ring buffers them, and a layer stack arbitrates UI-vs-game each frame.
+		// The layers, bottom → top: the demo pointer forwarder (drives an in-world panel's OnPointer), the SUIsei
+		// overlay, the ImGui HUD, and the sandbox dev hotkeys on top — so demo-switch / debug-camera keep working
+		// even while the UI has captured input. Each frame the render loop pumps, drains the ring, and resolves.
+		// Headless (--headless) has no window and therefore no Silk devices: the pump is absent and the stack just
+		// resolves an empty stream each frame.
+		using var inputContext = window?.CreateInput();
+		var inputQueue = new InputEventRing();
+		var inputScratch = new InputEvent[inputQueue.Capacity];
+		var inputStack = new InputLayerStack();
+		using var inputPump = inputContext is not null
+			? new DesktopInputPump(inputContext, (in InputEvent e) => inputQueue.Enqueue(in e), inputStack.RumbleQueue)
+			: null;
 
-		// Translate raw mouse into neutral pointer events the UIHost routes (the host owns hit-test + routing).
-		// Independent of the ImGui/camera/pick mouse uses below — multiple handlers per Silk event are fine.
-		// Events are also forwarded to the active demo so it can queue them for in-world projection in PreFrame.
-		if (mouse is not null)
-		{
-			mouse.MouseMove += (_, pos) => { var e = PointerInput.Move(pos); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); };
-			mouse.MouseDown += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Press(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
-			mouse.MouseUp += (m, btn) => { if (btn == MouseButton.Left) { var e = PointerInput.Release(m.Position); uiHost.QueuePointer(e); demos[currentDemo].OnPointer(e); } };
-		}
+		inputStack.Push(new DemoPointerLayer(e => demos[currentDemo].OnPointer(e)));
+		inputStack.Push(new SUIseiInputLayer(uiHost));
+		inputStack.Push(new ImGuiInputLayer());
+		inputStack.Push(new SandboxControlLayer(
+			demos.Length,
+			SelectDemo,
+			() => SelectDemo((currentDemo + 1) % demos.Length),
+			() => debugCam = !debugCam,
+			// Tab drives the UI's focus navigation while the interactive UI demo is active, so it cycles demos only otherwise.
+			() => currentDemo != interactiveIndex));
 
 		// Headless smoke (--smoke-frames N) + capture (--capture path) modes.
 		var smokeFrames = opts.SmokeFrames;
@@ -330,6 +310,13 @@ internal static class Program
 		void RenderFrame(double delta)
 		{
 			frame++;
+
+			// Resolve this frame's input before anything reads it: flush the pump's pending pointer move + rumble,
+			// drain the queued events, and fold them down the layer stack. `input` is the bottom-of-stack (game-facing)
+			// snapshot the camera and picking poll; the top-down layers have already consumed what the UI/HUD captured
+			// and run the dev hotkeys (demo switch / debug camera) via SandboxControlLayer.
+			inputPump?.Update(delta);
+			var input = inputStack.Resolve(inputScratch.AsSpan(0, inputQueue.Drain(inputScratch)));
 
 			// Smoke mode also validates the runtime graph-swap: render each demo in turn (2 frames each) so a
 			// headless run exercises a SetGraph into every pipeline. Skipped under capture (which wants a steady
@@ -395,7 +382,7 @@ internal static class Program
 				// A fixed detached viewpoint under capture (deterministic); free-fly otherwise.
 				renderCamera = capturePath is not null
 					? new Loom.Concepts.Camera(engine).LookAt(new Vector3(6f, 4f, 6f), Vector3.Zero).Perspective(MathF.PI / 3f, aspect, 0.1f, 100f)
-					: fly.Update(keyboard, mouse, (float)delta, aspect);
+					: fly.Update(input, (float)delta, aspect);
 
 				var corners = frozenViewProjection.GetFrustumCorners();
 				var vp = renderCamera.View * renderCamera.Projection;
@@ -435,11 +422,12 @@ internal static class Program
 				{
 					hoverId = 1u;
 				}
-				else if (mouse is not null)
+				else
 				{
+					var pointer = input.PointerPosition;
 					var (pw, ph) = pickTarget.Resolve();
-					var px = (int)(mouse.Position.X / Math.Max(framebufferSize.X, 1) * pw);
-					var py = (int)(mouse.Position.Y / Math.Max(framebufferSize.Y, 1) * ph);
+					var px = (int)(pointer.X / Math.Max(framebufferSize.X, 1) * pw);
+					var py = (int)(pointer.Y / Math.Max(framebufferSize.Y, 1) * ph);
 					var pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(engine.Read(pickTarget));
 					var i = py * pw + px;
 					if ((uint)i < (uint)pixels.Length)
@@ -451,18 +439,13 @@ internal static class Program
 			if (capturePath is not null && frame == 60)
 				engine.RequestCapture(capturePath); // late enough that the delta-driven auto-exposure has converged
 
-			// Drive ImGui: feed input, build the bar; the Loom.UI.ImGui bridge renders the resulting draw data in
-			// the hud pass (it reads ImGui.GetDrawData() from the pass closure — no draw-data pointer plumbing).
+			// Drive ImGui: the ImGuiInputLayer already fed this frame's mouse/keyboard/text into the IO during input
+			// resolution; here we only refresh the per-frame display config before building the bar. The Loom.UI.ImGui
+			// bridge renders the resulting draw data in the hud pass (it reads ImGui.GetDrawData() from the pass
+			// closure — no draw-data pointer plumbing).
 			io.DisplaySize = new Vector2(framebufferSize.X, framebufferSize.Y);
 			io.DisplayFramebufferScale = Vector2.One;
 			io.DeltaTime = delta > 0 ? (float)delta : 1f / 60f;
-			if (mouse is not null)
-			{
-				io.AddMousePosEvent(mouse.Position.X, mouse.Position.Y);
-				io.AddMouseButtonEvent(0, mouse.IsButtonPressed(MouseButton.Left));
-				io.AddMouseButtonEvent(1, mouse.IsButtonPressed(MouseButton.Right));
-				io.AddMouseWheelEvent(0f, mouse.ScrollWheels.Count > 0 ? mouse.ScrollWheels[0].Y : 0f);
-			}
 
 			ImGui.NewFrame();
 
@@ -536,9 +519,9 @@ internal static class Program
 			}
 
 			// Same idea for the in-world UI demo, but its panel isn't on the shared overlay — route through
-			// OnPointer only, matching the real mouse-click handlers below. The screen position was found
-			// empirically (by iterating against InWorldPanel.LastHitPixel) to land on the billboard panel's
-			// Increment button at the frozen --capture camera pose.
+			// OnPointer directly, the same channel the DemoPointerLayer feeds from live input. The screen position
+			// was found empirically (by iterating against InWorldPanel.LastHitPixel) to land on the billboard
+			// panel's Increment button at the frozen --capture camera pose.
 			if (capturePath is not null && currentDemo == inWorldIndex && frame == 30)
 			{
 				var click = new Vector2(505f, 166f);
@@ -809,87 +792,6 @@ internal static class Program
 			Console.Error.WriteLine($"[loom] --demo '{query}' is ambiguous — matched: {string.Join(", ", matches.Select(i => demos[i].Name))}. Be more specific.");
 		return -1;
 	}
-
-	// Gather the currently-held modifier keys from a Silk.NET keyboard snapshot.
-	private static ModifierKeys GetModifiers(IKeyboard kb)
-	{
-		var m = ModifierKeys.None;
-		if (kb.IsKeyPressed(Key.ShiftLeft) || kb.IsKeyPressed(Key.ShiftRight)) m |= ModifierKeys.Shift;
-		if (kb.IsKeyPressed(Key.ControlLeft) || kb.IsKeyPressed(Key.ControlRight)) m |= ModifierKeys.Control;
-		if (kb.IsKeyPressed(Key.AltLeft) || kb.IsKeyPressed(Key.AltRight)) m |= ModifierKeys.Alt;
-		return m;
-	}
-
-	// Map a Silk.NET Key to the engine-neutral VirtualKey subset (returns None for unmapped keys).
-	private static VirtualKey ToVirtualKey(Key key) => key switch
-	{
-		Key.Backspace => VirtualKey.Back,
-		Key.Tab => VirtualKey.Tab,
-		Key.Enter or Key.KeypadEnter => VirtualKey.Enter,
-		Key.ShiftLeft or Key.ShiftRight => VirtualKey.Shift,
-		Key.ControlLeft or Key.ControlRight => VirtualKey.Control,
-		Key.AltLeft or Key.AltRight => VirtualKey.Alt,
-		Key.Escape => VirtualKey.Escape,
-		Key.Space => VirtualKey.Space,
-		Key.PageUp => VirtualKey.PageUp,
-		Key.PageDown => VirtualKey.PageDown,
-		Key.End => VirtualKey.End,
-		Key.Home => VirtualKey.Home,
-		Key.Left => VirtualKey.Left,
-		Key.Up => VirtualKey.Up,
-		Key.Right => VirtualKey.Right,
-		Key.Down => VirtualKey.Down,
-		Key.Delete => VirtualKey.Delete,
-		Key.Number0 or Key.Keypad0 => VirtualKey.Number0,
-		Key.Number1 or Key.Keypad1 => VirtualKey.Number1,
-		Key.Number2 or Key.Keypad2 => VirtualKey.Number2,
-		Key.Number3 or Key.Keypad3 => VirtualKey.Number3,
-		Key.Number4 or Key.Keypad4 => VirtualKey.Number4,
-		Key.Number5 or Key.Keypad5 => VirtualKey.Number5,
-		Key.Number6 or Key.Keypad6 => VirtualKey.Number6,
-		Key.Number7 or Key.Keypad7 => VirtualKey.Number7,
-		Key.Number8 or Key.Keypad8 => VirtualKey.Number8,
-		Key.Number9 or Key.Keypad9 => VirtualKey.Number9,
-		Key.A => VirtualKey.A,
-		Key.B => VirtualKey.B,
-		Key.C => VirtualKey.C,
-		Key.D => VirtualKey.D,
-		Key.E => VirtualKey.E,
-		Key.F => VirtualKey.F,
-		Key.G => VirtualKey.G,
-		Key.H => VirtualKey.H,
-		Key.I => VirtualKey.I,
-		Key.J => VirtualKey.J,
-		Key.K => VirtualKey.K,
-		Key.L => VirtualKey.L,
-		Key.M => VirtualKey.M,
-		Key.N => VirtualKey.N,
-		Key.O => VirtualKey.O,
-		Key.P => VirtualKey.P,
-		Key.Q => VirtualKey.Q,
-		Key.R => VirtualKey.R,
-		Key.S => VirtualKey.S,
-		Key.T => VirtualKey.T,
-		Key.U => VirtualKey.U,
-		Key.V => VirtualKey.V,
-		Key.W => VirtualKey.W,
-		Key.X => VirtualKey.X,
-		Key.Y => VirtualKey.Y,
-		Key.Z => VirtualKey.Z,
-		Key.F1 => VirtualKey.F1,
-		Key.F2 => VirtualKey.F2,
-		Key.F3 => VirtualKey.F3,
-		Key.F4 => VirtualKey.F4,
-		Key.F5 => VirtualKey.F5,
-		Key.F6 => VirtualKey.F6,
-		Key.F7 => VirtualKey.F7,
-		Key.F8 => VirtualKey.F8,
-		Key.F9 => VirtualKey.F9,
-		Key.F10 => VirtualKey.F10,
-		Key.F11 => VirtualKey.F11,
-		Key.F12 => VirtualKey.F12,
-		_ => VirtualKey.None,
-	};
 
 	// Project a world-space point to framebuffer pixels (top-left origin) through a neutral view-projection
 	// (frustum wireframe). Returns false for points behind the camera (w ≤ 0), so edges that cross the near plane are
