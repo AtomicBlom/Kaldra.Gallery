@@ -22,9 +22,13 @@ public class GalleryParityTests
 	private const double MaxFailedFraction = 0.005;
 
 	// A spread of pure-render demos (no input needed for a deterministic frame). A demo unsupported on one backend
-	// is dropped by the capability filter rather than compared. (The normal-mapping demo is deliberately absent:
-	// its tangent-space path diverges ~0.9% of pixels across the two backends — a small, pre-existing precision gap
-	// just over the strict parity bar, worth its own investigation rather than gating this suite.)
+	// is dropped by the capability filter rather than compared. (The normal-mapping demo is deliberately absent: it
+	// diverges ~0.9% of pixels across the backends, just over the strict bar. It isolates cleanly — the encoded
+	// world-normal G-buffer is bit-clean between backends, and the deferred lighting is parity-clean on smooth
+	// normals (Shadows, same light_shadow pass, passes) — so this is not a diverging stage but amplification:
+	// light_shadow's per-pixel normalize + N·L magnify sub-threshold FP rounding where it shades the high-frequency
+	// normal-mapped relief of the strongly-lit face (≤14/255, no artifact, both renders correct). A precision quirk
+	// of lighting high-frequency normals, not a backend bug worth gating on.)
 	private static readonly (string Name, Func<IDemo> Factory)[] Demos =
 	[
 		("FullReference", () => new FullReferenceDemo()),
