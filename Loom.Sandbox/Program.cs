@@ -13,8 +13,9 @@ using Loom.Input;
 #if LOOM_DIRECTX12
 using Loom.Backend.DirectX12; // for DirectX12EngineSettings only — the one sanctioned DirectX12 backend type
 #endif
-using Loom.Sandbox.Demos;
-using Loom.Sandbox.UI;
+using Loom.Gallery;
+using Loom.Gallery.Demos;
+using Loom.Gallery.UI;
 using Loom.UI.SUIsei;
 // Alias the painter + input-layer types only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare `ImGui`.
 using ImGuiPainter = Loom.UI.ImGui.ImGuiPainter;
@@ -681,64 +682,8 @@ internal static class Program
 		return backend.Create(surface, width, height, settings);
 	}
 
-	// Build the demo gallery: register every demo's techniques (idempotent across demos that share one), skipping any
-	// whose shaders don't cross-compile on this backend/toolchain (e.g. a fragment stage with no DirectX12 DXIL on
-	// win-arm64) — DefineTechniques throws NotSupportedException for the missing stage, so that demo is dropped from
-	// the gallery rather than crashing the whole harness (the same spirit as the SetGraph-time capability guards).
-	// This is the backend-capability filter for the menu, so it stays eager (and is cheap — no async asset I/O);
-	// each demo's actual preload + graph build happens lazily, the first time it's viewed (see Main).
-	private static IDemo[] BuildGallery(IEngine engine)
-	{
-		IDemo[] all =
-		[
-			new SpikeDemo(),
-			new CubeLightingDemo(),
-			new UIInteractiveDemo(),
-			new UIGroupOpacityDemo(),
-			new ShadowsDemo(),
-			new SsaoDemo(),
-			new TonemappingDemo(),
-			new BloomDemo(),
-			new ParticlesDemo(),
-			new HighlightingDemo(),
-			new InstancingDemo(),
-			new SpritesDemo(),
-			new Lighting2DDemo(),
-			new SpriteAnimationDemo(),
-			new TilemapDemo(),
-			new ParallaxDemo(),
-			new Debug2DDemo(),
-			new PixelArtDemo(),
-			new FullReferenceDemo(),
-			new NormalMappingDemo(),
-			new GltfDemo(),
-			new InWorldUIDemo(),
-			new SkinningDemo(),
-			new CascadedShadowsDemo(),
-			new SkyDayNightDemo(),
-			new FoliageDemo(),
-			new ToonDemo(),
-			new StylizedDemo(),
-			new NightGladeDemo(),
-			new RuinsDemo(),
-			new PixelArtCastleDemo(),
-		];
-
-		var live = new List<IDemo>();
-		foreach (var demo in all)
-		{
-			try
-			{
-				demo.DefineTechniques(engine);
-				live.Add(demo);
-			}
-			catch (NotSupportedException ex)
-			{
-				Console.WriteLine($"[loom] skipping demo '{demo.Name}' — {ex.Message}");
-			}
-		}
-		return live.ToArray();
-	}
+	// The capability-filtered demo roster, owned by Loom.Gallery and shared with the in-process tests.
+	private static IDemo[] BuildGallery(IEngine engine) => [.. DemoGallery.Build(engine)];
 
 	// Drive `task` to completion by draining the engine's queued texture uploads (IEngine.CreateTextureAsync) on
 	// this thread — needed whenever a task can be awaiting an upload but no frame loop is running yet to service it
