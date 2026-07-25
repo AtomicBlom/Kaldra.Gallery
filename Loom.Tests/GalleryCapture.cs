@@ -38,10 +38,12 @@ internal static class GalleryCapture
 	/// writing nothing — if the demo's techniques don't cross-compile on this backend/toolchain
 	/// (<see cref="IDemo.DefineTechniques"/> throws <see cref="NotSupportedException"/>), the same capability filter
 	/// the gallery applies, so a demo missing on one backend is skipped rather than failing the run.
+	/// <paramref name="settings"/> overrides the engine configuration (e.g. force a software adapter for a GPU-less
+	/// WARP capture); when null, stock <see cref="EngineSettings"/> is used.
 	/// </summary>
-	public static bool TryRender(IRenderBackend backend, Func<IDemo> demoFactory, string outPngPath)
+	public static bool TryRender(IRenderBackend backend, Func<IDemo> demoFactory, string outPngPath, EngineSettings? settings = null)
 	{
-		using var engine = backend.Create(Surface.Offscreen(Width, Height), Width, Height, new EngineSettings());
+		using var engine = backend.Create(Surface.Offscreen(Width, Height), Width, Height, settings ?? new EngineSettings());
 
 		DemoGraph.Overlay = null; // chrome-free: no Dear ImGui overlay in the hud pass
 

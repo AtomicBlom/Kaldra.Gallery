@@ -20,16 +20,6 @@ public class GalleryGoldenTests
 	private const int PerChannelTolerance = 4;
 	private const double MaxFailedFraction = 0.005;
 
-	// Baseline filename (without .png) → the demo that produces it. Keep in sync with the committed Goldens/.
-	private static readonly (string Name, Func<IDemo> Factory)[] Demos =
-	[
-		("FullReference", () => new FullReferenceDemo()),
-		("Bloom", () => new BloomDemo()),
-		("Particles", () => new ParticlesDemo()),
-		("PixelArt", () => new PixelArtDemo()),
-		("StylizedReference", () => new StylizedDemo()),
-	];
-
 	[Test]
 	public void Golden_demos_match_committed_baselines()
 	{
@@ -44,7 +34,7 @@ public class GalleryGoldenTests
 			Directory.CreateDirectory(SourceGoldensDir);
 
 		var failures = new List<string>();
-		foreach (var (name, factory) in Demos)
+		foreach (var (name, factory) in TrackedDemos.All)
 		{
 			if (update)
 			{
@@ -92,7 +82,7 @@ public class GalleryGoldenTests
 		}
 
 		if (update)
-			throw new TUnit.Core.Exceptions.SkipTestException($"LOOM_GOLDEN_UPDATE set — regenerated {Demos.Length} baselines in {SourceGoldensDir} instead of comparing.");
+			throw new TUnit.Core.Exceptions.SkipTestException($"LOOM_GOLDEN_UPDATE set — regenerated {TrackedDemos.All.Length} baselines in {SourceGoldensDir} instead of comparing.");
 
 		failures.ShouldBeEmpty("Gallery golden-image regressions detected:\n  " + string.Join("\n  ", failures));
 	}
