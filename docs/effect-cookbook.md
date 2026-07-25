@@ -2,7 +2,7 @@
 
 Reference patterns for the shipped rendering effects. Each entry shows the resource topology and the key graph structure in current API. These are *application-side* recipes: they add ordinary passes that name app-supplied shaders, declare their reads and writes, and let the engine derive the ordering, every barrier and layout transition, and transient-memory aliasing. Nothing here is privileged engine vocabulary.
 
-The shapes below are taken from the live demos in [`Loom.Sandbox/Demos/`](../Loom.Sandbox/Demos) — read those for the complete implementations (shader bodies, per-frame data, ImGui knobs).
+The shapes below are taken from the live demos in [`Loom.Gallery/Demos/`](../Loom.Gallery/Demos) — read those for the complete implementations (shader bodies, per-frame data, ImGui knobs).
 
 A few conventions used throughout:
 
