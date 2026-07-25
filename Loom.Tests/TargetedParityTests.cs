@@ -149,4 +149,86 @@ public class TargetedParityTests
 			engine.Render(inputs);
 		}
 	}
+
+	/// <summary>
+	/// Fixed-function alpha blending is backend-specific code (a <see cref="BlendMode"/> maps to the Vulkan
+	/// colour-blend state / the DirectX12 blend desc), so a mistranslation would diverge silently. Combine two
+	/// controlled probe gradients under a blend mode — additive (order-independent) and alpha-over (order-dependent,
+	/// alpha-weighted) — and assert Vulkan and DirectX12 produce the same frame. Guards the mapping that bloom /
+	/// particles (additive) and the transparent / sky passes (alpha-over) rely on.
+	/// </summary>
+	[Test]
+	public void Blend_modes_are_backend_parity_clean()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		var vulkan = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "Vulkan");
+		var dx12 = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "DirectX12");
+		if (vulkan is null || dx12 is null)
+			throw new TUnit.Core.Exceptions.SkipTestException("needs both Vulkan and DirectX12 available on this box.");
+
+		// Additive: two colours accumulated over black (src + dst).
+		var additive = CompareBlend(vulkan, dx12, BlendMode.Additive,
+			bg: [0f, 0f, 0f, 1f], a: [0.30f, 0.15f, 0.05f, 1f], b: [0.05f, 0.20f, 0.40f, 1f]);
+		additive.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"additive blend diverges across backends: {additive}");
+
+		// Alpha-over: two half-transparent colours composited over an opaque grey (src·a + dst·(1−a)).
+		var alphaOver = CompareBlend(vulkan, dx12, BlendMode.AlphaOver,
+			bg: [0.20f, 0.20f, 0.20f, 1f], a: [0.80f, 0.25f, 0.25f, 0.5f], b: [0.25f, 0.25f, 0.80f, 0.5f]);
+		alphaOver.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"alpha-over blend diverges across backends: {alphaOver}");
+	}
+
+	private static ImageDiff CompareBlend(IRenderBackend vulkan, IRenderBackend dx12, BlendMode mode, float[] bg, float[] a, float[] b)
+	{
+		var vkPath = Path.Combine(Path.GetTempPath(), $"loom-blend-{mode}-vk-{Guid.NewGuid():N}.png");
+		var dxPath = Path.Combine(Path.GetTempPath(), $"loom-blend-{mode}-dx-{Guid.NewGuid():N}.png");
+		try
+		{
+			RenderBlend(vulkan, mode, bg, a, b, vkPath);
+			RenderBlend(dx12, mode, bg, a, b, dxPath);
+			var (vw, vh, vk) = PngReader.Read(vkPath);
+			var (dw, dh, dx) = PngReader.Read(dxPath);
+			(vw, vh).ShouldBe((dw, dh));
+			// Guard against a vacuous pass: the probe is a gradient, so the frame must vary left-to-right — two
+			// uniformly-black frames would also "match". Compare the left edge to the right edge on one backend.
+			var mid = vh / 2;
+			var left = (mid * vw + 2) * 4;
+			var right = (mid * vw + vw - 3) * 4;
+			var span = Math.Abs(vk[left] - vk[right]) + Math.Abs(vk[left + 1] - vk[right + 1]) + Math.Abs(vk[left + 2] - vk[right + 2]);
+			span.ShouldBeGreaterThan(16, $"{mode}: the blended frame is ~uniform — the probe likely rendered nothing, so parity would pass vacuously.");
+			return ImageComparison.Compare(vw, vh, vk, dx, PerChannelTolerance);
+		}
+		finally
+		{
+			if (File.Exists(vkPath)) File.Delete(vkPath);
+			if (File.Exists(dxPath)) File.Delete(dxPath);
+		}
+	}
+
+	// Fill the screen with the opaque `bg` gradient, then blend colours `a` then `b` over it under `mode` — all three
+	// the probe's controlled gradient. The blend mode lives on the technique; the pass .Blends the target.
+	private static void RenderBlend(IRenderBackend backend, BlendMode mode, float[] bg, float[] a, float[] b, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(Width, Height), Width, Height, new EngineSettings());
+		engine.DefineTechnique("probe.opaque", new TechniqueDescriptor("probe", HasFragmentPush: true));
+		engine.DefineTechnique("probe.blend", new TechniqueDescriptor("probe", HasFragmentPush: true, Blend: mode));
+
+		var graph = RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			g.Pass("bg").Writes(screen).Draw(ctx => ctx.FullScreen("probe.opaque", bg));
+			g.Pass("a").Blends(screen).Draw(ctx => ctx.FullScreen("probe.blend", a));
+			g.Pass("b").Blends(screen).Draw(ctx => ctx.FullScreen("probe.blend", b));
+			g.Present(screen);
+		});
+		engine.SetGraph(graph);
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
 }
