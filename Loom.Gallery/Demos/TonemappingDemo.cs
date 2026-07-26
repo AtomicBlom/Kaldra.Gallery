@@ -24,7 +24,7 @@ internal sealed class TonemappingDemo : IDemo
 	{
 		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
-		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("exposure", TechniqueDescriptor.Compute("exposure", hasFragmentPush: true));
 		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}

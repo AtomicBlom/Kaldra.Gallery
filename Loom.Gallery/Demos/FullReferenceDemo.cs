@@ -36,7 +36,7 @@ internal sealed class FullReferenceDemo : IDemo
 		engine.DefineTechnique("ssao.blur", new TechniqueDescriptor("ssao_blur"));
 		engine.DefineTechnique("lighting", new TechniqueDescriptor("lighting", HasFragmentPush: true)); // 5-input deferred lighting + shadow + ao
 		engine.DefineTechnique("transparent", new TechniqueDescriptor("transparent", HasVertexInput: true, Blend: BlendMode.AlphaOver));
-		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("particle.update", TechniqueDescriptor.Compute("particle_update", hasFragmentPush: true));
 		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("id", new TechniqueDescriptor("id", HasVertexInput: true));
 		engine.DefineTechnique("outline.seed", new TechniqueDescriptor("outline_seed"));
@@ -46,7 +46,7 @@ internal sealed class FullReferenceDemo : IDemo
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
 		engine.DefineTechnique("bloom.composite", new TechniqueDescriptor("bloom_composite", LinearFilter: true, HasFragmentPush: true));
-		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("exposure", TechniqueDescriptor.Compute("exposure", hasFragmentPush: true));
 		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}

@@ -42,10 +42,7 @@ internal sealed partial class SkinningDemo : ObservableObject, IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
-		// The Slang compute entry is `computeMain` (so the build's `-entry computeMain` DXIL emit finds it), but
-		// slangc renames a lone compute entry to "main" in the SPIR-V — so the Vulkan entry is "main", exactly as
-		// particle_update is declared.
-		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("skin", TechniqueDescriptor.Compute("skin", hasFragmentPush: true));
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}

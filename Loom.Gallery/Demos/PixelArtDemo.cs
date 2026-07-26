@@ -66,8 +66,7 @@ internal sealed class PixelArtDemo : IDemo
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
 		engine.DefineTechnique("light2d", new TechniqueDescriptor(
 			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Light2D));
-		engine.DefineTechnique("particle.glow.update", new TechniqueDescriptor(
-			"particle_glow_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("particle.glow.update", TechniqueDescriptor.Compute("particle_glow_update", hasFragmentPush: true));
 		engine.DefineTechnique("particle.glow.render", new TechniqueDescriptor(
 			"particle_glow_render", Blend: BlendMode.Additive, LinearFilter: true, Instance: SandboxVertexLayouts.Particle));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));

@@ -24,7 +24,7 @@ internal sealed class ParticlesDemo : IDemo
 	{
 		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
-		engine.DefineTechnique("particle.update", new TechniqueDescriptor("particle_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("particle.update", TechniqueDescriptor.Compute("particle_update", hasFragmentPush: true));
 		engine.DefineTechnique("particle.render", new TechniqueDescriptor("particle_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}

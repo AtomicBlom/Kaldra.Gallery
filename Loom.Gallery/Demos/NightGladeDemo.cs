@@ -107,7 +107,7 @@ internal sealed class NightGladeDemo : IDemo
 		// The glowing dome caps: a self-lit red toadstool dome (additive → blooms), normal-shaded so the dome shape
 		// reads and the red separates them from the warm yellow-green fireflies.
 		engine.DefineTechnique("glade.cap", new TechniqueDescriptor("glow_cap", HasVertexInput: true, Blend: BlendMode.Additive));
-		engine.DefineTechnique("firefly.update", new TechniqueDescriptor("firefly_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("firefly.update", TechniqueDescriptor.Compute("firefly_update", hasFragmentPush: true));
 		engine.DefineTechnique("firefly.render", new TechniqueDescriptor("firefly_render", Blend: BlendMode.Additive, Instance: SandboxVertexLayouts.ParticlePosition));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
