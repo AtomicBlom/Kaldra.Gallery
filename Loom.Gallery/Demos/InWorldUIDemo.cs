@@ -101,7 +101,7 @@ internal sealed class InWorldUIDemo : IDemo
 				{
 					var block = new PerDraw { Model = panel.WorldTransform, ObjectId = 0 };
 					var call = new DrawCall { Mesh = quad, Technique = "ui_in_world" };
-					call.SetUniforms(block);
+					call.SetUniforms(ref block);
 					call.Sampled = new ResourceHandle[] { panelTex };
 					ctx.Draw(call);
 				}
