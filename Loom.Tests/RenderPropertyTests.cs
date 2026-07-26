@@ -32,7 +32,7 @@ public class RenderPropertyTests
 	{
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		if (Engine.AvailableEngines.Count == 0)
+		if (Backends.Available.Count == 0)
 			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
 
 		// Panel-pixel sample points, away from edges/corners: one inside only the first fill, one inside the overlap.
@@ -40,7 +40,7 @@ public class RenderPropertyTests
 		var overlap = new Vector2(185, 155);
 
 		var failures = new List<string>();
-		foreach (var backend in Engine.AvailableEngines)
+		foreach (var backend in Backends.Available)
 		{
 			var path = Path.Combine(Path.GetTempPath(), $"loom-groupopacity-{backend.Name}-{Guid.NewGuid():N}.png");
 			try
@@ -80,11 +80,11 @@ public class RenderPropertyTests
 	{
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		if (Engine.AvailableEngines.Count == 0)
+		if (Backends.Available.Count == 0)
 			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
 
 		var failures = new List<string>();
-		foreach (var backend in Engine.AvailableEngines)
+		foreach (var backend in Backends.Available)
 		{
 			var path = Path.Combine(Path.GetTempPath(), $"loom-tonemap-{backend.Name}-{Guid.NewGuid():N}.png");
 			try

@@ -26,7 +26,7 @@ public class GalleryGoldenTests
 		// Touch each backend's settings subclass so its module initializer self-registers (guarded by IsSupported()).
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		var vulkan = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "Vulkan")
+		var vulkan = Backends.Available.FirstOrDefault(e => e.Name == "Vulkan")
 			?? throw new TUnit.Core.Exceptions.SkipTestException("No Vulkan backend is available on this box — the golden baselines are Vulkan captures.");
 
 		var update = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LOOM_GOLDEN_UPDATE"));

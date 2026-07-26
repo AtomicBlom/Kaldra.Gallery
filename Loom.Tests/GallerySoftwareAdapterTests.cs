@@ -31,7 +31,7 @@ public class GallerySoftwareAdapterTests
 		// own IsSupported() probe). WARP is a DirectX12 feature and a Vulkan CPU device is not guaranteed on a box, so
 		// this smoke pins to DirectX12 + WARP exactly as the retired workflow did.
 		_ = new DirectX12EngineSettings();
-		var dx12 = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "DirectX12")
+		var dx12 = Backends.Available.FirstOrDefault(e => e.Name == "DirectX12")
 			?? throw new TUnit.Core.Exceptions.SkipTestException("No DirectX12 backend is available on this box — WARP is a DirectX12 (Windows) feature.");
 
 		// Force WARP, and force GPU-based validation off (it can crash the process on WARP) so the smoke is safe in
