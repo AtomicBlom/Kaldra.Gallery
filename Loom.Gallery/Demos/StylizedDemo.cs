@@ -143,7 +143,7 @@ internal sealed class StylizedDemo : IDemo
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
 		var graded = g.Screen.Color("graded", Format.Rgba16F);
-		var skinned = g.Buffer("skinned", _charVerts * 48);
+		var skinned = g.Buffer("skinned", _charVerts, VertexLayout.MeshStandard);
 		_viewproj = g.Constants<Matrix4x4>("stylized.viewproj");
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 

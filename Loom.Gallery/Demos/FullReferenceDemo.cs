@@ -109,7 +109,7 @@ internal sealed class FullReferenceDemo : IDemo
 			.Draw(ctx => DemoDraw.Mesh(ctx, scene.Cube, "transparent", Matrix4x4.Identity));
 
 		const int particleCount = 4096;
-		var particles = g.Buffer("particles", particleCount * 16);
+		var particles = g.Buffer("particles", particleCount, SandboxVertexLayouts.ParticlePosition);
 
 		g.Compute("particle.update")
 			.ReadWrites(particles)

@@ -348,7 +348,7 @@ internal sealed class RuinsDemo : IDemo
 		var outlined = world.Color("ruins_outlined", Format.Rgba16F);
 		var toned = world.Color("ruins_toned", Format.Rgba16F);
 		var graded = world.Color("ruins_graded", Format.Rgba16F);
-		var skinned = g.Buffer("ruins_skinned", _charVerts * 48);
+		var skinned = g.Buffer("ruins_skinned", _charVerts, VertexLayout.MeshStandard);
 		var meter = g.Domain("ruins_meter", 1, 1);
 		var exposure = meter.Persistent("ruins_exposure", Format.R32F);
 

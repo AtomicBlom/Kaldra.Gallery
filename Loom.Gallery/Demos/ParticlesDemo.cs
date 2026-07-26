@@ -36,7 +36,7 @@ internal sealed class ParticlesDemo : IDemo
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 
 		const int particleCount = 4096;
-		var particles = g.Buffer("particles", particleCount * 16); // float4 per particle
+		var particles = g.Buffer("particles", particleCount, SandboxVertexLayouts.ParticlePosition);
 		_viewproj = g.Constants<Matrix4x4>("particles.viewproj");
 
 		g.Pass("scene")

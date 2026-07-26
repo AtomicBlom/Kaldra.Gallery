@@ -111,7 +111,7 @@ internal sealed partial class SkinningDemo : ObservableObject, IDemo
 			var screen = g.Backbuffer;
 			var lit = g.Screen.Color("lit", Format.Rgba16F);
 			var depth = g.Screen.Depth("depth", Format.Depth32F);
-			var skinned = g.Buffer("skinned", _vertexCount * 48); // MeshStandard-shaped (48 bytes) compute output
+			var skinned = g.Buffer("skinned", _vertexCount, VertexLayout.MeshStandard); // the pre-skin compute's output
 			_viewproj = g.Constants<Matrix4x4>("skinning.viewproj");
 
 			// Pre-skin the bar once: sample the clip at this frame's time (looping) into the palette, then dispatch.

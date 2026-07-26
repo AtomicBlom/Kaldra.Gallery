@@ -210,8 +210,15 @@ particles (g.Buffer) ──.ReadWrites──► [compute: particle.update]
 ```
 
 ```csharp
+// A field, declared once beside the technique registration: one float4 per particle (xyz position + remaining life)
+// as the per-instance stream at binding 0. "particle.render" names this same layout as its `Instance` stream, so the
+// buffer's elements and the vertex stream that walks them cannot drift apart.
+static readonly VertexLayout ParticleLayout = new(
+    VertexInputRate.PerInstance, binding: 0,
+    new VertexAttribute("POSITION", VertexFormat.Float4));
+
 const int particleCount = 4096;
-var particles = g.Buffer("particles", particleCount * 16);   // one byte-size arg (float4 per particle)
+var particles = g.Buffer("particles", particleCount, ParticleLayout);   // sized count × the layout's 16-byte stride
 
 g.Compute("particle.update")
     .ReadWrites(particles)
@@ -235,6 +242,8 @@ g.Pass("particles")
 ```
 
 `ctx.Dispatch` takes the workgroup grid as a `(uint X, uint Y, uint Z)` tuple, then three spans: the push block, the sampled inputs, and the read-write storage (matching the pass's `.Samples` / `.ReadWrites`). The render is a *procedural* draw — `Mesh` is null, `VertexCount` sets the per-instance vertex count, and `DrawCall.Gpu(buffer, count)` points the instance stream at the compute-filled buffer (CPU-sourced instances use `DrawCall.From(span)` instead).
+
+Because the buffer was declared in terms of a layout rather than a byte count, both ways this can go wrong are caught on the CPU instead of reading past the end of the buffer on the GPU: `DrawCall.Gpu` rejects a `count` larger than the buffer holds, and the draw rejects a technique whose per-instance stream advances by a different stride than the buffer's elements.
 
 ---
 

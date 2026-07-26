@@ -259,7 +259,7 @@ internal sealed class NightGladeDemo : IDemo
 		var lit = g.Screen.Color("ng_lit", Format.Rgba16F);
 		var litFog = g.Screen.Color("ng_litfog", Format.Rgba16F);
 		var graded = g.Screen.Color("ng_graded", Format.Rgba16F);
-		var fireflies = g.Buffer("ng_fireflies", FireflyCount * 16); // float4 per firefly
+		var fireflies = g.Buffer("ng_fireflies", FireflyCount, SandboxVertexLayouts.ParticlePosition);
 		_viewproj = g.Constants<Matrix4x4>("nightglade.viewproj");
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("nightglade.csm.splits");
 
