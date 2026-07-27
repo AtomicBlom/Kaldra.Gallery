@@ -197,6 +197,22 @@ public static ColorHandle Bloom(this GraphBuilder g, ColorHandle source, float t
 
 The `.Writes` vs `.Blends` distinction is load-bearing: the upsample passes `.Blends` the larger mip so the graph preserves the downsample's contents and accumulates onto them. A graph that only knew `.Writes` would lose the accumulation or miss the dependency.
 
+### Instantiating a fragment more than once
+
+Every name above is fixed — `bloom_mip0`, `bloom.prefilter`, `lit_bloomed` — and names are unique per graph, so calling `g.Bloom(…)` twice would collide. Wrap each call in a name scope instead of threading a prefix parameter through the fragment:
+
+```csharp
+ColorHandle left, right;
+using (g.Scope("left"))  left  = g.Bloom(litLeft);
+using (g.Scope("right")) right = g.Bloom(litRight);
+```
+
+The fragment is unchanged and unaware: its `bloom_mip0` becomes `left.bloom_mip0` and `right.bloom_mip0`, its passes become `left.bloom.prefilter` and so on, and the two chains derive as independent dependency chains. Scopes nest, and the qualified name is what the duplicate-name check and the graph hash see.
+
+Two things are deliberately *not* scoped. **Techniques** are registered on the engine rather than declared on the graph, so `ctx.FullScreen("bloom.prefilter", …)` inside a scope still names the technique exactly as registered — only the pass sharing that name gets qualified. And the **backbuffer** keeps its identity whatever scope first touches it, since there is one swapchain image.
+
+Pass names get a bonus: `DebugLabelScopes` derives the RenderDoc/PIX event tree from the same dots, so a scoped fragment's passes group under its scope in the capture with no extra work.
+
 ---
 
 ## GPU particles (compute → vertex)
