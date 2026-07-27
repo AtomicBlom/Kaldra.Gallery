@@ -2,9 +2,12 @@ using System.Numerics;
 
 using Loom.Backend.DirectX12;
 using Loom.Backend.Vulkan;
+using Loom.Concepts;
+using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+using Loom.Gallery.Demos;
 using Loom.UI.SUIsei;
 
 using SUIsei;
@@ -207,6 +210,126 @@ public class RenderPropertyTests
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};
+	}
+
+	/// <summary>
+	/// Reversed-Z resolves occlusion identically to a conventional depth buffer. Reversed-Z is three declarations
+	/// that have to agree — a depth target cleared to 0, a <see cref="DepthCompare.GreaterOrEqual"/> test, and a
+	/// reversed projection — and getting any one wrong doesn't fail, it silently inverts or erases occlusion. So the
+	/// invariant is that the two configurations produce the same image: the scene draws a near quad, then a further
+	/// one overlapping it, and the depth test is the only thing stopping the second from painting over the first.
+	/// </summary>
+	[Test]
+	public void Reversed_z_resolves_occlusion_the_same_way_as_a_conventional_depth_buffer()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// Panel-pixel sample points: only the near quad, only the far quad, and where they overlap.
+		var nearOnly = new Vector2(W * 0.30f, H * 0.5f);
+		var farOnly = new Vector2(W * 0.78f, H * 0.5f);
+		var overlap = new Vector2(W * 0.55f, H * 0.5f);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var standardPath = Path.Combine(Path.GetTempPath(), $"loom-depth-std-{backend.Name}-{Guid.NewGuid():N}.png");
+			var reversedPath = Path.Combine(Path.GetTempPath(), $"loom-depth-rev-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderOccludedQuads(backend, standardPath, reversed: false);
+				RenderOccludedQuads(backend, reversedPath, reversed: true);
+				var (w, h, standard) = PngReader.Read(standardPath);
+				var (_, _, reversed) = PngReader.Read(reversedPath);
+
+				var diff = ImageComparison.Compare(w, h, standard, reversed, perChannelTolerance: 4);
+				if (diff.FailedFraction > 0.005)
+					failures.Add($"{backend.Name}: reversed-Z differs from standard-Z — {diff}.");
+
+				// Guard against a vacuous pass: two blank frames also compare equal. The scene must actually show
+				// three distinct regions, and the overlap must be the NEAR quad — which is the occlusion itself.
+				foreach (var (label, rgba) in new[] { ("standard", standard), ("reversed", reversed) })
+				{
+					var near = AverageBlock(rgba, w, h, nearOnly, 6);
+					var far = AverageBlock(rgba, w, h, farOnly, 6);
+					var over = AverageBlock(rgba, w, h, overlap, 6);
+					if (MaxChannelDelta(near, far) < 40)
+						failures.Add($"{backend.Name}/{label}: the two quads did not render distinguishably (near {Fmt(near)}, far {Fmt(far)}) — nothing to occlude.");
+					if (MaxChannelDelta(over, near) > 8)
+						failures.Add($"{backend.Name}/{label}: the further quad won the overlap (overlap {Fmt(over)}, near {Fmt(near)}, far {Fmt(far)}).");
+				}
+			}
+			finally
+			{
+				if (File.Exists(standardPath)) File.Delete(standardPath);
+				if (File.Exists(reversedPath)) File.Delete(reversedPath);
+			}
+		}
+
+		failures.ShouldBeEmpty("Reversed-Z does not match a conventional depth buffer:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Two screen-facing quads at different distances, overlapping in the middle, drawn NEAR first so only the depth
+	// test can stop the further one painting over it. `mesh` colours by vertex normal, so giving the quads different
+	// (geometrically meaningless) normals makes which one won a pixel readable straight out of the image.
+	private static void RenderOccludedQuads(IRenderBackend backend, string outPath, bool reversed)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		engine.DefineTechnique("mesh.depth", new TechniqueDescriptor(
+			"mesh",
+			HasVertexInput: true,
+			DepthTest: reversed ? DepthCompare.GreaterOrEqual : DepthCompare.LessOrEqual));
+
+		var nearQuad = Quad(engine, new Vector3(0, 0, 1));  // normal +Z -> blue-ish
+		var farQuad = Quad(engine, new Vector3(1, 0, 0));   // normal +X -> red-ish
+
+		var camera = new Camera(engine)
+			.Perspective(0.9f, (float)W / H, 0.1f, 100f, reversed)
+			.LookAt(new Vector3(0, 0, 6), Vector3.Zero);
+
+		ConstantsHandle viewproj = null!;
+		var graph = RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			// The clear value and the compare have to move together; that pairing is what this test exercises.
+			var depth = g.Screen.Depth("depth", Format.Depth32F, clearDepth: reversed ? 0f : 1f);
+			viewproj = g.Constants<Matrix4x4>("viewproj");
+
+			g.Pass("scene")
+				.Reads(viewproj)
+				.Writes(screen)
+				.WritesDepth(depth)
+				.Draw(ctx =>
+				{
+					DemoDraw.Mesh(ctx, nearQuad, "mesh.depth", Matrix4x4.CreateTranslation(-0.7f, 0, 2f));
+					DemoDraw.Mesh(ctx, farQuad, "mesh.depth", Matrix4x4.CreateTranslation(0.7f, 0, -2f));
+				});
+			g.Present(screen);
+		});
+		engine.SetGraph(graph);
+		engine.Write(viewproj, camera.ViewProjection);
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		engine.RequestCapture(outPath);
+		engine.Render(inputs);
+	}
+
+	// A unit-ish quad in the XY plane carrying `normal` on every vertex — `mesh` shades by normal, so the normal is
+	// this quad's identity in the output rather than a lighting input.
+	private static Mesh Quad(IEngine engine, Vector3 normal)
+	{
+		var tangent = new Vector4(1, 0, 0, 1);
+		Span<Vertex> vertices =
+		[
+			new(new Vector3(-1.2f, -1.2f, 0), normal, new Vector2(0, 0), tangent),
+			new(new Vector3(1.2f, -1.2f, 0), normal, new Vector2(1, 0), tangent),
+			new(new Vector3(1.2f, 1.2f, 0), normal, new Vector2(1, 1), tangent),
+			new(new Vector3(-1.2f, 1.2f, 0), normal, new Vector2(0, 1), tangent),
+		];
+		Span<uint> indices = [0, 1, 2, 0, 2, 3];
+		return engine.CreateMesh(vertices, indices);
 	}
 
 	private readonly record struct Rgb(int R, int G, int B, int W);
