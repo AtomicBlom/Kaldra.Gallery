@@ -16,6 +16,11 @@
     <!-- The gallery owns the shaders + assets now; this exe compiles none of its own — they flow in beside the exe
          through the Loom.Gallery ProjectReference. -->
     <LoomShaderOutputMode>None</LoomShaderOutputMode>
+    <!-- Both UI bridges, through the SDK flags rather than by hand — which also keeps them honest: they are
+         documented in the SDK README and getting-started, so the sandbox building on them is the test that they
+         do something. -->
+    <UseSUIsei>true</UseSUIsei>
+    <UseImGui>true</UseImGui>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,8 +38,6 @@
     <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
     <ProjectReference Include="..\Loom.Concepts\Loom.Concepts.csproj" />
     <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
-    <ProjectReference Include="..\Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
-    <ProjectReference Include="..\Loom.UI.ImGui\Loom.UI.ImGui.csproj" />
   </ItemGroup>
 
   <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
