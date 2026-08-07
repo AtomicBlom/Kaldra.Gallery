@@ -241,7 +241,7 @@ g.Compute("particle.update")
     .Dispatch(ctx => ctx.Dispatch(
         "particle.update",
         ((uint)(particleCount / 64), 1, 1),   // workgroup grid
-        [ctx.Time],                            // up-to-4-float push block
+        [ctx.Time],                            // up-to-16-float push block
         [],                                    // sampled inputs (none)
         [particles]));                         // read-write storage (the .ReadWrites resources)
 
