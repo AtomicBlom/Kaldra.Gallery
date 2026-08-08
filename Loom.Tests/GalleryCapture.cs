@@ -52,9 +52,9 @@ internal static class GalleryCapture
 		{
 			demo.DefineTechniques(engine);
 		}
-		catch (NotSupportedException)
+		catch (ShaderAssetMissingException)
 		{
-			return false; // a stage with no DXIL on this toolchain — nothing to compare, not a failure
+			return false; // a stage this toolchain emitted no bytecode for — nothing to compare, not a failure
 		}
 
 		var uiHost = new UIHost();
