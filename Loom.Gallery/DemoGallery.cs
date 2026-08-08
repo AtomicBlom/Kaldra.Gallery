@@ -69,7 +69,7 @@ internal static class DemoGallery
 				demo.DefineTechniques(engine);
 				live.Add(demo);
 			}
-			catch (NotSupportedException ex)
+			catch (ShaderAssetMissingException ex)
 			{
 				Console.WriteLine($"[loom] skipping demo '{demo.Name}' — {ex.Message}");
 			}
