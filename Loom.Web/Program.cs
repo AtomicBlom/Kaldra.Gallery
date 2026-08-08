@@ -55,7 +55,7 @@ async Task BootAsync()
 	// The demo shaders (lit, gbuffer, …) are embedded in this WASM assembly as WGSL under "Loom.Web.Shaders.";
 	// resolve them by artifact name so the backend finds them alongside its own engine shaders.
 	var settings = new WebGpuEngineSettings { EnableValidation = true, ShaderResolver = ResolveEmbeddedShader, CaptureViaPost = captureViaPost };
-	// Construct the one browser backend directly rather than discovering it through Engine.AvailableEngines: that
+	// Construct the one browser backend directly rather than discovering it through Backends.Available: that
 	// registry is populated by the backend's [ModuleInitializer], and module initializers are not reliably run under
 	// WASM AOT + trimming (the registry comes up empty and the lookup throws). There is exactly one backend here.
 	var backend = new WebGpuBackend();

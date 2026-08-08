@@ -21,11 +21,11 @@ public class RenderDeterminismTests
 	{
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		if (Engine.AvailableEngines.Count == 0)
+		if (Backends.Available.Count == 0)
 			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
 
 		var failures = new List<string>();
-		foreach (var backend in Engine.AvailableEngines)
+		foreach (var backend in Backends.Available)
 		{
 			var first = Path.Combine(Path.GetTempPath(), $"loom-det-{backend.Name}-a-{Guid.NewGuid():N}.png");
 			var second = Path.Combine(Path.GetTempPath(), $"loom-det-{backend.Name}-b-{Guid.NewGuid():N}.png");

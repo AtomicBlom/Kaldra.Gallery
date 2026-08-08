@@ -52,7 +52,6 @@ internal sealed class PixelArtDemo : IDemo
 	private ConstantsHandle _viewproj = null!;
 
 	private const int GlowParticleCount = 512; // multiple of 64 (the compute workgroup size)
-	private const int ParticleStrideBytes = 32; // SandboxVertexLayouts.Particle: two IPARTICLE float4 rows
 
 	public string Name => "Pixel Art";
 
@@ -66,8 +65,7 @@ internal sealed class PixelArtDemo : IDemo
 		engine.DefineTechnique("ambient2d", new TechniqueDescriptor("ambient2d"));
 		engine.DefineTechnique("light2d", new TechniqueDescriptor(
 			"light2d", HasVertexInput: true, Blend: BlendMode.Additive, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Light2D));
-		engine.DefineTechnique("particle.glow.update", new TechniqueDescriptor(
-			"particle_glow_update", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("particle.glow.update", TechniqueDescriptor.Compute("particle_glow_update", hasFragmentPush: true));
 		engine.DefineTechnique("particle.glow.render", new TechniqueDescriptor(
 			"particle_glow_render", Blend: BlendMode.Additive, LinearFilter: true, Instance: SandboxVertexLayouts.Particle));
 		engine.DefineTechnique("bloom.prefilter", new TechniqueDescriptor("bloom_prefilter", LinearFilter: true, HasFragmentPush: true));
@@ -112,7 +110,7 @@ internal sealed class PixelArtDemo : IDemo
 		var emissive = world.Color("pa_emissive", Format.Rgba8Srgb);
 		var depth = world.Depth("pa_depth", Format.Depth32F);
 		var lit = world.Color("pa_lit", Format.Rgba16F);
-		var glow = g.Buffer("pa_glow", GlowParticleCount * ParticleStrideBytes);
+		var glow = g.Buffer("pa_glow", GlowParticleCount, SandboxVertexLayouts.Particle);
 		_viewproj = g.Constants<Matrix4x4>("pixelart.viewproj");
 
 		// One depth-ordered G-buffer pass: parallax background (far) → tilemap ground (mid) → animated sprites (near).

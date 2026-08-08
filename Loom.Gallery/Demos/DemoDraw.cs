@@ -10,7 +10,7 @@ namespace Loom.Gallery.Demos;
 /// <summary>
 /// Places a sandbox object in a scene pass: packs its model matrix + picking id into the <see cref="PerDraw"/> block
 /// and submits the draw. This is the sandbox's "draw a placed object" convention, built on the neutral
-/// <see cref="DrawCall.SetUniforms{T}(in T)"/> seam — the engine carries no model/id opinion, the sandbox does. The
+/// <see cref="DrawCall.SetUniforms{T}(ref T)"/> seam — the engine carries no model/id opinion, the sandbox does. The
 /// pass must <c>.Reads</c> the view's view-projection constants (a <c>Loom.Concepts.Camera.ViewProjection</c>) so the
 /// vertex shader has its view-projection. The <see cref="PerDraw"/> lives on the stack and the engine uploads it
 /// synchronously inside <see cref="IRenderContext.Draw"/>, so it stays alive for the whole submission with no per-draw
@@ -23,7 +23,7 @@ internal static class DemoDraw
 	{
 		var block = new PerDraw { Model = model, ObjectId = objectId };
 		var call = new DrawCall { Mesh = mesh, Technique = technique, Material = material };
-		call.SetUniforms(block);
+		call.SetUniforms(ref block);
 		ctx.Draw(call);
 	}
 
@@ -36,7 +36,7 @@ internal static class DemoDraw
 	{
 		var block = new PerDraw { Model = model, ObjectId = objectId };
 		var call = new DrawCall { Mesh = mesh, SkinnedVertices = skinnedVertices, Technique = technique };
-		call.SetUniforms(block);
+		call.SetUniforms(ref block);
 		ctx.Draw(call);
 	}
 }

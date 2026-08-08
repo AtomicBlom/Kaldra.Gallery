@@ -123,7 +123,10 @@ internal sealed class PixelArtCastleDemo : IDemo
 	public Concepts.Camera? GetCamera(float aspect, float time)
 	{
 		_aspect = aspect; // stash the framebuffer aspect so the composite can letterbox the low-res scene
+
 		// The 2D scene's orthographic camera (world-pixel space; the floor scrolls subtly via parallax in the sprites).
+		// The blank line above is load-bearing: `dotnet format` reads a full-line comment directly under a trailing
+		// one as its continuation and re-indents it to the trailing comment's column.
 		var eye = new Vector3(WorldWidth * 0.5f, WorldHeight * 0.5f, 10f);
 		return _cam.Orthographic(WorldWidth, WorldHeight, 0.1f, 100f).LookAt(eye, eye with { Z = 0f });
 	}
@@ -232,9 +235,10 @@ internal sealed class PixelArtCastleDemo : IDemo
 	{
 		var sprites = new List<SpriteInstance>(12);
 
-		// The moon, fixed high in the sky.
-		sprites.Add(SpriteInstance.At(new Vector2(258f, 150f), new Vector2(40f, 40f), _backSheet.Uv(CastleBackdrop.Moon), depth: -9f)
-			with { Tint = new Vector4(1f, 1f, 0.96f, 1f) });
+		// The moon, fixed high in the sky. Bound to a local so the `with` stays on one line: `dotnet format` breaks an
+		// initializer brace onto its own line when it trails a wrapped argument list, which reads worse than this.
+		var moon = SpriteInstance.At(new Vector2(258f, 150f), new Vector2(40f, 40f), _backSheet.Uv(CastleBackdrop.Moon), depth: -9f);
+		sprites.Add(moon with { Tint = new Vector4(1f, 1f, 0.96f, 1f) });
 
 		// A row of moonlit tower silhouettes along the back, gently parallax-scrolling.
 		(int cell, float size, float y)[] line =
@@ -256,8 +260,8 @@ internal sealed class PixelArtCastleDemo : IDemo
 		for (var i = 0; i < line.Length; i++)
 		{
 			var x = MathF.Floor(Wrap(i * spacing - scroll, -spacing, period - spacing));
-			sprites.Add(SpriteInstance.At(new Vector2(x, line[i].y), new Vector2(line[i].size, line[i].size), _backSheet.Uv(line[i].cell), depth: -8f)
-				with { Tint = tint });
+			var tower = SpriteInstance.At(new Vector2(x, line[i].y), new Vector2(line[i].size, line[i].size), _backSheet.Uv(line[i].cell), depth: -8f);
+			sprites.Add(tower with { Tint = tint });
 		}
 		return [.. sprites];
 	}

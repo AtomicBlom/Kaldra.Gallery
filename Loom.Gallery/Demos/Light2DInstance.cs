@@ -5,7 +5,7 @@ using Loom.Core.Geometry;
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// One 2D point light — the per-instance data a <c>ctx.DrawInstanced(quad, "light2d", lights, gbuffer)</c>
+/// One 2D point light — the per-instance data a <c>ctx.Draw</c> with a <c>DrawCall.Instances</c> source
 /// reads through <see cref="SandboxVertexLayouts.Light2D"/>. Each light is one additive quad sized to its reach: the
 /// vertex shader expands a unit quad to the light's bounding box (<see cref="Position"/> ± <see cref="Radius"/>),
 /// and the fragment samples the 2D G-buffer normal under each covered pixel and accumulates

@@ -60,7 +60,7 @@ internal sealed class StylizedDemo : IDemo
 		_cam = new Concepts.Camera(engine);
 		for (var c = 0; c < CascadeCount; c++)
 			_cascades[c] = new Concepts.Camera(engine);
-		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("skin", TechniqueDescriptor.Compute("skin", hasFragmentPush: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("foliage", new TechniqueDescriptor("foliage", HasVertexInput: true, Layout: VertexLayout.MeshStandard, Instance: SandboxVertexLayouts.Foliage));
@@ -143,7 +143,7 @@ internal sealed class StylizedDemo : IDemo
 		var depth = g.Screen.Depth("depth", Format.Depth32F);
 		var lit = g.Screen.Color("lit", Format.Rgba16F);
 		var graded = g.Screen.Color("graded", Format.Rgba16F);
-		var skinned = g.Buffer("skinned", _charVerts * 48);
+		var skinned = g.Buffer("skinned", _charVerts, VertexLayout.MeshStandard);
 		_viewproj = g.Constants<Matrix4x4>("stylized.viewproj");
 		_csmSplits = g.Constants<DemoGraph.CsmSplits>("csm.splits");
 

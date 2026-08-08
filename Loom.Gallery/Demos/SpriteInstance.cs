@@ -5,7 +5,7 @@ using Loom.Core.Geometry;
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// One batched 2D sprite/tile — the per-instance data a <c>ctx.DrawInstanced(quad, atlas, "sprite", …)</c>
+/// One batched 2D sprite/tile — the per-instance data a <c>ctx.Draw</c> with a <c>DrawCall.Instances</c> source
 /// reads through <see cref="SandboxVertexLayouts.Sprite"/>. A unit quad is expanded by the vertex shader into the
 /// quad this instance describes: placed at <see cref="Position"/> (with <see cref="Depth"/> for draw order), scaled
 /// to <see cref="Size"/> about <see cref="Pivot"/>, rotated by <see cref="Rotation"/>, textured from the atlas region

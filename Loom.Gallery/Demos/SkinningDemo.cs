@@ -42,10 +42,7 @@ internal sealed partial class SkinningDemo : ObservableObject, IDemo
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
-		// The Slang compute entry is `computeMain` (so the build's `-entry computeMain` DXIL emit finds it), but
-		// slangc renames a lone compute entry to "main" in the SPIR-V — so the Vulkan entry is "main", exactly as
-		// particle_update is declared.
-		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("skin", TechniqueDescriptor.Compute("skin", hasFragmentPush: true));
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 	}
@@ -114,7 +111,7 @@ internal sealed partial class SkinningDemo : ObservableObject, IDemo
 			var screen = g.Backbuffer;
 			var lit = g.Screen.Color("lit", Format.Rgba16F);
 			var depth = g.Screen.Depth("depth", Format.Depth32F);
-			var skinned = g.Buffer("skinned", _vertexCount * 48); // MeshStandard-shaped (48 bytes) compute output
+			var skinned = g.Buffer("skinned", _vertexCount, VertexLayout.MeshStandard); // the pre-skin compute's output
 			_viewproj = g.Constants<Matrix4x4>("skinning.viewproj");
 
 			// Pre-skin the bar once: sample the clip at this frame's time (looping) into the palette, then dispatch.

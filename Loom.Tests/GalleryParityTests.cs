@@ -48,8 +48,8 @@ public class GalleryParityTests
 		// Touch each backend's settings subclass so its module initializer self-registers (guarded by IsSupported()).
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		var vulkan = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "Vulkan");
-		var dx12 = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "DirectX12");
+		var vulkan = Backends.Available.FirstOrDefault(e => e.Name == "Vulkan");
+		var dx12 = Backends.Available.FirstOrDefault(e => e.Name == "DirectX12");
 		if (vulkan is null || dx12 is null)
 			throw new TUnit.Core.Exceptions.SkipTestException("Cross-backend parity needs BOTH Vulkan and DirectX12 available on this box.");
 

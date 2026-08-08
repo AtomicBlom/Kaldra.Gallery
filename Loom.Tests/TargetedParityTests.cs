@@ -45,8 +45,8 @@ public class TargetedParityTests
 	{
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		var vulkan = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "Vulkan");
-		var dx12 = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "DirectX12");
+		var vulkan = Backends.Available.FirstOrDefault(e => e.Name == "Vulkan");
+		var dx12 = Backends.Available.FirstOrDefault(e => e.Name == "DirectX12");
 		if (vulkan is null || dx12 is null)
 			throw new TUnit.Core.Exceptions.SkipTestException("needs both Vulkan and DirectX12 available on this box.");
 
@@ -162,8 +162,8 @@ public class TargetedParityTests
 	{
 		_ = new VulkanEngineSettings();
 		_ = new DirectX12EngineSettings();
-		var vulkan = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "Vulkan");
-		var dx12 = Engine.AvailableEngines.FirstOrDefault(e => e.Name == "DirectX12");
+		var vulkan = Backends.Available.FirstOrDefault(e => e.Name == "Vulkan");
+		var dx12 = Backends.Available.FirstOrDefault(e => e.Name == "DirectX12");
 		if (vulkan is null || dx12 is null)
 			throw new TUnit.Core.Exceptions.SkipTestException("needs both Vulkan and DirectX12 available on this box.");
 

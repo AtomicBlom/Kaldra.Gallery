@@ -90,7 +90,7 @@ internal sealed class RuinsDemo : IDemo
 		_engine = engine;
 		_cam = new Concepts.Camera(engine);
 
-		engine.DefineTechnique("skin", new TechniqueDescriptor("skin", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("skin", TechniqueDescriptor.Compute("skin", hasFragmentPush: true));
 		engine.DefineTechnique("depthonly", new TechniqueDescriptor("depthonly", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer", new TechniqueDescriptor("gbuffer", HasVertexInput: true));
 		engine.DefineTechnique("gbuffer.tex", new TechniqueDescriptor("gbuffer_textured", HasVertexInput: true, LinearFilter: true));
@@ -109,7 +109,7 @@ internal sealed class RuinsDemo : IDemo
 		engine.DefineTechnique("bloom.down", new TechniqueDescriptor("bloom_sample", LinearFilter: true));
 		engine.DefineTechnique("bloom.up", new TechniqueDescriptor("bloom_sample", Blend: BlendMode.Additive, LinearFilter: true));
 		engine.DefineTechnique("bloom.composite", new TechniqueDescriptor("bloom_composite", LinearFilter: true, HasFragmentPush: true));
-		engine.DefineTechnique("exposure", new TechniqueDescriptor("exposure", VertexEntry: "main", FragmentEntry: "main", IsCompute: true, HasFragmentPush: true));
+		engine.DefineTechnique("exposure", TechniqueDescriptor.Compute("exposure", hasFragmentPush: true));
 		engine.DefineTechnique("tonemap", new TechniqueDescriptor("tonemap", HasFragmentPush: true));
 		engine.DefineTechnique("grade", new TechniqueDescriptor("grade", HasFragmentPush: true));
 		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
@@ -348,7 +348,7 @@ internal sealed class RuinsDemo : IDemo
 		var outlined = world.Color("ruins_outlined", Format.Rgba16F);
 		var toned = world.Color("ruins_toned", Format.Rgba16F);
 		var graded = world.Color("ruins_graded", Format.Rgba16F);
-		var skinned = g.Buffer("ruins_skinned", _charVerts * 48);
+		var skinned = g.Buffer("ruins_skinned", _charVerts, VertexLayout.MeshStandard);
 		var meter = g.Domain("ruins_meter", 1, 1);
 		var exposure = meter.Persistent("ruins_exposure", Format.R32F);
 

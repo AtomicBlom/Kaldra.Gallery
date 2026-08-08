@@ -9,7 +9,7 @@ using Loom.Core.Materials;
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// Sprite batching + texture atlases. One <c>ctx.DrawInstanced</c> places a whole field of quads — each a
+/// Sprite batching + texture atlases. One <c>ctx.Draw</c> with a <c>DrawCall.Instances</c> source places a whole field of quads — each a
 /// <see cref="SpriteInstance"/> in the per-instance stream (<see cref="SandboxVertexLayouts.Sprite"/>) sharing
 /// one atlas material — into a low-res 2D deferred G-buffer (gbuffer_sprite.slang: albedo + tangent-space
 /// normal + emissive), which a compose pass lights and a nearest upscale blows up to the screen. The camera
@@ -45,7 +45,7 @@ internal sealed class SpritesDemo : IDemo
 		// Build the shared 2×2 ball atlas (albedo + spherical normal map) — see BallAtlas.
 		_atlas = BallAtlas.CreateMaterial(engine, out var sheet);
 
-		// Lay out a field of sprites — one DrawInstanced batches them all. Cells cycle so the atlas is visible.
+		// Lay out a field of sprites — one instanced ctx.Draw batches them all. Cells cycle so the atlas is visible.
 		const int cols = 8, rows = 5;
 		var sprites = new SpriteInstance[cols * rows];
 		for (var r = 0; r < rows; r++)

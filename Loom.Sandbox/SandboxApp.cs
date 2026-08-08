@@ -15,9 +15,10 @@ using Loom.UI.SUIsei;
 
 using SUIsei;
 
-// Alias the painter + input-layer types only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare `ImGui`.
-using ImGuiPainter = Loom.UI.ImGui.ImGuiPainter;
+// Alias the painter + input-layer types only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare
+// `ImGui`. Kept in sorted order so the usings sort leaves this comment attached to the group it describes.
 using ImGuiInputLayer = Loom.UI.ImGui.ImGuiInputLayer;
+using ImGuiPainter = Loom.UI.ImGui.ImGuiPainter;
 
 namespace Loom.Sandbox;
 
@@ -225,7 +226,7 @@ internal sealed class SandboxApp : LoomApplication
 		}
 	}
 
-	protected override void Draw(FrameTime time)
+	protected override void BeforeRender(FrameTime time)
 	{
 		if (!_ready)
 			return;

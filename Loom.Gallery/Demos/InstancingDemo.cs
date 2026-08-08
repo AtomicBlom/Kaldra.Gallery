@@ -12,7 +12,7 @@ namespace Loom.Gallery.Demos;
 /// per-instance world matrix carried in the per-instance vertex stream (<see cref="VertexLayout.Transform"/>),
 /// not baked into geometry. Each frame the demo extracts the camera's <see cref="Frustum"/>, culls the
 /// app-owned <see cref="Scene"/> against it on the CPU, and hands only the surviving transforms to
-/// <c>ctx.DrawInstanced</c>; the HUD reports drawn vs culled. Culling stays optional and app-owned; the engine
+/// <c>ctx.Draw</c> with a <c>DrawCall.Instances</c> source; the HUD reports drawn vs culled. Culling stays optional and app-owned; the engine
 /// just offers the Scene + cull helper.
 /// </summary>
 internal sealed class InstancingDemo : IDemo

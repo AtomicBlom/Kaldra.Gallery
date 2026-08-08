@@ -54,15 +54,15 @@ internal sealed class GltfDemo : IDemo
 		};
 		var model = GltfLoader.LoadGltf(files, "cube.gltf");
 		_primitives.Clear();
+
+		// One uploader for the whole model: it caches its neutral stand-ins and remembers the TextureData it has
+		// already uploaded, so primitives sharing a material share its textures. How many channels it uploads comes
+		// from "gbuffer.nm"'s reflection — two samplers, so base colour and normal — rather than from a list here.
+		var materials = new MaterialUploader(_engine);
 		foreach (var prim in model.Primitives)
 		{
 			var mesh = await _engine.CreateMeshAsync(prim.Vertices, prim.Indices);
-			if (prim.Material?.BaseColor is not { } baseColor || prim.Material?.Normal is not { } normalMap)
-				throw new InvalidOperationException("The glTF primitive lacks a base-colour or normal texture (this demo draws with gbuffer.nm, which needs both).");
-			var baseColorTexture = await _engine.CreateTextureAsync(baseColor);
-			var normalTexture = await _engine.CreateTextureAsync(normalMap);
-			var material = await _engine.CreateMaterialAsync(baseColorTexture, normalTexture);
-			_primitives.Add((mesh, material));
+			_primitives.Add((mesh, await materials.UploadAsync("gbuffer.nm", prim.Material ?? new ModelMaterial())));
 		}
 	}
 

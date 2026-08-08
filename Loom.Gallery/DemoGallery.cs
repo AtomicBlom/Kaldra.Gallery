@@ -48,6 +48,7 @@ internal static class DemoGallery
 			new FullReferenceDemo(),
 			new NormalMappingDemo(),
 			new GltfDemo(),
+			new MaterialParametersDemo(),
 			new InWorldUIDemo(),
 			new SkinningDemo(),
 			new CascadedShadowsDemo(),

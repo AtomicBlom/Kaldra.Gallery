@@ -13,7 +13,7 @@ namespace Loom.Gallery.Demos;
 /// deferred path as <see cref="SpritesDemo"/>, but the per-instance atlas uv-rect is advanced over time: the CPU
 /// picks the current frame from <c>ctx.Time</c> (fps × the <see cref="SpinnerAtlas"/> frame grid) and writes that
 /// frame's uv-rect into each <see cref="SpriteInstance"/> before the instanced draw. The instances are
-/// CPU-uploaded every frame anyway (that is what <c>DrawInstanced</c> does), so animation is free — no shader
+/// CPU-uploaded every frame anyway (that is what an instanced <c>ctx.Draw</c> does), so animation is free — no shader
 /// state, no per-sprite buffers. Each sprite gets a phase offset (frame + i), so the grid shows the spinner at
 /// different angles at once — proof the frame is data-driven per instance, not a global uniform.
 /// <para>
