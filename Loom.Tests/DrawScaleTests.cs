@@ -28,9 +28,9 @@ public class DrawScaleTests
 {
 	private const int W = 640, H = 480;
 
-	// How many discrete draws the measured frame issues. Raised as the per-draw path gets out of its own way; the
-	// number lives here rather than in the demo so the headless gate and the interactive demo can differ.
-	private const int DrawCount = ScaleDemo.DefaultDrawCount;
+	// How many discrete draws the measured frame issues — the number the milestone is named for. It lives here
+	// rather than in the demo so the headless gate and the interactive demo can differ.
+	private const int DrawCount = 10_000;
 
 	private const int WarmupFrames = 20;   // pipeline bakes, descriptor-pool growth, first-frame ring sizing
 	private const int MeasuredFrames = 30;
