@@ -88,9 +88,13 @@ internal static class GalleryCapture
 		return true;
 	}
 
-	// The shared scene every demo draws against: cube/plane/quad geometry, the brick albedo+normal material, and a
-	// UI painter over an empty host (so the demos' hud pass composites nothing — the chrome-free capture).
-	private static DemoScene BuildScene(IEngine engine, UIHost uiHost)
+	/// <summary>
+	/// The shared scene every demo draws against: cube/plane/quad geometry, the brick albedo+normal material, and a
+	/// UI painter over an empty host (so the demos' hud pass composites nothing — the chrome-free capture). Shared
+	/// with the headless workloads that drive a demo's frame loop themselves rather than through
+	/// <see cref="TryRender"/>.
+	/// </summary>
+	public static DemoScene BuildScene(IEngine engine, UIHost uiHost)
 	{
 		var (cubeVerts, cubeIndices) = Geometry.BuildCube();
 		var (planeVerts, planeIndices) = Geometry.BuildPlane();
