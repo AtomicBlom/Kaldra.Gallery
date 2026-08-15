@@ -38,6 +38,7 @@ internal static class DemoGallery
 			new ParticlesDemo(),
 			new HighlightingDemo(),
 			new InstancingDemo(),
+			new ScaleDemo(),
 			new SpritesDemo(),
 			new Lighting2DDemo(),
 			new SpriteAnimationDemo(),
