@@ -51,8 +51,21 @@ jobs:
       - name: Restore
         run: dotnet restore Loom.Tests/Loom.Tests.csproj
 
+      # Same local shader cache the CI workflow uses — both jobs run on this runner and compile the same shaders, so
+      # whichever lands first spares the other the compile. See tools/shader-cache.ps1 for why it is a local
+      # directory rather than actions/cache.
+      - name: Restore shader cache
+        id: shader-cache
+        shell: pwsh
+        run: pwsh tools/shader-cache.ps1 -Mode restore
+
       - name: Build (Release)
         run: dotnet build Loom.Tests/Loom.Tests.csproj -c Release --no-restore
+
+      - name: Save shader cache
+        if: steps.shader-cache.outputs.hit != 'true'
+        shell: pwsh
+        run: pwsh tools/shader-cache.ps1 -Mode save
 
       # GallerySoftwareAdapterTests brings each tracked demo up offscreen on DirectX12 forced onto WARP and asserts a
       # non-empty colorcount. The test SKIPs (green) if DirectX12 isn't available at all (a non-Windows box); on this
