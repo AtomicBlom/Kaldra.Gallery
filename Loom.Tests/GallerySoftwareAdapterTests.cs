@@ -51,7 +51,7 @@ public class GallerySoftwareAdapterTests
 
 				var (_, _, rgba) = PngReader.Read(capturePath);
 				rendered++;
-				var distinct = DistinctColors(rgba);
+				var distinct = ImageComparison.DistinctColors(rgba);
 				if (distinct < MinDistinctColors)
 					failures.Add($"{name}: rendered a near-empty frame under WARP ({distinct} distinct colours).");
 			}
@@ -67,12 +67,4 @@ public class GallerySoftwareAdapterTests
 		failures.ShouldBeEmpty("Software-rasterizer (DirectX12 + WARP) smoke failures:\n  " + string.Join("\n  ", failures));
 	}
 
-	// Distinct opaque RGB values in a captured frame — a flat/empty frame collapses to one.
-	private static int DistinctColors(byte[] rgba)
-	{
-		var seen = new HashSet<int>();
-		for (var i = 0; i + 3 < rgba.Length; i += 4)
-			seen.Add(rgba[i] << 16 | rgba[i + 1] << 8 | rgba[i + 2]);
-		return seen.Count;
-	}
 }

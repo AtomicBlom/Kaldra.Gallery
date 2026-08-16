@@ -149,10 +149,7 @@ public class DrawScaleTests
 				engine.Render(inputs);
 
 			var (_, _, rgba) = PngReader.Read(path);
-			var seen = new HashSet<int>();
-			for (var i = 0; i + 3 < rgba.Length; i += 4)
-				seen.Add((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
-			return seen.Count;
+			return ImageComparison.DistinctColors(rgba);
 		}
 		finally
 		{
