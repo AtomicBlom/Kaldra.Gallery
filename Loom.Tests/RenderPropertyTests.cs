@@ -24,6 +24,80 @@ namespace Loom.Tests;
 public class RenderPropertyTests
 {
 	/// <summary>
+	/// Replacing a live engine's graph does not change what the next frame looks like — the property a running app
+	/// relies on every time it switches demos. Nothing else in the suite swaps a graph on an engine that has already
+	/// rendered; every other GPU test brings up a fresh engine per capture.
+	/// <para>
+	/// It exists alongside cache invalidation: a swap destroys every transient of the outgoing graph, so anything a
+	/// backend cached against those GPU objects must be dropped with them — Vulkan caches descriptor sets by the
+	/// image views they name. <b>Be clear about what this does and does not prove.</b> Deleting the Vulkan flush and
+	/// re-running this test was tried, and it still passed: the stale entries are only reachable if the driver hands
+	/// back a recycled <c>VkImageView</c> handle that collides with one, and this driver did not. Handle reuse is
+	/// legal and common, so the flush is required regardless — but this test is coverage of the swap path, not a
+	/// proof of the flush, and a future change that drops the invalidation will not necessarily be caught here.
+	/// </para>
+	/// <para>
+	/// The bar is 1/255, not bit-identity, and the reason is measured rather than assumed: the warm-up frames that
+	/// populate the cache also advance delta-driven state (auto-exposure, particles), which leaves the post-swap
+	/// frame fractionally more converged than a cold one. Both backends show it, at the same magnitude, and
+	/// shortening the warm-up from 62 frames to 3 halved the affected pixels (0.48% → 0.15% on Vulkan, 0.41% →
+	/// 0.11% on DirectX 12) while <c>maxDiff</c> stayed at 1 — the signature of convergence, not of a bad binding.
+	/// It costs this test nothing: a set left pointing at a destroyed image does not render one LSB dark, it
+	/// renders garbage.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void Swapping_the_graph_does_not_change_the_next_frame()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		const int PerChannelTolerance = 1;
+		var compared = 0;
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var fresh = Path.Combine(Path.GetTempPath(), $"loom-swap-{backend.Name}-fresh-{Guid.NewGuid():N}.png");
+			var swapped = Path.Combine(Path.GetTempPath(), $"loom-swap-{backend.Name}-after-{Guid.NewGuid():N}.png");
+			try
+			{
+				// The busiest scene on purpose: deferred lighting, shadows, SSAO, particles, bloom and tone-map give
+				// the most transients to reallocate and the most cached bindings to invalidate.
+				if (!GalleryCapture.TryRender(backend, () => new FullReferenceDemo(), fresh) ||
+					!GalleryCapture.TryRenderAfterGraphSwap(backend, () => new FullReferenceDemo(), swapped))
+					continue;
+
+				var (w, h, a) = PngReader.Read(fresh);
+				var (_, _, b) = PngReader.Read(swapped);
+				compared++;
+
+				// Guard against a vacuous pass: a swap that broke rendering outright could leave two frames that are
+				// both blank, and blank compares equal to blank.
+				var colors = ImageComparison.DistinctColors(b);
+				if (colors < 64)
+				{
+					failures.Add($"{backend.Name}: the post-swap frame has only {colors} distinct colours — it did not render.");
+					continue;
+				}
+
+				var diff = ImageComparison.Compare(w, h, a, b, PerChannelTolerance);
+				if (diff.FailedFraction > 0)
+					failures.Add($"{backend.Name}: the frame after a graph swap differs from a first frame: {diff}");
+			}
+			finally
+			{
+				if (File.Exists(fresh)) File.Delete(fresh);
+				if (File.Exists(swapped)) File.Delete(swapped);
+			}
+		}
+
+		compared.ShouldBeGreaterThan(0, "no backend rendered the demo, so no graph swap was exercised.");
+		failures.ShouldBeEmpty("A graph swap changed the rendered frame:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
 	/// Group opacity composites a faded subtree once — so within same-coloured opaque children, the region where
 	/// two of them overlap is the <em>same</em> colour as where only one is. (A per-child fade would double-fade the
 	/// overlap and darken it.) This is the one UI path whose pixels depend on the backend — the backend renders the
