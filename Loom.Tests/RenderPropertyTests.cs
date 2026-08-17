@@ -146,6 +146,75 @@ public class RenderPropertyTests
 	}
 
 	/// <summary>
+	/// Nested group opacity multiplies: a 50% group inside a 50% group renders the same pixels as one 25% group. This
+	/// is the depth-2 case of the layer state machine, and the only thing that exercises the <em>nested</em> resume
+	/// path — where ending an inner layer resumes the parent <em>layer</em> rather than the pass's own attachments.
+	/// The sibling test above only ever opens one layer, so a backend could have that branch wrong and still pass it.
+	/// <para>
+	/// Both properties are asserted: the overlap invariant still holds two levels down, and the two-step composite
+	/// agrees with the one-step one. The second is the stronger claim — the nested path routes the content through an
+	/// extra 8-bit layer target, so a bound is a bound on that quantisation as well as on the maths.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void Nested_group_opacity_multiplies_to_the_same_pixels_as_one_group()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// Panel-pixel sample points for the layout BuildFadedFills produces: one inside the first fill only, one
+		// inside the overlap, both well clear of the rounded corners.
+		var nonOverlap = new Vector2(80, 70);
+		var overlap = new Vector2(160, 130);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var nestedPath = Path.Combine(Path.GetTempPath(), $"loom-nestedopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			var flatPath = Path.Combine(Path.GetTempPath(), $"loom-flatopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, nestedPath, () => BuildFadedFills(0.5f, 0.5f));
+				RenderPanel(backend, flatPath, () => BuildFadedFills(0.25f));
+				var (nw, nh, nested) = PngReader.Read(nestedPath);
+				var (fw, fh, flat) = PngReader.Read(flatPath);
+				(nw, nh).ShouldBe((fw, fh));
+
+				var nestedNon = AverageBlock(nested, nw, nh, nonOverlap, 6);
+				var nestedOver = AverageBlock(nested, nw, nh, overlap, 6);
+				var flatNon = AverageBlock(flat, fw, fh, nonOverlap, 6);
+
+				// Vacuous-pass guard first: two transparent frames agree on everything.
+				if (nestedNon.W < 8 || nestedOver.W < 8 || flatNon.W < 8)
+				{
+					failures.Add($"{backend.Name}: a sample missed the panel (nested {Fmt(nestedNon)}/{Fmt(nestedOver)}, flat {Fmt(flatNon)}).");
+					continue;
+				}
+
+				// The overlap invariant, two layers deep.
+				var overlapDelta = MaxChannelDelta(nestedNon, nestedOver);
+				if (overlapDelta > 4)
+					failures.Add($"{backend.Name}: nested overlap {Fmt(nestedOver)} != non-overlap {Fmt(nestedNon)} (Δ{overlapDelta}) — a nested group double-faded its overlap.");
+
+				// And 0.5 x 0.5 lands where 0.25 does. A wrong nested resume shows up here as the inner subtree
+				// composited into the pass target instead of into its parent layer, which fades it once, not twice.
+				var multiplyDelta = MaxChannelDelta(nestedNon, flatNon);
+				if (multiplyDelta > 4)
+					failures.Add($"{backend.Name}: nested 0.5x0.5 {Fmt(nestedNon)} != flat 0.25 {Fmt(flatNon)} (Δ{multiplyDelta}) — nested group alphas did not multiply.");
+			}
+			finally
+			{
+				if (File.Exists(nestedPath)) File.Delete(nestedPath);
+				if (File.Exists(flatPath)) File.Delete(flatPath);
+			}
+		}
+
+		failures.ShouldBeEmpty("Nested group-opacity composite is wrong:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
 	/// Tone-mapping maps an HDR scene into the display range with a <em>monotonic</em> curve — brighter in →
 	/// brighter (never dimmer) out — and actually spreads the HDR range across the display range rather than
 	/// crushing it to one level. Feed a controlled 0→HDR gradient through the real exposure + tone-map stages and
@@ -232,14 +301,17 @@ public class RenderPropertyTests
 
 	private const int W = 512, H = 384;
 
-	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath)
+	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath) =>
+		RenderPanel(backend, outPath, BuildGroupOpacityPanel);
+
+	private static void RenderPanel(IRenderBackend backend, string outPath, Func<UIElement> content)
 	{
 		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
 
 		// InWorldPanel renders a SUIsei tree to a target through the standard "ui" draw-list path — including the
 		// offscreen-layer composite a group-opacity subtree triggers. A flat identity transform, no billboard.
 		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false, fontAtlas: FontAtlas.Default);
-		panel.View.Root.Content = BuildGroupOpacityPanel();
+		panel.View.Root.Content = content();
 
 		var graph = RenderGraph.Define(g =>
 		{
@@ -284,6 +356,35 @@ public class RenderPropertyTests
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};
+	}
+
+	// The same two overlapping same-coloured opaque fills, wrapped in one group-opacity container per entry in
+	// `opacities` (outermost first). The fills' geometry does not depend on the nesting — the wrappers shrink to their
+	// child and only the outermost carries a margin — so a nested tree and a flat one are pixel-comparable, which is
+	// what lets "0.5 inside 0.5" be diffed against "0.25".
+	private static UIElement BuildFadedFills(params float[] opacities)
+	{
+		var canvas = new Canvas { Width = 240f, Height = 180f };
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		Canvas.SetLeft(fillA, 0f);
+		Canvas.SetTop(fillA, 0f);
+		Canvas.SetLeft(fillB, 80f);
+		Canvas.SetTop(fillB, 50f);
+		canvas.Children.Add(fillA);
+		canvas.Children.Add(fillB);
+
+		UIElement content = canvas;
+		for (var i = opacities.Length - 1; i >= 0; i--)
+			content = new Border
+			{
+				Margin = i == 0 ? new Thickness(48f, 48f, 0f, 0f) : new Thickness(0f),
+				HorizontalAlignment = HorizontalAlignment.Left,
+				VerticalAlignment = VerticalAlignment.Top,
+				Opacity = opacities[i],
+				Child = content,
+			};
+		return content;
 	}
 
 	/// <summary>
