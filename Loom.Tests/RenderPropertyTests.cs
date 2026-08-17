@@ -215,6 +215,68 @@ public class RenderPropertyTests
 	}
 
 	/// <summary>
+	/// A group nested past the layer cap must not disturb what is drawn <em>beside</em> it. Layers cost a pooled
+	/// offscreen target each, so the depth is capped; the hazard is suppressing a <c>BeginLayer</c> without suppressing
+	/// its matching <c>EndLayer</c>, which pops one layer too early and leaves every enclosing group compositing into
+	/// the wrong parent.
+	/// <para>
+	/// The shape matters, and cost me a wrong prediction: with the excess group's markers <em>adjacent</em> to the ones
+	/// around it, the early pop composites the right layer into the right parent one marker sooner and nothing is drawn
+	/// in between, so the frame is identical and depth alone proves nothing. The damage needs a sibling drawn after the
+	/// over-deep group — that sibling then lands in a target that has already been resolved. So the tree here puts one
+	/// beside it, and the assertion is that the sibling renders exactly as it does with the over-deep group removed.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void A_group_nested_past_the_layer_cap_does_not_disturb_its_siblings()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// The sibling sits where nothing else covers it, so its colour is attributable to the layer stack alone.
+		var sibling = new Vector2(160, 130);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var deepPath = Path.Combine(Path.GetTempPath(), $"loom-deepopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			var refPath = Path.Combine(Path.GetTempPath(), $"loom-deepopacity-ref-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				// Both trees nest exactly to the cap and hold the same sibling; only one also holds an over-deep group.
+				RenderPanel(backend, deepPath, () => BuildCappedNestingWithSibling(overDeepGroup: true));
+				RenderPanel(backend, refPath, () => BuildCappedNestingWithSibling(overDeepGroup: false));
+				var (dw, dh, deep) = PngReader.Read(deepPath);
+				var (rw, rh, reference) = PngReader.Read(refPath);
+				(dw, dh).ShouldBe((rw, rh));
+
+				var deepSibling = AverageBlock(deep, dw, dh, sibling, 6);
+				var refSibling = AverageBlock(reference, rw, rh, sibling, 6);
+
+				// Vacuous-pass guard: the reference sibling has to actually be on screen for the diff to mean anything.
+				if (refSibling.W < 32)
+				{
+					failures.Add($"{backend.Name}: the reference sibling did not render ({Fmt(refSibling)}) — the comparison would be vacuous.");
+					continue;
+				}
+
+				var delta = MaxChannelDelta(deepSibling, refSibling);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: sibling {Fmt(deepSibling)} != {Fmt(refSibling)} without the over-deep group (Δ{delta}) — the excess layer desynchronised the stack.");
+			}
+			finally
+			{
+				if (File.Exists(deepPath)) File.Delete(deepPath);
+				if (File.Exists(refPath)) File.Delete(refPath);
+			}
+		}
+
+		failures.ShouldBeEmpty("A group nested past the layer cap disturbed its siblings:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
 	/// Tone-mapping maps an HDR scene into the display range with a <em>monotonic</em> curve — brighter in →
 	/// brighter (never dimmer) out — and actually spreads the HDR range across the display range rather than
 	/// crushing it to one level. Feed a controlled 0→HDR gradient through the real exposure + tone-map stages and
@@ -374,7 +436,40 @@ public class RenderPropertyTests
 		canvas.Children.Add(fillA);
 		canvas.Children.Add(fillB);
 
-		UIElement content = canvas;
+		return Nest(canvas, opacities);
+	}
+
+	// Nesting to exactly the layer cap, whose innermost content is a Canvas holding a fill drawn *after* an optional
+	// over-deep group. The group is the one level past the cap; the fill after it is the sibling whose target the
+	// group's mis-paired EndLayer would resolve early.
+	private static UIElement BuildCappedNestingWithSibling(bool overDeepGroup)
+	{
+		var canvas = new Canvas { Width = 240f, Height = 180f };
+		if (overDeepGroup)
+		{
+			var deep = new Border
+			{
+				Width = 100f,
+				Height = 60f,
+				Opacity = 0.9f,
+				Child = new Border { Background = HdrColor.FromRgb(255, 120, 60) },
+			};
+			Canvas.SetLeft(deep, 0f);
+			Canvas.SetTop(deep, 0f);
+			canvas.Children.Add(deep);
+		}
+		var siblingFill = new Border { Width = 120f, Height = 100f, Background = HdrColor.FromRgb(80, 170, 255) };
+		Canvas.SetLeft(siblingFill, 60f);
+		Canvas.SetTop(siblingFill, 50f);
+		canvas.Children.Add(siblingFill);
+
+		return Nest(canvas, Enumerable.Repeat(0.9f, DrawListGeometry.MaxLayerNesting).ToArray());
+	}
+
+	// Wrap `content` in one group-opacity Border per entry (outermost first); only the outermost carries the margin, so
+	// the content lands in the same place however deep the nesting is.
+	private static UIElement Nest(UIElement content, float[] opacities)
+	{
 		for (var i = opacities.Length - 1; i >= 0; i--)
 			content = new Border
 			{
