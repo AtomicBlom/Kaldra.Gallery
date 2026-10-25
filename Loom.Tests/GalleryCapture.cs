@@ -89,6 +89,80 @@ internal static class GalleryCapture
 	}
 
 	/// <summary>
+	/// Render <paramref name="demoFactory"/> twice on <b>one</b> engine, from two separately-built graphs, and
+	/// capture the second — the offscreen stand-in for a running app switching demos. The frame it produces must
+	/// match <see cref="TryRender"/>'s, because building a second graph is supposed to be invisible in the output.
+	/// <para>
+	/// What this actually exercises is cache invalidation across a graph swap. A backend that caches anything keyed
+	/// on a transient's GPU objects — Vulkan caches descriptor sets by the image views they name — has to drop that
+	/// cache when the outgoing graph's transients are destroyed. Nothing else in the suite swaps a graph on a live
+	/// engine, so without this a stale-cache bug is invisible until someone changes demos in the sandbox.
+	/// </para>
+	/// </summary>
+	public static bool TryRenderAfterGraphSwap(IRenderBackend backend, Func<IDemo> demoFactory, string outPngPath, EngineSettings? settings = null)
+	{
+		using var engine = backend.Create(Surface.Offscreen(Width, Height), Width, Height, settings ?? new EngineSettings());
+
+		DemoGraph.Overlay = null;
+
+		var demo = demoFactory();
+		try
+		{
+			demo.DefineTechniques(engine);
+		}
+		catch (ShaderAssetMissingException)
+		{
+			return false;
+		}
+
+		var uiHost = new UIHost();
+		var scene = BuildScene(engine, uiHost);
+
+		var preload = demo.PreloadAsync(scene);
+		while (!preload.IsCompleted)
+			engine.ServicePendingUploads();
+		preload.GetAwaiter().GetResult();
+
+		var aspect = (float)Width / Height;
+		var orbit = new Loom.Concepts.Camera(engine);
+		DemoCamera.Orbit(orbit, CaptureTime, aspect);
+		var camera = demo.GetCamera(aspect, CaptureTime) ?? orbit;
+		var surfaceSize = new Vector2(Width, Height);
+		var inputs = new FrameInputs { Time = CaptureTime, DeltaSeconds = CaptureDelta };
+
+		// The first graph, driven just far enough to bring its transients up and warm any per-frame cache against
+		// them — both frame slots, plus one. Deliberately not the full capture sequence: delta-driven state
+		// (auto-exposure, particles) advances with every frame recorded, and a long warm-up would leave the second
+		// pass converged further than a cold render, which shows up as a ±1 LSB difference that has nothing to do
+		// with what this is checking.
+		const int WarmUpFrames = 3;
+		engine.SetGraph(demo.Build(scene));
+		for (var frame = 1; frame <= WarmUpFrames; frame++)
+		{
+			demo.Update(camera);
+			demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
+			uiHost.Tick(CaptureDelta, CaptureTime, surfaceSize);
+			uiHost.Render();
+			engine.Render(inputs);
+		}
+
+		// A second Build is a distinct RenderGraph, so the backend reallocates every transient and the first graph's
+		// images and views are destroyed. Then render the identical sequence again and capture that.
+		engine.SetGraph(demo.Build(scene));
+		for (var frame = 1; frame <= Frames; frame++)
+		{
+			demo.Update(camera);
+			demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
+			uiHost.Tick(CaptureDelta, CaptureTime, surfaceSize);
+			uiHost.Render();
+			if (frame == CaptureFrame)
+				engine.RequestCapture(outPngPath);
+			engine.Render(inputs);
+		}
+		return true;
+	}
+
+	/// <summary>
 	/// The shared scene every demo draws against: cube/plane/quad geometry, the brick albedo+normal material, and a
 	/// UI painter over an empty host (so the demos' hud pass composites nothing — the chrome-free capture). Shared
 	/// with the headless workloads that drive a demo's frame loop themselves rather than through

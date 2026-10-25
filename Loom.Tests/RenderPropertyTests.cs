@@ -24,6 +24,80 @@ namespace Loom.Tests;
 public class RenderPropertyTests
 {
 	/// <summary>
+	/// Replacing a live engine's graph does not change what the next frame looks like — the property a running app
+	/// relies on every time it switches demos. Nothing else in the suite swaps a graph on an engine that has already
+	/// rendered; every other GPU test brings up a fresh engine per capture.
+	/// <para>
+	/// It exists alongside cache invalidation: a swap destroys every transient of the outgoing graph, so anything a
+	/// backend cached against those GPU objects must be dropped with them — Vulkan caches descriptor sets by the
+	/// image views they name. <b>Be clear about what this does and does not prove.</b> Deleting the Vulkan flush and
+	/// re-running this test was tried, and it still passed: the stale entries are only reachable if the driver hands
+	/// back a recycled <c>VkImageView</c> handle that collides with one, and this driver did not. Handle reuse is
+	/// legal and common, so the flush is required regardless — but this test is coverage of the swap path, not a
+	/// proof of the flush, and a future change that drops the invalidation will not necessarily be caught here.
+	/// </para>
+	/// <para>
+	/// The bar is 1/255, not bit-identity, and the reason is measured rather than assumed: the warm-up frames that
+	/// populate the cache also advance delta-driven state (auto-exposure, particles), which leaves the post-swap
+	/// frame fractionally more converged than a cold one. Both backends show it, at the same magnitude, and
+	/// shortening the warm-up from 62 frames to 3 halved the affected pixels (0.48% → 0.15% on Vulkan, 0.41% →
+	/// 0.11% on DirectX 12) while <c>maxDiff</c> stayed at 1 — the signature of convergence, not of a bad binding.
+	/// It costs this test nothing: a set left pointing at a destroyed image does not render one LSB dark, it
+	/// renders garbage.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void Swapping_the_graph_does_not_change_the_next_frame()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		const int PerChannelTolerance = 1;
+		var compared = 0;
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var fresh = Path.Combine(Path.GetTempPath(), $"loom-swap-{backend.Name}-fresh-{Guid.NewGuid():N}.png");
+			var swapped = Path.Combine(Path.GetTempPath(), $"loom-swap-{backend.Name}-after-{Guid.NewGuid():N}.png");
+			try
+			{
+				// The busiest scene on purpose: deferred lighting, shadows, SSAO, particles, bloom and tone-map give
+				// the most transients to reallocate and the most cached bindings to invalidate.
+				if (!GalleryCapture.TryRender(backend, () => new FullReferenceDemo(), fresh) ||
+					!GalleryCapture.TryRenderAfterGraphSwap(backend, () => new FullReferenceDemo(), swapped))
+					continue;
+
+				var (w, h, a) = PngReader.Read(fresh);
+				var (_, _, b) = PngReader.Read(swapped);
+				compared++;
+
+				// Guard against a vacuous pass: a swap that broke rendering outright could leave two frames that are
+				// both blank, and blank compares equal to blank.
+				var colors = ImageComparison.DistinctColors(b);
+				if (colors < 64)
+				{
+					failures.Add($"{backend.Name}: the post-swap frame has only {colors} distinct colours — it did not render.");
+					continue;
+				}
+
+				var diff = ImageComparison.Compare(w, h, a, b, PerChannelTolerance);
+				if (diff.FailedFraction > 0)
+					failures.Add($"{backend.Name}: the frame after a graph swap differs from a first frame: {diff}");
+			}
+			finally
+			{
+				if (File.Exists(fresh)) File.Delete(fresh);
+				if (File.Exists(swapped)) File.Delete(swapped);
+			}
+		}
+
+		compared.ShouldBeGreaterThan(0, "no backend rendered the demo, so no graph swap was exercised.");
+		failures.ShouldBeEmpty("A graph swap changed the rendered frame:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
 	/// Group opacity composites a faded subtree once — so within same-coloured opaque children, the region where
 	/// two of them overlap is the <em>same</em> colour as where only one is. (A per-child fade would double-fade the
 	/// overlap and darken it.) This is the one UI path whose pixels depend on the backend — the backend renders the
@@ -69,6 +143,137 @@ public class RenderPropertyTests
 		}
 
 		failures.ShouldBeEmpty("Group-opacity composite is wrong:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
+	/// Nested group opacity multiplies: a 50% group inside a 50% group renders the same pixels as one 25% group. This
+	/// is the depth-2 case of the layer state machine, and the only thing that exercises the <em>nested</em> resume
+	/// path — where ending an inner layer resumes the parent <em>layer</em> rather than the pass's own attachments.
+	/// The sibling test above only ever opens one layer, so a backend could have that branch wrong and still pass it.
+	/// <para>
+	/// Both properties are asserted: the overlap invariant still holds two levels down, and the two-step composite
+	/// agrees with the one-step one. The second is the stronger claim — the nested path routes the content through an
+	/// extra 8-bit layer target, so a bound is a bound on that quantisation as well as on the maths.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void Nested_group_opacity_multiplies_to_the_same_pixels_as_one_group()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// Panel-pixel sample points for the layout BuildFadedFills produces: one inside the first fill only, one
+		// inside the overlap, both well clear of the rounded corners.
+		var nonOverlap = new Vector2(80, 70);
+		var overlap = new Vector2(160, 130);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var nestedPath = Path.Combine(Path.GetTempPath(), $"loom-nestedopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			var flatPath = Path.Combine(Path.GetTempPath(), $"loom-flatopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, nestedPath, () => BuildFadedFills(0.5f, 0.5f));
+				RenderPanel(backend, flatPath, () => BuildFadedFills(0.25f));
+				var (nw, nh, nested) = PngReader.Read(nestedPath);
+				var (fw, fh, flat) = PngReader.Read(flatPath);
+				(nw, nh).ShouldBe((fw, fh));
+
+				var nestedNon = AverageBlock(nested, nw, nh, nonOverlap, 6);
+				var nestedOver = AverageBlock(nested, nw, nh, overlap, 6);
+				var flatNon = AverageBlock(flat, fw, fh, nonOverlap, 6);
+
+				// Vacuous-pass guard first: two transparent frames agree on everything.
+				if (nestedNon.W < 8 || nestedOver.W < 8 || flatNon.W < 8)
+				{
+					failures.Add($"{backend.Name}: a sample missed the panel (nested {Fmt(nestedNon)}/{Fmt(nestedOver)}, flat {Fmt(flatNon)}).");
+					continue;
+				}
+
+				// The overlap invariant, two layers deep.
+				var overlapDelta = MaxChannelDelta(nestedNon, nestedOver);
+				if (overlapDelta > 4)
+					failures.Add($"{backend.Name}: nested overlap {Fmt(nestedOver)} != non-overlap {Fmt(nestedNon)} (Δ{overlapDelta}) — a nested group double-faded its overlap.");
+
+				// And 0.5 x 0.5 lands where 0.25 does. A wrong nested resume shows up here as the inner subtree
+				// composited into the pass target instead of into its parent layer, which fades it once, not twice.
+				var multiplyDelta = MaxChannelDelta(nestedNon, flatNon);
+				if (multiplyDelta > 4)
+					failures.Add($"{backend.Name}: nested 0.5x0.5 {Fmt(nestedNon)} != flat 0.25 {Fmt(flatNon)} (Δ{multiplyDelta}) — nested group alphas did not multiply.");
+			}
+			finally
+			{
+				if (File.Exists(nestedPath)) File.Delete(nestedPath);
+				if (File.Exists(flatPath)) File.Delete(flatPath);
+			}
+		}
+
+		failures.ShouldBeEmpty("Nested group-opacity composite is wrong:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
+	/// A group nested past the layer cap must not disturb what is drawn <em>beside</em> it. Layers cost a pooled
+	/// offscreen target each, so the depth is capped; the hazard is suppressing a <c>BeginLayer</c> without suppressing
+	/// its matching <c>EndLayer</c>, which pops one layer too early and leaves every enclosing group compositing into
+	/// the wrong parent.
+	/// <para>
+	/// The shape matters, and cost me a wrong prediction: with the excess group's markers <em>adjacent</em> to the ones
+	/// around it, the early pop composites the right layer into the right parent one marker sooner and nothing is drawn
+	/// in between, so the frame is identical and depth alone proves nothing. The damage needs a sibling drawn after the
+	/// over-deep group — that sibling then lands in a target that has already been resolved. So the tree here puts one
+	/// beside it, and the assertion is that the sibling renders exactly as it does with the over-deep group removed.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void A_group_nested_past_the_layer_cap_does_not_disturb_its_siblings()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// The sibling sits where nothing else covers it, so its colour is attributable to the layer stack alone.
+		var sibling = new Vector2(160, 130);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var deepPath = Path.Combine(Path.GetTempPath(), $"loom-deepopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			var refPath = Path.Combine(Path.GetTempPath(), $"loom-deepopacity-ref-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				// Both trees nest exactly to the cap and hold the same sibling; only one also holds an over-deep group.
+				RenderPanel(backend, deepPath, () => BuildCappedNestingWithSibling(overDeepGroup: true));
+				RenderPanel(backend, refPath, () => BuildCappedNestingWithSibling(overDeepGroup: false));
+				var (dw, dh, deep) = PngReader.Read(deepPath);
+				var (rw, rh, reference) = PngReader.Read(refPath);
+				(dw, dh).ShouldBe((rw, rh));
+
+				var deepSibling = AverageBlock(deep, dw, dh, sibling, 6);
+				var refSibling = AverageBlock(reference, rw, rh, sibling, 6);
+
+				// Vacuous-pass guard: the reference sibling has to actually be on screen for the diff to mean anything.
+				if (refSibling.W < 32)
+				{
+					failures.Add($"{backend.Name}: the reference sibling did not render ({Fmt(refSibling)}) — the comparison would be vacuous.");
+					continue;
+				}
+
+				var delta = MaxChannelDelta(deepSibling, refSibling);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: sibling {Fmt(deepSibling)} != {Fmt(refSibling)} without the over-deep group (Δ{delta}) — the excess layer desynchronised the stack.");
+			}
+			finally
+			{
+				if (File.Exists(deepPath)) File.Delete(deepPath);
+				if (File.Exists(refPath)) File.Delete(refPath);
+			}
+		}
+
+		failures.ShouldBeEmpty("A group nested past the layer cap disturbed its siblings:\n  " + string.Join("\n  ", failures));
 	}
 
 	/// <summary>
@@ -158,14 +363,17 @@ public class RenderPropertyTests
 
 	private const int W = 512, H = 384;
 
-	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath)
+	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath) =>
+		RenderPanel(backend, outPath, BuildGroupOpacityPanel);
+
+	private static void RenderPanel(IRenderBackend backend, string outPath, Func<UIElement> content)
 	{
 		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
 
 		// InWorldPanel renders a SUIsei tree to a target through the standard "ui" draw-list path — including the
 		// offscreen-layer composite a group-opacity subtree triggers. A flat identity transform, no billboard.
 		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false, fontAtlas: FontAtlas.Default);
-		panel.View.Root.Content = BuildGroupOpacityPanel();
+		panel.View.Root.Content = content();
 
 		var graph = RenderGraph.Define(g =>
 		{
@@ -210,6 +418,68 @@ public class RenderPropertyTests
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};
+	}
+
+	// The same two overlapping same-coloured opaque fills, wrapped in one group-opacity container per entry in
+	// `opacities` (outermost first). The fills' geometry does not depend on the nesting — the wrappers shrink to their
+	// child and only the outermost carries a margin — so a nested tree and a flat one are pixel-comparable, which is
+	// what lets "0.5 inside 0.5" be diffed against "0.25".
+	private static UIElement BuildFadedFills(params float[] opacities)
+	{
+		var canvas = new Canvas { Width = 240f, Height = 180f };
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		Canvas.SetLeft(fillA, 0f);
+		Canvas.SetTop(fillA, 0f);
+		Canvas.SetLeft(fillB, 80f);
+		Canvas.SetTop(fillB, 50f);
+		canvas.Children.Add(fillA);
+		canvas.Children.Add(fillB);
+
+		return Nest(canvas, opacities);
+	}
+
+	// Nesting to exactly the layer cap, whose innermost content is a Canvas holding a fill drawn *after* an optional
+	// over-deep group. The group is the one level past the cap; the fill after it is the sibling whose target the
+	// group's mis-paired EndLayer would resolve early.
+	private static UIElement BuildCappedNestingWithSibling(bool overDeepGroup)
+	{
+		var canvas = new Canvas { Width = 240f, Height = 180f };
+		if (overDeepGroup)
+		{
+			var deep = new Border
+			{
+				Width = 100f,
+				Height = 60f,
+				Opacity = 0.9f,
+				Child = new Border { Background = HdrColor.FromRgb(255, 120, 60) },
+			};
+			Canvas.SetLeft(deep, 0f);
+			Canvas.SetTop(deep, 0f);
+			canvas.Children.Add(deep);
+		}
+		var siblingFill = new Border { Width = 120f, Height = 100f, Background = HdrColor.FromRgb(80, 170, 255) };
+		Canvas.SetLeft(siblingFill, 60f);
+		Canvas.SetTop(siblingFill, 50f);
+		canvas.Children.Add(siblingFill);
+
+		return Nest(canvas, Enumerable.Repeat(0.9f, DrawListGeometry.MaxLayerNesting).ToArray());
+	}
+
+	// Wrap `content` in one group-opacity Border per entry (outermost first); only the outermost carries the margin, so
+	// the content lands in the same place however deep the nesting is.
+	private static UIElement Nest(UIElement content, float[] opacities)
+	{
+		for (var i = opacities.Length - 1; i >= 0; i--)
+			content = new Border
+			{
+				Margin = i == 0 ? new Thickness(48f, 48f, 0f, 0f) : new Thickness(0f),
+				HorizontalAlignment = HorizontalAlignment.Left,
+				VerticalAlignment = VerticalAlignment.Top,
+				Opacity = opacities[i],
+				Child = content,
+			};
+		return content;
 	}
 
 	/// <summary>
