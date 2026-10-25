@@ -81,6 +81,7 @@ internal static class GalleryCapture
 			demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
 			uiHost.Tick(CaptureDelta, CaptureTime, surfaceSize); // empty host → the hud pass composites nothing
 			uiHost.Render();
+			scene.UI.Prepare();
 			if (frame == CaptureFrame)
 				engine.RequestCapture(outPngPath);
 			engine.Render(inputs);
@@ -143,6 +144,7 @@ internal static class GalleryCapture
 			demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
 			uiHost.Tick(CaptureDelta, CaptureTime, surfaceSize);
 			uiHost.Render();
+			scene.UI.Prepare();
 			engine.Render(inputs);
 		}
 
@@ -155,6 +157,7 @@ internal static class GalleryCapture
 			demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
 			uiHost.Tick(CaptureDelta, CaptureTime, surfaceSize);
 			uiHost.Render();
+			scene.UI.Prepare();
 			if (frame == CaptureFrame)
 				engine.RequestCapture(outPngPath);
 			engine.Render(inputs);

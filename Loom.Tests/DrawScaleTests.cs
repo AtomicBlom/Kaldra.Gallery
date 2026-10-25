@@ -77,6 +77,7 @@ public class DrawScaleTests
 			demo.Update(camera);
 			uiHost.Tick(1.0 / 60.0, 1f, new Vector2(W, H));
 			uiHost.Render();
+			scene.UI.Prepare();
 
 			var inputs = new FrameInputs { Time = 1.0, DeltaSeconds = 1.0 / 60.0 };
 			for (var frame = 0; frame < WarmupFrames; frame++)
