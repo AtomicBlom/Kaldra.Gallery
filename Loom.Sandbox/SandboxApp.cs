@@ -352,11 +352,13 @@ internal sealed class SandboxApp : LoomApplication
 		ImGui.Render();
 
 		// Swap the shell's centred content for the active demo, then drive the UI host: Tick drains queued pointer
-		// input → hit-tests → routes → synthesizes Click → lays out; Render composites each view → DrawLists. The
-		// "hud" pass renders the whole shell (chrome + centred content) via DemoGraph.Hud.
+		// input → hit-tests → routes → synthesizes Click → lays out; Render composites each view → DrawLists; Prepare
+		// uploads what those lists newly reference, which the "hud" pass (the whole shell, chrome + centred content, via
+		// DemoGraph.Hud) cannot do from inside the frame it draws.
 		_shell.SetCenterContent(_overlayContent[_currentDemo]);
 		_uiHost.Tick(delta, (float)_elapsed, SurfaceSize);
 		_uiHost.Render();
+		_scene.UI.Prepare();
 
 		// Per-frame CPU work for the active demo — after any mid-frame demo switch via the shell menu (which routes
 		// during uiHost.Tick above), so the current demo's Update always fires before its graph records this frame.

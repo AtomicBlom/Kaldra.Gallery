@@ -110,7 +110,7 @@ async Task BootAsync()
 	var overlay = uiHost.CreateRoot(UILayer.Default);
 	overlay.Root.Content = shell.Root;
 
-	App.Attach(engine, demo, graph, uiHost, shell, demoKey, captureName, width, height);
+	App.Attach(engine, demo, graph, uiHost, uiPainter, shell, demoKey, captureName, width, height);
 	Host.SetStatus($"Loom running on {engine.DeviceName} ({width}×{height})");
 	Host.StartFrameLoop(App.Frame);
 	Host.StartResizeHandler(App.Resize);
@@ -158,6 +158,7 @@ internal static class App
 	private static IEngine? _engine;
 	private static IDemo? _demo;
 	private static UIHost? _uiHost;
+	private static UIPainter? _uiPainter;
 	private static DemoShell? _shell;
 	private static Camera? _orbit;
 	private static string _demoKey = "cube";
@@ -202,11 +203,12 @@ internal static class App
 	// instead of re-fetching/re-decoding its assets from scratch.
 	private static readonly Dictionary<string, (IDemo Demo, RenderGraph Graph)> _loaded = new(StringComparer.OrdinalIgnoreCase);
 
-	public static void Attach(IEngine engine, IDemo demo, RenderGraph graph, UIHost uiHost, DemoShell shell, string demoKey, string? captureName, int width, int height)
+	public static void Attach(IEngine engine, IDemo demo, RenderGraph graph, UIHost uiHost, UIPainter uiPainter, DemoShell shell, string demoKey, string? captureName, int width, int height)
 	{
 		_engine = engine;
 		_demo = demo;
 		_uiHost = uiHost;
+		_uiPainter = uiPainter;
 		_shell = shell;
 		_orbit = new Camera(engine);
 		_demoKey = demoKey;
@@ -293,7 +295,7 @@ internal static class App
 
 	public static void Frame(double timestampMs)
 	{
-		if (_engine is null || _demo is null || _uiHost is null || _orbit is null || _faulted)
+		if (_engine is null || _demo is null || _uiHost is null || _uiPainter is null || _orbit is null || _faulted)
 			return;
 
 		double delta;
@@ -336,6 +338,8 @@ internal static class App
 			}
 			_uiHost.Tick((float)delta, _time, new Vector2(w, h));
 			_uiHost.Render();
+			// Upload what the composited lists newly reference before the frame that draws them records.
+			_uiPainter.Prepare();
 
 			// Per-frame CPU work for the active demo — runs here, after any mid-frame demo switch, so the current
 			// demo's Update always fires before its graph records (prevents null closures).
