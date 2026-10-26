@@ -16,6 +16,8 @@ using SUIsei;
 using SUIsei.Controls;
 using SUIsei.Media;
 
+using VectorVertex = SUIsei.Drawing.VectorVertex;
+
 namespace Loom.Tests;
 
 /// <summary>
@@ -591,7 +593,7 @@ public class RenderPropertyTests
 			var position = centre + inward * (Half * (2f * uv.X - 1f)) + along * (Half * (2f * uv.Y - 1f));
 			vertices[v] = kind == 7
 				? new OverlayVertex(position, new Vector2(0.5f), colour,
-					new Vector4(Vector2.Dot(position - edge, inward), UnusedEdgeDistance, UnusedEdgeDistance, UnusedEdgeDistance))
+					new Vector4(Vector2.Dot(position - edge, inward), VectorVertex.Unused, VectorVertex.Unused, VectorVertex.Unused))
 				: new OverlayVertex(position, uv, colour, new Vector4(0f, 0f, 2f * Half, 2f * Half));
 		}
 		ushort[] indices = [0, 1, 2, 0, 2, 3];
@@ -618,9 +620,6 @@ public class RenderPropertyTests
 			engine.Render(inputs);
 		}
 	}
-
-	// The value a vector triangle's unused half-plane slot holds: far enough inside that its coverage is 1.
-	private const float UnusedEdgeDistance = 1e20f;
 
 	private readonly record struct Ramp(double Width, int Partial, bool InsideSolid, bool OutsideClear);
 

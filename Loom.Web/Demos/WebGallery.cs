@@ -27,6 +27,7 @@ internal static class WebGallery
 		["uigroupopacity"] = () => new UIGroupOpacityDemo(),
 		["fullreference"] = () => new FullReferenceDemo(),
 		["inworldui"] = () => new InWorldUIDemo(),
+		["vectorprims"] = () => new VectorPrimsDemo(),
 		["debug2d"] = () => new Debug2DDemo(),
 		["foliage"] = () => new FoliageDemo(),
 		["instancing"] = () => new InstancingDemo(),
