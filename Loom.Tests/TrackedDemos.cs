@@ -11,6 +11,18 @@ namespace Loom.Tests;
 /// </summary>
 internal static class TrackedDemos
 {
+	/// <summary>
+	/// The demos whose subject is their own UI — a page in the shell, or a panel in the world. A capture shows it
+	/// (<see cref="GalleryCapture.ShowDemoUI"/>), and <see cref="UIDemoCaptureTests"/> checks that it actually draws,
+	/// since a baseline or a parity pair of frames with no UI in them would pass just as well.
+	/// </summary>
+	public static readonly (string Name, Func<IDemo> Factory)[] UI =
+	[
+		("UIInteractive", () => new UIInteractiveDemo()),
+		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
+		("InWorldUI", () => new InWorldUIDemo()),
+	];
+
 	// Baseline filename (without .png) → the demo that produces it.
 	public static readonly (string Name, Func<IDemo> Factory)[] All =
 	[
@@ -19,5 +31,6 @@ internal static class TrackedDemos
 		("Particles", () => new ParticlesDemo()),
 		("PixelArt", () => new PixelArtDemo()),
 		("StylizedReference", () => new StylizedDemo()),
+		.. UI,
 	];
 }

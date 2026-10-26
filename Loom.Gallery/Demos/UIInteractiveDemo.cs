@@ -3,23 +3,32 @@ using System.Numerics;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+#if LOOM_WEB
+using Loom.Web.UI;
+#else
+using Loom.Gallery.UI;
+#endif
+using SUIsei;
 
 namespace Loom.Gallery.Demos;
 
 /// <summary>
 /// The interactive, data-bound UI proof. The render graph is the same simple lit scene as
-/// <see cref="CubeLightingDemo"/>; what's new is host-side — when this demo is active the launcher shows a
-/// <c>UIInteractiveView</c> (a XAML page with a <c>Button</c> and an <c>{x:Bind}</c> label) centred in the shared
-/// demo shell, driven by the shell's <c>UIHost</c> + pointer input, so clicking the button updates the bound text.
-/// The graph itself just declares the scene pass and the shared <see cref="DemoGraph.Hud"/>; the clickable/bound
-/// content lives in the host loop (Program.cs) and the page (UI/).
+/// <see cref="CubeLightingDemo"/>; what's new is the demo's own UI — a <c>UIInteractiveView</c> (a XAML page with a
+/// <c>Button</c> and an <c>{x:Bind}</c> label) that the host centres in the shared demo shell and drives with the
+/// shell's <c>UIHost</c> + pointer input, so clicking the button updates the bound text. The graph itself just declares
+/// the scene pass and the shared <see cref="DemoGraph.Hud"/>, which draws the shell and so the page.
 /// </summary>
 internal sealed class UIInteractiveDemo : IDemo
 {
 	private IEngine _engine = null!;
 	private ConstantsHandle _viewproj = null!;
+	private UIInteractiveView? _view;
 
 	public string Name => "UI Interactive";
+
+	/// <summary>The page: a button and an <c>{x:Bind}</c> label, built on first use.</summary>
+	public UIElement OverlayContent => _view ??= new UIInteractiveView();
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -49,4 +58,14 @@ internal sealed class UIInteractiveDemo : IDemo
 
 	// Publish this frame's view-projection for the scene pass to read.
 	public void Update(Concepts.Camera camera) => _engine.Write(_viewproj, camera.ViewProjection);
+
+	// A capture clicks Increment once, so the captured frame shows the bound label counting it.
+	public Vector2? CaptureClick(Concepts.Camera camera, Vector2 framebufferSize)
+	{
+		if (_view is null)
+			return null;
+		var button = _view.IncrementButton;
+		var centre = button.TransformToVisual(null).TransformPoint(new Point(button.LayoutRect.Width / 2f, button.LayoutRect.Height / 2f));
+		return new Vector2(centre.X, centre.Y);
+	}
 }

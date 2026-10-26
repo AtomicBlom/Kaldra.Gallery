@@ -56,9 +56,6 @@ internal sealed class SandboxApp : LoomApplication
 	// The interactive UI demo, or -1 if its techniques were dropped on this backend: when it is active Tab drives
 	// the UI's focus navigation instead of cycling demos.
 	private int _interactiveIndex = -1;
-	// Host-owned overlay page per demo (its graph composites this through scene.UI), null where the demo owns none.
-	// Built once so a UI page's state (e.g. the interactive counter) persists across demo switches.
-	private UIElement?[] _overlayContent = [];
 
 	// The default perspective orbit camera (reconfigured each frame) + the detached free-fly debug camera.
 	private Loom.Concepts.Camera _orbit = null!;
@@ -143,9 +140,6 @@ internal sealed class SandboxApp : LoomApplication
 		PumpUntilReady(engine, EnsureLoadedAsync(_currentDemo)).GetAwaiter().GetResult();
 
 		_interactiveIndex = IndexOf("UI Interactive");
-		_overlayContent = new UIElement?[_demos.Count];
-		for (var i = 0; i < _demos.Count; i++)
-			_overlayContent[i] = DemoGallery.OverlayContent(_demos[i]);
 
 		_dumpGraphPrefix = _opts.DumpGraph;
 
@@ -355,7 +349,7 @@ internal sealed class SandboxApp : LoomApplication
 		// input → hit-tests → routes → synthesizes Click → lays out; Render composites each view → DrawLists; Prepare
 		// uploads what those lists newly reference, which the "hud" pass (the whole shell, chrome + centred content, via
 		// DemoGraph.Hud) cannot do from inside the frame it draws.
-		_shell.SetCenterContent(_overlayContent[_currentDemo]);
+		_shell.SetCenterContent(_demos[_currentDemo].OverlayContent);
 		_uiHost.Tick(delta, (float)_elapsed, SurfaceSize);
 		_uiHost.Render();
 		_scene.UI.Prepare();

@@ -121,4 +121,16 @@ internal sealed class InWorldUIDemo : IDemo
 		_panel.Tick(deltaSeconds, time, camera.View, camera.ViewProjection, framebufferSize);
 		_panel.Render();
 	}
+
+	// A capture clicks the panel's Increment button once, through the same screen-to-panel projection a real pointer
+	// takes. The button's centre on the panel goes to the screen through this frame's camera, so the click lands on it
+	// whatever pose the capture holds — the billboard turns the panel with the camera.
+	public Vector2? CaptureClick(Camera camera, Vector2 framebufferSize)
+	{
+		if (_panel is null || _panelView is null)
+			return null;
+		var button = _panelView.IncrementButton;
+		var centre = button.TransformToVisual(null).TransformPoint(new Point(button.LayoutRect.Width / 2f, button.LayoutRect.Height / 2f));
+		return _panel.ProjectToScreen(new Vector2(centre.X, centre.Y), camera.ViewProjection, framebufferSize);
+	}
 }

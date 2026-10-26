@@ -68,6 +68,25 @@ internal interface IDemo
 	/// </summary>
 	UIElement? DebugPanel => null;
 
+	/// <summary>
+	/// Optional UI of the demo's own — for a UI-track demo, the SUIsei page that is its subject. A host centres it over
+	/// the scene in the shared <see cref="DemoShell"/>, and an offscreen capture shows it with the shell's chrome hidden,
+	/// so a capture of a UI demo has the UI in it. Built once per demo instance and reused. Default none.
+	/// </summary>
+	UIElement? OverlayContent => null;
+
+	/// <summary>
+	/// Optional scripted click for a deterministic capture: the framebuffer position a capture presses and releases at
+	/// once, part-way to the captured frame, so the frame shows the UI responding to input. Null for no click.
+	/// <para>
+	/// Derived from this frame's layout and <paramref name="camera"/> rather than fixed, so it lands on its target
+	/// whatever pose the capture renders that frame at — the desktop capture holds its clock still while the browser's
+	/// advances, and an in-world panel's place on screen depends on the camera. Positions are in the UI root's DIPs,
+	/// which a capture renders at scale 1, so they are framebuffer pixels. Default none.
+	/// </para>
+	/// </summary>
+	Vector2? CaptureClick(Camera camera, Vector2 framebufferSize) => null;
+
 	/// <summary>Optional one-line status the launcher appends to the HUD (e.g. instancing's drawn/culled counts). Default none.</summary>
 	string? HudStatus => null;
 
