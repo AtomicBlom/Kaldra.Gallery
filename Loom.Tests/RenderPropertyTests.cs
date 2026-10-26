@@ -372,7 +372,7 @@ public class RenderPropertyTests
 
 		// InWorldPanel renders a SUIsei tree to a target through the standard "ui" draw-list path — including the
 		// offscreen-layer composite a group-opacity subtree triggers. A flat identity transform, no billboard.
-		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false, fontAtlas: FontAtlas.Default);
+		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
 		panel.View.Root.Content = content();
 
 		var graph = RenderGraph.Define(g =>

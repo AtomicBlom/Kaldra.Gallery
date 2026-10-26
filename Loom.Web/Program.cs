@@ -76,7 +76,7 @@ async Task BootAsync()
 		engine.CreateTexture(ImageLoader.Decode(await WebAssets.LoadAsync("brick_albedo.png"), TextureFormat.Rgba8Srgb)),
 		engine.CreateTexture(ImageLoader.Decode(await WebAssets.LoadAsync("brick_normal.png"), TextureFormat.Rgba8Unorm)));
 	var uiHost = new UIHost();
-	var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
+	var uiPainter = UIPainter.Create(engine, uiHost);
 	var scene = new DemoScene(
 		engine.CreateMesh(cubeVerts, cubeIndices),
 		engine.CreateMesh(planeVerts, planeIndices),
@@ -104,7 +104,7 @@ async Task BootAsync()
 	shell.SetHudVisible(captureName is null);
 	shell.SetEngineName(engine.DeviceName);
 	shell.SetActiveDemo(demo.Name, demo.DebugPanel);
-	shell.SetCenterContent(WebGallery.OverlayContent(demoKey));
+	shell.SetCenterContent(demo.OverlayContent);
 
 	// The shell IS the overlay root's content; a UI demo's own page/panel lives in the shell's centred slot.
 	var overlay = uiHost.CreateRoot(UILayer.Default);
@@ -162,7 +162,6 @@ internal static class App
 	private static DemoShell? _shell;
 	private static Camera? _orbit;
 	private static string _demoKey = "cube";
-	private static Vector2? _captureClickPosition;
 	private static double _lastTimestampMs;
 	private static float _time;
 	private static float _smoothedFps;
@@ -213,7 +212,6 @@ internal static class App
 		_orbit = new Camera(engine);
 		_demoKey = demoKey;
 		_loaded[demoKey] = (demo, graph);
-		_captureClickPosition = WebGallery.CaptureClickPosition(demoKey);
 		_captureName = captureName;
 		_width = width;
 		_height = height;
@@ -250,9 +248,8 @@ internal static class App
 		engine.SetGraph(cached.Graph); // drains the GPU, releases the old transients, binds the new graph
 		_demo = cached.Demo;
 		_demoKey = key;
-		_captureClickPosition = WebGallery.CaptureClickPosition(key);
 		_shell?.SetActiveDemo(cached.Demo.Name, cached.Demo.DebugPanel);
-		_shell?.SetCenterContent(WebGallery.OverlayContent(key));
+		_shell?.SetCenterContent(cached.Demo.OverlayContent);
 	}
 
 	/// <summary>Drive <paramref name="task"/> to completion by draining the engine's queued GPU-creation calls
@@ -322,14 +319,15 @@ internal static class App
 			var camera = _demo.GetCamera(aspect, _time) ?? OrbitCamera(aspect);
 
 			// The overlay UIHost: drain input → hit-test → layout → composite into the draw list the demo's ui pass
-			// renders. Deterministic capture injects one click at the demo's chosen screen position at a fixed frame,
-			// routed through both the shell's UIHost and the demo's own OnPointer — exactly like a real DOM pointer
+			// renders. Deterministic capture injects one click at a fixed frame, where the demo derives its target to be
+			// on this frame's layout and camera (IDemo.CaptureClick — the desktop capture clicks the same way), routed
+			// through both the shell's UIHost and the demo's own OnPointer — exactly like a real DOM pointer
 			// event (App.Pointer, below) — so a demo whose UI lives outside the shell (InWorldUIDemo's world-space
 			// panel) still gets exercised. This can trigger a mid-frame demo switch (the shell's menu calls
 			// App.SwitchDemo), so the per-demo CPU work below runs after it — otherwise a freshly switched demo's
 			// graph would record with a closure that reads a field only Update() sets (e.g. FullReferenceDemo._cam),
 			// before Update() ever ran on it.
-			if (_captureName is not null && _captureClickPosition is { } clickPos && _frame == CaptureClickFrame)
+			if (_captureName is not null && _frame == CaptureClickFrame && _demo.CaptureClick(camera, new Vector2(w, h)) is { } clickPos)
 			{
 				_uiHost.QueuePointer(PointerInput.Press(clickPos));
 				_uiHost.QueuePointer(PointerInput.Release(clickPos));

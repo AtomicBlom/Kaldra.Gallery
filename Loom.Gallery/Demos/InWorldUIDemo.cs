@@ -58,7 +58,7 @@ internal sealed class InWorldUIDemo : IDemo
 		var worldTransform = Matrix4x4.CreateScale(2f, 1f, 1f)
 						   * Matrix4x4.CreateTranslation(0f, 0.8f, 0f);
 		_panel = InWorldPanel.Create(engine, pixelWidth: 512, pixelHeight: 256,
-			worldTransform: worldTransform, billboard: true, fontAtlas: FontAtlas.Default);
+			worldTransform: worldTransform, billboard: true);
 		_panelView = new InWorldPanelView();
 		_panel.View.Root.Content = _panelView;
 	}
@@ -120,5 +120,17 @@ internal sealed class InWorldUIDemo : IDemo
 		if (_panel is null) return;
 		_panel.Tick(deltaSeconds, time, camera.View, camera.ViewProjection, framebufferSize);
 		_panel.Render();
+	}
+
+	// A capture clicks the panel's Increment button once, through the same screen-to-panel projection a real pointer
+	// takes. The button's centre on the panel goes to the screen through this frame's camera, so the click lands on it
+	// whatever pose the capture holds — the billboard turns the panel with the camera.
+	public Vector2? CaptureClick(Camera camera, Vector2 framebufferSize)
+	{
+		if (_panel is null || _panelView is null)
+			return null;
+		var button = _panelView.IncrementButton;
+		var centre = button.TransformToVisual(null).TransformPoint(new Point(button.LayoutRect.Width / 2f, button.LayoutRect.Height / 2f));
+		return _panel.ProjectToScreen(new Vector2(centre.X, centre.Y), camera.ViewProjection, framebufferSize);
 	}
 }
