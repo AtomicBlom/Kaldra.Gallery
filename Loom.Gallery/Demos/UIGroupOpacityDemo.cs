@@ -5,6 +5,7 @@ using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Media;
 
 namespace Loom.Gallery.Demos;
 
@@ -63,8 +64,9 @@ internal sealed class UIGroupOpacityDemo : IDemo
 	private static UIElement BuildPanel()
 	{
 		var overlapCanvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -77,8 +79,8 @@ internal sealed class UIGroupOpacityDemo : IDemo
 			HorizontalAlignment = HorizontalAlignment.Left,
 			VerticalAlignment = VerticalAlignment.Top,
 			Padding = new Thickness(24f),
-			Background = HdrColor.FromRgb(18, 22, 30),
-			CornerRadius = 14f,
+			Background = new SolidColorBrush(HdrColor.FromRgb(18, 22, 30)),
+			CornerRadius = new CornerRadius(14f),
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};

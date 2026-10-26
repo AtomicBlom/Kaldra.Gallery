@@ -12,6 +12,7 @@ using Loom.UI.SUIsei;
 
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Media;
 
 namespace Loom.Tests;
 
@@ -399,8 +400,9 @@ public class RenderPropertyTests
 	private static UIElement BuildGroupOpacityPanel()
 	{
 		var overlapCanvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -413,8 +415,8 @@ public class RenderPropertyTests
 			HorizontalAlignment = HorizontalAlignment.Left,
 			VerticalAlignment = VerticalAlignment.Top,
 			Padding = new Thickness(24f),
-			Background = HdrColor.FromRgb(18, 22, 30),
-			CornerRadius = 14f,
+			Background = new SolidColorBrush(HdrColor.FromRgb(18, 22, 30)),
+			CornerRadius = new CornerRadius(14f),
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};
@@ -427,8 +429,9 @@ public class RenderPropertyTests
 	private static UIElement BuildFadedFills(params float[] opacities)
 	{
 		var canvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -452,13 +455,13 @@ public class RenderPropertyTests
 				Width = 100f,
 				Height = 60f,
 				Opacity = 0.9f,
-				Child = new Border { Background = HdrColor.FromRgb(255, 120, 60) },
+				Child = new Border { Background = new SolidColorBrush(HdrColor.FromRgb(255, 120, 60)) },
 			};
 			Canvas.SetLeft(deep, 0f);
 			Canvas.SetTop(deep, 0f);
 			canvas.Children.Add(deep);
 		}
-		var siblingFill = new Border { Width = 120f, Height = 100f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var siblingFill = new Border { Width = 120f, Height = 100f, Background = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255)) };
 		Canvas.SetLeft(siblingFill, 60f);
 		Canvas.SetTop(siblingFill, 50f);
 		canvas.Children.Add(siblingFill);

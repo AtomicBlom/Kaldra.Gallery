@@ -1,5 +1,6 @@
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Media;
 
 namespace Loom.Gallery.Demos;
 
@@ -19,11 +20,13 @@ namespace Loom.Gallery.Demos;
 /// </summary>
 internal sealed class DemoShell
 {
-	private static readonly HdrColor BarBackground = HdrColor.FromRgb(24, 26, 32);
-	private static readonly HdrColor PanelBackground = HdrColor.FromRgb(28, 32, 44, 220);
-	private static readonly HdrColor AccentText = HdrColor.FromRgb(120, 180, 255);
-	private static readonly HdrColor PrimaryText = HdrColor.FromRgb(235, 240, 255);
-	private static readonly HdrColor SecondaryText = HdrColor.FromRgb(150, 160, 180);
+	// Per shell rather than static: a brush tracks the live elements showing it without locking, and shells in separate
+	// hosts can run on separate threads.
+	private readonly SolidColorBrush _barBackground = new(HdrColor.FromRgb(24, 26, 32));
+	private readonly SolidColorBrush _panelBackground = new(HdrColor.FromRgb(28, 32, 44, 220));
+	private readonly SolidColorBrush _accentText = new(HdrColor.FromRgb(120, 180, 255));
+	private readonly SolidColorBrush _primaryText = new(HdrColor.FromRgb(235, 240, 255));
+	private readonly SolidColorBrush _secondaryText = new(HdrColor.FromRgb(150, 160, 180));
 
 	public UIElement Root { get; }
 
@@ -75,7 +78,7 @@ internal sealed class DemoShell
 
 	private UIElement BuildTopBar(IReadOnlyList<string> demoNames, Action<int> onSelectDemo, out TextBlock demoNameText, out TextBlock engineText, out TextBlock fpsText)
 	{
-		var bar = new Grid { Background = BarBackground };
+		var bar = new Grid { Background = _barBackground };
 		bar.ColumnDefinitions.Add(GridLength.Auto); // menu
 		bar.ColumnDefinitions.Add(GridLength.Auto); // demo name
 		bar.ColumnDefinitions.Add(GridLength.Star); // spacer
@@ -98,15 +101,15 @@ internal sealed class DemoShell
 		// A right margin too (not just left): the trailing Star spacer column has no children in it, and an empty
 		// Star track measures to zero width in practice, so without this the name would run straight into the engine
 		// text with no gap.
-		demoNameText = new TextBlock { FontSize = 15f, Foreground = PrimaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12f, 0f, 24f, 0f) };
+		demoNameText = new TextBlock { FontSize = 15f, Foreground = _primaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12f, 0f, 24f, 0f) };
 		Grid.SetColumn(demoNameText, 1);
 		bar.Children.Add(demoNameText);
 
-		engineText = new TextBlock { FontSize = 12f, Foreground = SecondaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0f, 0f, 16f, 0f) };
+		engineText = new TextBlock { FontSize = 12f, Foreground = _secondaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0f, 0f, 16f, 0f) };
 		Grid.SetColumn(engineText, 3);
 		bar.Children.Add(engineText);
 
-		fpsText = new TextBlock { FontSize = 12f, Foreground = SecondaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0f, 0f, 12f, 0f) };
+		fpsText = new TextBlock { FontSize = 12f, Foreground = _secondaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0f, 0f, 12f, 0f) };
 		Grid.SetColumn(fpsText, 4);
 		bar.Children.Add(fpsText);
 
@@ -118,7 +121,7 @@ internal sealed class DemoShell
 		var header = new Grid();
 		header.ColumnDefinitions.Add(GridLength.Star);
 		header.ColumnDefinitions.Add(GridLength.Auto);
-		var title = new TextBlock { Text = "Debug", FontSize = 14f, Foreground = AccentText, VerticalAlignment = VerticalAlignment.Center };
+		var title = new TextBlock { Text = "Debug", FontSize = 14f, Foreground = _accentText, VerticalAlignment = VerticalAlignment.Center };
 		Grid.SetColumn(title, 0);
 		header.Children.Add(title);
 		// ASCII only — the en-dash glyph was missing from the font atlas on at least one platform (rendered as a
@@ -142,10 +145,10 @@ internal sealed class DemoShell
 			Padding = new Thickness(16f, 12f),
 			HorizontalAlignment = HorizontalAlignment.Left,
 			VerticalAlignment = VerticalAlignment.Top,
-			Background = PanelBackground,
-			BorderBrush = AccentText,
+			Background = _panelBackground,
+			BorderBrush = _accentText,
 			BorderThickness = new Thickness(1f),
-			CornerRadius = 10f,
+			CornerRadius = new CornerRadius(10f),
 			MinWidth = 260f,
 			Child = stack,
 		};
@@ -153,15 +156,15 @@ internal sealed class DemoShell
 
 	private UIElement BuildBottomBar(out TextBlock statusText, out TextBlock statusRightText)
 	{
-		var bar = new Grid { Background = BarBackground };
+		var bar = new Grid { Background = _barBackground };
 		bar.ColumnDefinitions.Add(GridLength.Star);
 		bar.ColumnDefinitions.Add(GridLength.Auto);
 
-		statusText = new TextBlock { FontSize = 12f, Foreground = SecondaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12f, 4f) };
+		statusText = new TextBlock { FontSize = 12f, Foreground = _secondaryText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12f, 4f) };
 		Grid.SetColumn(statusText, 0);
 		bar.Children.Add(statusText);
 
-		statusRightText = new TextBlock { FontSize = 12f, Foreground = AccentText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12f, 4f) };
+		statusRightText = new TextBlock { FontSize = 12f, Foreground = _accentText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12f, 4f) };
 		Grid.SetColumn(statusRightText, 1);
 		bar.Children.Add(statusRightText);
 
