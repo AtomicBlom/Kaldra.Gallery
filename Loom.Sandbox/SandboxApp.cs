@@ -117,7 +117,7 @@ internal sealed class SandboxApp : LoomApplication
 		// The game-UI painter: registers "ui", uploads the white texel + default glyph atlas, renders each overlay
 		// list. Created up front so the demo graphs capture it.
 		_uiHost = new UIHost();
-		var uiPainter = UIPainter.Create(engine, _uiHost, FontAtlas.Default);
+		var uiPainter = UIPainter.Create(engine, _uiHost);
 		_scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter, name => File.ReadAllBytesAsync(Path.Combine(_assetsDir, name)));
 
 		// The gallery — one focused graph per capability. Build only registers techniques (cheap, synchronous; also

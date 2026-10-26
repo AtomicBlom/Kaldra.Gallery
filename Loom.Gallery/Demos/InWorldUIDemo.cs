@@ -58,7 +58,7 @@ internal sealed class InWorldUIDemo : IDemo
 		var worldTransform = Matrix4x4.CreateScale(2f, 1f, 1f)
 						   * Matrix4x4.CreateTranslation(0f, 0.8f, 0f);
 		_panel = InWorldPanel.Create(engine, pixelWidth: 512, pixelHeight: 256,
-			worldTransform: worldTransform, billboard: true, fontAtlas: FontAtlas.Default);
+			worldTransform: worldTransform, billboard: true);
 		_panelView = new InWorldPanelView();
 		_panel.View.Root.Content = _panelView;
 	}

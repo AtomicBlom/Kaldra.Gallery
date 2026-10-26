@@ -76,7 +76,7 @@ async Task BootAsync()
 		engine.CreateTexture(ImageLoader.Decode(await WebAssets.LoadAsync("brick_albedo.png"), TextureFormat.Rgba8Srgb)),
 		engine.CreateTexture(ImageLoader.Decode(await WebAssets.LoadAsync("brick_normal.png"), TextureFormat.Rgba8Unorm)));
 	var uiHost = new UIHost();
-	var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
+	var uiPainter = UIPainter.Create(engine, uiHost);
 	var scene = new DemoScene(
 		engine.CreateMesh(cubeVerts, cubeIndices),
 		engine.CreateMesh(planeVerts, planeIndices),

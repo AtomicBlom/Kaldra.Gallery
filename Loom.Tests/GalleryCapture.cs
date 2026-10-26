@@ -163,7 +163,7 @@ internal static class GalleryCapture
 		var brick = engine.CreateMaterial(
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(AssetsDir, "brick_albedo.png"), TextureFormat.Rgba8Srgb)),
 			engine.CreateTexture(ImageLoader.Load(Path.Combine(AssetsDir, "brick_normal.png"), TextureFormat.Rgba8Unorm)));
-		var uiPainter = UIPainter.Create(engine, uiHost, FontAtlas.Default);
+		var uiPainter = UIPainter.Create(engine, uiHost);
 		return new DemoScene(
 			engine.CreateMesh(cubeVerts, cubeIndices),
 			engine.CreateMesh(planeVerts, planeIndices),
