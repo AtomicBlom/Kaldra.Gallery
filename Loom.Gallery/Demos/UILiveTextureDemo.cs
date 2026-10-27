@@ -1,34 +1,41 @@
 using System.Numerics;
 
 using Loom.Concepts;
-using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using Loom.Core.Primitives;
+using SUIsei;
+using SUIsei.Controls;
+using SUIsei.Extensions;
+using SUIsei.Media;
+using SUIsei.Media.Imaging;
+using TextureAlphaMode = SUIsei.Drawing.TextureAlphaMode;
+using TextureColorSpace = SUIsei.Drawing.TextureColorSpace;
 
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// A minimap: an orthographic pass renders the scene from straight above into a small target every frame, and a
-/// panel in the corner of the screen shows that target while it is still warm — a texture the GPU drew this frame,
-/// sampled by a draw list through a <see cref="TextureRef"/> rather than uploaded from CPU pixels. The panel's pass
-/// declares the target with <c>.Samples</c>, so the engine orders it after the map pass and moves the image into a
-/// sampleable layout itself; nothing in the demo names a barrier.
+/// Live images in a SUIsei page, of the two kinds an app supplies. A minimap: an orthographic pass renders the scene from
+/// straight above into a small target every frame, and the page shows it through a <see cref="HostImageSource"/> that
+/// <see cref="Loom.UI.SUIsei.UIPainter.SetExternalTexture"/> binds to that target — a texture the GPU drew this frame,
+/// never copied to the CPU. And a trace the app draws on the CPU into a <see cref="WriteableBitmap"/> every frame, which
+/// the painter re-uploads and swaps in, releasing the old texture once the frames in flight are done with it.
 /// <para>
-/// The scene is the gallery's floor with a cube spinning at its centre and three still ones around it, and the map
-/// marks where the viewer stands, so both the map's content and the marker move as the camera orbits.
+/// The UI pass declares the minimap with <c>.Samples</c>, so the engine orders it after the map pass and moves the image
+/// into a sampleable layout itself; nothing in the demo names a barrier. The scene is the gallery's floor with a cube
+/// spinning at its centre and three still ones around it, and the map marks where the viewer stands, so the map, the
+/// marker and the trace all move.
 /// </para>
 /// </summary>
 internal sealed class UILiveTextureDemo : IDemo
 {
-	/// <summary>The minimap target's size in texels, and the size it is shown at in framebuffer pixels.</summary>
+	/// <summary>The minimap target's size in texels, and the size the page shows it at.</summary>
 	public const int MapPixels = 256;
 
-	private const float Margin = 24f, Inset = 8f, Radius = 12f;
-	private const uint KindRoundedRect = 1, KindImage = 4;
-	// UIPainter's paper-white lift for an HDR target: UIPaperWhiteNits / 80.
-	private const float HdrPaperWhite = 200f / 80f;
+	/// <summary>The tag the page's host image and the painter binding share.</summary>
+	public const string MapTag = "uilivetexture.map";
+
+	private const int TraceWidth = 256, TraceHeight = 56;
 
 	// The still cubes, as (position on the floor, uniform scale).
 	private static readonly (Vector3 Position, float Scale)[] Props =
@@ -39,38 +46,33 @@ internal sealed class UILiveTextureDemo : IDemo
 	];
 
 	private IEngine _engine = null!;
-	private IEngine? _uploadedFor;
+	private DemoScene _scene;
 	private ConstantsHandle _viewproj = null!;
 	private ConstantsHandle _mapViewproj = null!;
-	private DemoScene _scene;
 	private Camera? _mapCamera;
 	private Vector3 _viewer;
-	private Vector2 _framebuffer = new(1280f, 720f);
+	private UIElement? _page;
 
-	// The panel's draw list: a rounded backdrop sampling the white texel, and the map over it sampling the target.
-	private readonly TextureRef[] _textures = new TextureRef[2];
-	private readonly OverlayVertex[] _vertices = new OverlayVertex[8];
-	private readonly ushort[] _indices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
-	private readonly DrawCommand[] _commands = new DrawCommand[2];
+	// The map is sRGB-encoded colour, opaque, which is what the host image declares; the trace is straight sRGB, as an
+	// image file is, and is premultiplied as it is sampled.
+	private readonly HostImageSource _map = new(MapTag, MapPixels, MapPixels, TextureAlphaMode.Premultiplied, TextureColorSpace.Srgb);
+	private readonly WriteableBitmap _trace = new(TraceWidth, TraceHeight);
 
 	public string Name => "UI Live Texture";
+
+	/// <summary>The minimap and the trace in one panel, which the shell centres over the scene; built on first use.</summary>
+	public UIElement OverlayContent => _page ??= BuildPage();
 
 	public void DefineTechniques(IEngine engine)
 	{
 		_engine = engine;
 		engine.DefineTechnique("lit", new TechniqueDescriptor("lit", HasVertexInput: true));
+		// Straight down at the floor, with -Z at the top of the map; wide enough for the whole 8×8 floor.
+		_mapCamera = new Camera(engine).Orthographic(9f, 9f, 1f, 40f).LookAt(new Vector3(0f, 20f, 0f), Vector3.Zero, -Vector3.UnitZ);
 	}
 
 	public RenderGraph Build(DemoScene scene)
 	{
-		if (!ReferenceEquals(_uploadedFor, _engine))
-		{
-			_textures[0] = _engine.CreateTexture(TextureData.FromRgba8(1, 1, [255, 255, 255, 255], TextureFormat.Rgba8Unorm, generateMips: false));
-			// Straight down at the floor, with -Z at the top of the map; wide enough for the whole 8×8 floor.
-			_mapCamera = new Camera(_engine).Orthographic(9f, 9f, 1f, 40f).LookAt(new Vector3(0f, 20f, 0f), Vector3.Zero, -Vector3.UnitZ);
-			_uploadedFor = _engine;
-		}
-
 		_scene = scene;
 		return RenderGraph.Define(g =>
 		{
@@ -82,7 +84,8 @@ internal sealed class UILiveTextureDemo : IDemo
 			var map = g.Domain("uilivetexture.map", MapPixels, MapPixels);
 			var mapColor = map.Color("uilivetexture.map.color", Format.Rgba8Srgb, clearValue: new Vector4(0.05f, 0.07f, 0.11f, 1f));
 			var mapDepth = map.Depth("uilivetexture.map.depth", Format.Depth32F);
-			_textures[1] = mapColor;
+			// Each graph has its own handle, so a rebuilt graph rebinds the tag.
+			scene.UI.SetExternalTexture(MapTag, mapColor);
 
 			g.Pass("map")
 				.Reads(_mapViewproj)
@@ -96,12 +99,7 @@ internal sealed class UILiveTextureDemo : IDemo
 				.WritesDepth(depth)
 				.Draw(this, static (ctx, demo) => demo.DrawScene(ctx, marker: false));
 
-			g.Pass("minimap")
-				.Samples(mapColor)
-				.Blends(screen)
-				.Draw(this, static (ctx, demo) => demo.DrawPanel(ctx));
-
-			DemoGraph.Hud(g, screen, scene);
+			DemoGraph.Hud(g, screen, scene, mapColor);
 			g.Present(screen);
 		});
 	}
@@ -114,7 +112,12 @@ internal sealed class UILiveTextureDemo : IDemo
 		_viewer = world.Translation;
 	}
 
-	public void PreFrame(double deltaSeconds, float time, Camera camera, Vector2 framebufferSize) => _framebuffer = framebufferSize;
+	// Redraw the trace for this frame's time and show it: the painter replaces the bitmap's texture before the frame.
+	public void PreFrame(double deltaSeconds, float time, Camera camera, Vector2 framebufferSize)
+	{
+		DrawTrace(_trace.PixelBuffer.Span, time);
+		_trace.Invalidate();
+	}
 
 	// The floor, the spinning cube, the still ones — and, on the map only, a marker on the floor below the viewer.
 	private void DrawScene(IRenderContext ctx, bool marker)
@@ -130,38 +133,52 @@ internal sealed class UILiveTextureDemo : IDemo
 		}
 	}
 
-	// The panel in the top-right corner: a translucent rounded backdrop and the map inset in it at 1:1.
-	private void DrawPanel(IRenderContext ctx)
+	// A translucent panel: a caption, the minimap at 1:1, and the trace under it.
+	private UIElement BuildPage()
 	{
-		var size = _framebuffer;
-		var outer = MapPixels + 2f * Inset;
-		var origin = new Vector2(size.X - Margin - outer, Margin);
-		const float alpha = 0.85f;
-		Quad(0, origin, new Vector2(outer), new Vector4(0.02f * alpha, 0.025f * alpha, 0.04f * alpha, alpha), new Vector4(Radius, 0f, outer, outer));
-		Quad(1, origin + new Vector2(Inset), new Vector2(MapPixels), Vector4.One, Vector4.Zero);
-
-		var clip = new Rect(0f, 0f, size.X, size.Y);
-		_commands[0] = new DrawCommand(clip, TextureIndex: 0, IndexOffset: 0, IndexCount: 6, VertexOffset: 0, Tag: KindRoundedRect);
-		_commands[1] = new DrawCommand(clip, TextureIndex: 1, IndexOffset: 6, IndexCount: 6, VertexOffset: 0, Tag: KindImage);
-
-		// Framebuffer pixels → clip, then the paper-white lift on an HDR target, exactly as UIPainter pushes them.
-		Span<float> push =
-		[
-			2f / size.X, 2f / size.Y, -1f, -1f,
-			ctx.HdrOutput ? HdrPaperWhite : 1f, BitConverter.UInt32BitsToSingle(ctx.HdrOutput ? 1u : 0u),
-		];
-		ctx.DrawList("ui", DrawListIdentity.Transient, _textures, _vertices, _indices, _commands, push);
+		var column = new StackPanel();
+		column.Children.Add(new TextBlock { Text = "Minimap", FontSize = 14f, Margin = new Thickness(0f, 0f, 0f, 8f), Foreground = new SolidColorBrush(HdrColor.FromRgb(220, 226, 236)) });
+		column.Children.Add(new Image { Source = _map, Stretch = Stretch.Fill, Width = MapPixels, Height = MapPixels, Margin = new Thickness(0f, 0f, 0f, 8f) });
+		column.Children.Add(new Image { Source = _trace, Stretch = Stretch.Fill, Width = TraceWidth, Height = TraceHeight });
+		return new Border
+		{
+			Padding = new Thickness(10f),
+			Background = new SolidColorBrush(HdrColor.FromRgb(14, 18, 26)) { Opacity = 0.85f },
+			CornerRadius = new CornerRadius(12f),
+			Child = column,
+		};
 	}
 
-	// Quad q of the panel: four corners at `origin` spanning `size`, uv 0..1 across it, a premultiplied colour, and
-	// the prim's parameters.
-	private void Quad(int q, Vector2 origin, Vector2 size, Vector4 colour, Vector4 custom)
+	// A scrolling trace of two waves over a translucent backdrop with a faint grid, written as straight sRGB texels: the
+	// backdrop is only partly opaque, so the page behind it shows through once the shader premultiplies it.
+	private static void DrawTrace(Span<byte> rgba, float time)
 	{
-		var c = new Half4((Half)colour.X, (Half)colour.Y, (Half)colour.Z, (Half)colour.W);
-		for (var v = 0; v < 4; v++)
+		for (var y = 0; y < TraceHeight; y++)
 		{
-			var uv = new Vector2(v is 1 or 2 ? 1f : 0f, v >= 2 ? 1f : 0f);
-			_vertices[q * 4 + v] = new OverlayVertex(origin + uv * size, uv, c, custom);
+			for (var x = 0; x < TraceWidth; x++)
+			{
+				var o = (y * TraceWidth + x) * 4;
+				var grid = x % 32 == 0 || y == TraceHeight / 2;
+				(rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]) = grid ? ((byte)60, (byte)72, (byte)90, (byte)200) : ((byte)8, (byte)10, (byte)16, (byte)120);
+			}
+		}
+
+		for (var x = 0; x < TraceWidth; x++)
+		{
+			var phase = x * 0.06f - time * 2f;
+			Plot(rgba, x, MathF.Sin(phase) * 0.7f, (255, 176, 48));
+			Plot(rgba, x, MathF.Sin(phase * 0.5f + 1f) * 0.35f, (80, 200, 255));
+		}
+	}
+
+	// A two-texel-tall opaque dot at column x, height v in -1..1.
+	private static void Plot(Span<byte> rgba, int x, float v, (byte R, byte G, byte B) colour)
+	{
+		var y = (int)MathF.Round((1f - (v + 1f) * 0.5f) * (TraceHeight - 3)) + 1;
+		for (var dy = 0; dy < 2; dy++)
+		{
+			var o = ((y + dy) * TraceWidth + x) * 4;
+			(rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]) = (colour.R, colour.G, colour.B, 255);
 		}
 	}
 }

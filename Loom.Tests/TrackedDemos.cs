@@ -21,6 +21,7 @@ internal static class TrackedDemos
 		("UIInteractive", () => new UIInteractiveDemo()),
 		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("InWorldUI", () => new InWorldUIDemo()),
+		("UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
 	// Baseline filename (without .png) → the demo that produces it.
@@ -32,7 +33,6 @@ internal static class TrackedDemos
 		("PixelArt", () => new PixelArtDemo()),
 		("StylizedReference", () => new StylizedDemo()),
 		("VectorPrims", () => new VectorPrimsDemo()),
-		("UILiveTexture", () => new UILiveTextureDemo()),
 		.. UI,
 	];
 }
