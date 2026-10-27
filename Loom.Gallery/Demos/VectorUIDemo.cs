@@ -15,7 +15,8 @@ namespace Loom.Gallery.Demos;
 /// <c>suisei:StrokeTrim</c> drawing a trail on in a loop, <c>suisei:StrokeBrushMapping.Mode="AlongLength"</c> running its
 /// gradient along the trail rather than across the canvas, and <c>suisei:TextEffects</c> giving text a gradient outline,
 /// a soft drop shadow, a hard shadow, and an outline over a shadow. Lap times beside them are set in tabular figures
-/// (<c>Typography.NumeralAlignment="Tabular"</c>).
+/// (<c>Typography.NumeralAlignment="Tabular"</c>), over a line of the default font's symbols past ASCII (<c>°</c>,
+/// <c>·</c>, <c>→</c>).
 /// <para>
 /// The page is the demo's <see cref="OverlayContent"/>, so the shared shell shows it and the gallery's capture renders
 /// it; the graph only clears the frame and draws the shell. Everything on the page reaches the GPU as SUIsei's draw

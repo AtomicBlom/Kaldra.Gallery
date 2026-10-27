@@ -228,7 +228,8 @@
 		</Border>
 
 		<!-- suisei:TextEffects, drawn from the font atlas's true-distance channel and sized in EM: a gradient outline, a
-		     soft drop shadow, a hard shadow, an outline over a hard shadow, and lap times in tabular figures. -->
+		     soft drop shadow, a hard shadow, an outline over a hard shadow, and lap times in tabular figures over a line of
+		     the font's symbols past ASCII. -->
 		<Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" Margin="8" Padding="12" CornerRadius="12"
 		        Background="#161B26">
 			<StackPanel>
@@ -266,6 +267,7 @@
 					<StackPanel Grid.Column="4" HorizontalAlignment="Center" VerticalAlignment="Center">
 						<TextBlock Text="LAST 1:11.111" FontSize="15" Foreground="#C8D2E6" Typography.NumeralAlignment="Tabular" />
 						<TextBlock Text="BEST 1:08.880" FontSize="15" Foreground="#C8D2E6" Typography.NumeralAlignment="Tabular" />
+						<TextBlock Text="AIR 21° · WIND →" FontSize="15" Foreground="#8E9BB5" />
 					</StackPanel>
 				</Grid>
 			</StackPanel>
