@@ -14,6 +14,7 @@ using Loom.UI.SUIsei;
 
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Extensions;
 using SUIsei.Media;
 
 using Polygon = SUIsei.Shapes.Polygon;
@@ -928,6 +929,338 @@ public class RenderPropertyTests
 			canvas.Children.Add(swatch);
 		}
 		return canvas;
+	}
+
+	/// <summary>
+	/// An outline grows a glyph's ink by its thickness and keeps a one-pixel edge. <c>suisei:TextEffects</c> draws an
+	/// outline as the glyphs again, under them, read from the atlas's true distance with the edge moved out by the
+	/// thickness, so in the glyphs' own colour the two together are the glyph grown by that much on every side. This draws
+	/// a row of <c>|</c> bars, whose sides are straight, at the sub-pixel phases the font's advance puts them at: once plain
+	/// and once outlined in the same white, 4 px at 64 px. Along each row through a bar's middle the ink's width is the sum
+	/// of its coverage and its centre the coverage-weighted mean, both exact for a symmetric bar whatever its edge does. The
+	/// outlined bar must be the plain one's width plus twice the thickness, and each pixel across its edges must read the
+	/// coverage of a one-pixel ramp centred on the grown edge.
+	/// </summary>
+	[Test]
+	public void An_outline_grows_the_ink_by_its_thickness_with_a_one_pixel_edge()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-outline-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildOutlinedBars);
+				var (w, _, rgba) = PngReader.Read(path);
+				var worstGrowth = 2.0 * OutlinePx;
+				var worstRamp = 0.0;
+				for (var row = BarRowsFrom; row < BarRowsTo; row++)
+				{
+					var plain = InkRuns(rgba, w, BarsTop + row);
+					var outlined = InkRuns(rgba, w, BarsTop + BarsPitch + row);
+					// Vacuous-pass guard: every bar is there in both copies.
+					if (plain.Count != Bars.Length || outlined.Count != Bars.Length)
+					{
+						failures.Add($"{backend.Name}: row {row} has {plain.Count} plain and {outlined.Count} outlined bars, not {Bars.Length}.");
+						continue;
+					}
+					for (var b = 0; b < plain.Count; b++)
+					{
+						var growth = outlined[b].Width - plain[b].Width;
+						if (Math.Abs(growth - 2 * OutlinePx) > Math.Abs(worstGrowth - 2 * OutlinePx))
+							worstGrowth = growth;
+						worstRamp = Math.Max(worstRamp, RampError(rgba, w, BarsTop + BarsPitch + row, outlined[b]));
+					}
+				}
+				if (Math.Abs(worstGrowth - 2 * OutlinePx) > 0.25)
+					failures.Add($"{backend.Name}: the outline grows a bar by {worstGrowth:F3} px, not {2 * OutlinePx}.");
+				if (worstRamp > 0.08)
+					failures.Add($"{backend.Name}: a pixel across the outline's edge is {worstRamp:F3} off a one-pixel ramp.");
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Glyph outlines do not grow the ink by their thickness:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Two rows of '|' bars at 64 px, one plain and one BarsPitch below it outlined 4 px (1/16 EM), both white. Rows
+	// BarRowsFrom..BarRowsTo of each text block lie between the baseline and the x-height, inside every bar.
+	private const string Bars = "||||||";
+	private const float BarsFontSize = 64f, OutlinePx = 4f;
+	private const int BarsLeft = 32, BarsTop = 32, BarsPitch = 128, BarRowsFrom = 24, BarRowsTo = 48;
+
+	private static UIElement BuildOutlinedBars()
+	{
+		var canvas = new Canvas { Width = W, Height = H };
+		for (var copy = 0; copy < 2; copy++)
+		{
+			var text = new TextBlock { Text = Bars, FontSize = BarsFontSize, Foreground = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+			if (copy == 1)
+			{
+				TextEffects.SetOutlineThickness(text, OutlinePx / BarsFontSize);
+				TextEffects.SetOutlineBrush(text, new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)));
+			}
+			Canvas.SetLeft(text, BarsLeft);
+			Canvas.SetTop(text, BarsTop + copy * BarsPitch);
+			canvas.Children.Add(text);
+		}
+		return canvas;
+	}
+
+	private readonly record struct InkRun(double Width, double Centre);
+
+	// The runs of ink along row y, left to right: each run's width is the sum of its pixels' coverage, and its centre the
+	// coverage-weighted mean of their centres.
+	private static List<InkRun> InkRuns(byte[] rgba, int width, int y)
+	{
+		var runs = new List<InkRun>();
+		double sum = 0, moment = 0;
+		for (var x = 0; x <= width; x++)
+		{
+			var c = x < width ? rgba[((y * width) + x) * 4 + 3] / 255.0 : 0.0;
+			if (c > 2 / 255.0)
+			{
+				sum += c;
+				moment += (x + 0.5) * c;
+			}
+			else if (sum > 0)
+			{
+				runs.Add(new InkRun(sum, moment / sum));
+				sum = moment = 0;
+			}
+		}
+		return runs;
+	}
+
+	// How far the pixels across a run's two edges are from a one-pixel ramp centred on each: a pixel whose centre lies s
+	// pixels inside an edge should be saturate(0.5 + s) covered.
+	private static double RampError(byte[] rgba, int width, int y, InkRun run)
+	{
+		var left = run.Centre - run.Width / 2;
+		var right = run.Centre + run.Width / 2;
+		var worst = 0.0;
+		for (var x = (int)Math.Floor(left - 2); x <= (int)Math.Ceiling(right + 2); x++)
+		{
+			var s = Math.Min(x + 0.5 - left, right - (x + 0.5));
+			if (s > 2)
+				continue; // the solid middle, not an edge
+			var expected = Math.Clamp(0.5 + s, 0, 1);
+			worst = Math.Max(worst, Math.Abs(rgba[((y * width) + x) * 4 + 3] / 255.0 - expected));
+		}
+		return worst;
+	}
+
+	/// <summary>
+	/// A hard shadow is the glyphs moved by its offset. With no softness a shadow quad reads the atlas as a glyph does,
+	/// from the median of its RGB distances, so moved by whole pixels it covers the same pixels by the same amounts as the
+	/// glyphs drawn there. This draws text whose white shadow lies 4 px right of it and 6 px below, with a transparent
+	/// foreground so only the shadow shows, and under it the same text in white without effects, drawn where the shadow
+	/// would be a copy's; the two must match pixel for pixel. The text holds the glyphs with the most curves and counters
+	/// (<c>8</c>, <c>S</c>, <c>s</c>, <c>B</c>, <c>$</c>), so any rounding the shadow's offset picked up would show.
+	/// </summary>
+	[Test]
+	public void A_hard_shadow_is_the_glyphs_moved_by_whole_pixels()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-hardshadow-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildHardShadow);
+				var (w, _, rgba) = PngReader.Read(path);
+				int differing = 0, inked = 0, worst = 0;
+				for (var y = ShadowTop - 8; y < ShadowTop + 64; y++)
+					for (var x = ShadowLeft - 8; x < ShadowLeft + 240; x++)
+					{
+						var shadow = ((y * w) + x) * 4;
+						var moved = (((y + ShadowCopyPitch) * w) + x) * 4;
+						var delta = 0;
+						for (var c = 0; c < 4; c++)
+							delta = Math.Max(delta, Math.Abs(rgba[shadow + c] - rgba[moved + c]));
+						worst = Math.Max(worst, delta);
+						if (delta > 1)
+							differing++;
+						if (rgba[moved + 3] > 128)
+							inked++;
+					}
+				if (differing > 0)
+					failures.Add($"{backend.Name}: {differing} pixels of the shadow differ from the glyphs moved by its offset (worst Δ{worst}).");
+				// Vacuous-pass guard: the glyphs drew, so the comparison is between two copies of text, not two empty blocks.
+				if (inked < 400)
+					failures.Add($"{backend.Name}: only {inked} pixels of the moved glyphs are inked.");
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("A hard shadow is not its glyphs moved:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Text at 32 px whose hard white shadow lies (1/8, 3/16) EM = (4, 6) px away, its own glyphs transparent; and the same
+	// text plain and white at that offset, ShadowCopyPitch rows lower.
+	private const string ShadowText = "8SsB$ 1:23";
+	private const float ShadowFontSize = 32f;
+	private const int ShadowLeft = 32, ShadowTop = 32, ShadowDx = 4, ShadowDy = 6, ShadowCopyPitch = 128;
+
+	private static UIElement BuildHardShadow()
+	{
+		var canvas = new Canvas { Width = W, Height = H };
+		var shadowed = new TextBlock { Text = ShadowText, FontSize = ShadowFontSize, Foreground = new SolidColorBrush(HdrColor.Transparent) };
+		TextEffects.SetShadowOffset(shadowed, new Point(ShadowDx / ShadowFontSize, ShadowDy / ShadowFontSize));
+		TextEffects.SetShadowBrush(shadowed, new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)));
+		Canvas.SetLeft(shadowed, ShadowLeft);
+		Canvas.SetTop(shadowed, ShadowTop);
+		canvas.Children.Add(shadowed);
+
+		var moved = new TextBlock { Text = ShadowText, FontSize = ShadowFontSize, Foreground = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+		Canvas.SetLeft(moved, ShadowLeft + ShadowDx);
+		Canvas.SetTop(moved, ShadowTop + ShadowDy + ShadowCopyPitch);
+		canvas.Children.Add(moved);
+		return canvas;
+	}
+
+	/// <summary>
+	/// The <c>ui</c> shader's glyph arm reads a fill from the median of the atlas's RGB distances, exactly as it did before
+	/// text had effects, and an outline or a shadow from the true distance in A, as SUIsei's contract and its rasterizer
+	/// do. Each quad here samples one uniform texel colour, so filtering leaves its distances as written, and that colour's
+	/// RGB median and its alpha are different distances: a fill read from A would come out clear. Quads with no effect, an
+	/// outline's bias, a shadow's softness, both, and a softness narrower than a pixel are each held to the contract's
+	/// coverage, <c>saturate(sd · k + 0.5)</c>, within one step of the 8-bit target. The driver's debug layer must stay
+	/// silent while they draw.
+	/// </summary>
+	[Test]
+	public void The_glyph_arm_reads_a_fill_from_the_median_and_an_effect_from_the_true_distance()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-glypharm-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderGlyphQuads(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, _, rgba) = PngReader.Read(path);
+				for (var i = 0; i < GlyphParams.Length; i++)
+				{
+					var centre = GlyphQuadOrigin(i) + new Vector2(GlyphQuadSize / 2);
+					var actual = rgba[(((int)centre.Y * w) + (int)centre.X) * 4 + 3];
+					var expected = (int)MathF.Round(GlyphCoverage(GlyphParams[i]) * 255f);
+					if (Math.Abs(actual - expected) > 1)
+						failures.Add($"{backend.Name}: params {GlyphParams[i]} cover {actual}/255, the contract says {expected}/255.");
+				}
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("The glyph arm does not follow the contract:\n  " + string.Join("\n  ", failures));
+	}
+
+	// One texel colour for every glyph sample: RGB with median 130/255 (just inside the edge), and A 100/255 (well outside).
+	private static readonly byte[] GlyphTexel = [150, 110, 130, 100];
+	private const float GlyphQuadSize = 48f;
+
+	// (screenPxRange, bias, softness, 0): a fill; an outline; a soft shadow; both; and a softness under a pixel.
+	private static readonly Vector4[] GlyphParams =
+	[
+		new(8f, 0f, 0f, 0f), new(8f, 0.12f, 0f, 0f), new(8f, 0f, 0.5f, 0f), new(8f, 0.1f, 0.25f, 0f), new(3f, 0.05f, 0.1f, 0f),
+	];
+
+	private static Vector2 GlyphQuadOrigin(int i) => new(32f + i * 80f, 32f);
+
+	// SUIsei's glyph contract, as its rasterizer computes it.
+	private static float GlyphCoverage(Vector4 p)
+	{
+		float r = GlyphTexel[0] / 255f, g = GlyphTexel[1] / 255f, b = GlyphTexel[2] / 255f, a = GlyphTexel[3] / 255f;
+		var median = MathF.Max(MathF.Min(r, g), MathF.Min(MathF.Max(r, g), b));
+		var effect = p.Y > 0f || p.Z > 0f;
+		var sd = effect ? a - 0.5f + p.Y : median - 0.5f;
+		var k = effect ? MathF.Min(p.X, 1f / MathF.Max(p.Z, 1e-6f)) : p.X;
+		return Math.Clamp(sd * k + 0.5f, 0f, 1f);
+	}
+
+	// One white glyph quad per GlyphParams entry, all in one glyph command over a 4×4 texture of GlyphTexel, drawn through
+	// the ui technique as a raw draw list onto a clear target.
+	private static void RenderGlyphQuads(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		UIPainter.Create(engine, new UIHost()); // defines the ui technique; this draws no host
+		var texels = new byte[4 * 4 * 4];
+		for (var i = 0; i < texels.Length; i++)
+			texels[i] = GlyphTexel[i % 4];
+		var atlas = engine.CreateTexture(TextureData.FromRgba8(4, 4, texels, TextureFormat.Rgba8Unorm, generateMips: false));
+
+		var white = new Half4((Half)1f, (Half)1f, (Half)1f, (Half)1f);
+		var vertices = new OverlayVertex[GlyphParams.Length * 4];
+		var indices = new ushort[GlyphParams.Length * 6];
+		for (var q = 0; q < GlyphParams.Length; q++)
+		{
+			var origin = GlyphQuadOrigin(q);
+			for (var v = 0; v < 4; v++)
+			{
+				var uv = new Vector2(v is 1 or 2 ? 1f : 0f, v >= 2 ? 1f : 0f);
+				vertices[q * 4 + v] = new OverlayVertex(origin + uv * GlyphQuadSize, uv, white, GlyphParams[q]);
+			}
+			ReadOnlySpan<ushort> quad = [0, 1, 2, 0, 2, 3];
+			for (var k = 0; k < 6; k++)
+				indices[q * 6 + k] = (ushort)(q * 4 + quad[k]);
+		}
+		DrawCommand[] commands = [new(new Loom.Core.Primitives.Rect(0, 0, W, H), TextureIndex: 0, IndexOffset: 0, IndexCount: indices.Length, VertexOffset: 0, Tag: 3)];
+		TextureRef[] textures = [atlas];
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			g.Pass("glyphs").Writes(screen).Draw(ctx =>
+			{
+				// Surface pixels → clip, paper white 1, SDR.
+				Span<float> push = [2f / W, 2f / H, -1f, -1f, 1f, 0f];
+				ctx.DrawList("ui", DrawListIdentity.Transient, textures, vertices, indices, commands, push);
+			});
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
 	}
 
 	/// <summary>

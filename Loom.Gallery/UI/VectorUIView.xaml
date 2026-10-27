@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-	The vector-ui demo's page: SUIsei's shapes, strokes, brushes and clips, written as WinUI writes them, plus the two
-	suisei: stroke extensions. Eight cards, each about one thing; VectorUIView.cs supplies the image the image-brush
-	card shows and starts the draw-on loop.
+	The vector-ui demo's page: SUIsei's shapes, strokes, brushes and clips, written as WinUI writes them, plus the
+	suisei: stroke and text extensions. Eight cards, each about one thing, over a strip of text effects; VectorUIView.cs
+	supplies the image the image-brush card shows and starts the draw-on loop.
 -->
 <ContentControl xmlns="https://github.com/AtomicBlom/SUIsei/ui"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -17,6 +17,7 @@
 			<ColumnDefinition Width="Auto" />
 		</Grid.ColumnDefinitions>
 		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="Auto" />
 		</Grid.RowDefinitions>
@@ -223,6 +224,50 @@
 						</Border.BorderBrush>
 					</Border>
 				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- suisei:TextEffects, drawn from the font atlas's true-distance channel and sized in EM: a gradient outline, a
+		     soft drop shadow, a hard shadow, an outline over a hard shadow, and lap times in tabular figures. -->
+		<Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4" Margin="8" Padding="12" CornerRadius="12"
+		        Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Text effects" />
+				<Grid Margin="0,8,0,0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<TextBlock Grid.Column="0" Text="LAP 3" FontSize="36" Foreground="#ECEFF6" HorizontalAlignment="Center"
+					           VerticalAlignment="Center" suisei:TextEffects.OutlineThickness="0.1">
+						<suisei:TextEffects.OutlineBrush>
+							<LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+								<GradientStop Color="#FF4D6D" Offset="0" />
+								<GradientStop Color="#FFB000" Offset="1" />
+							</LinearGradientBrush>
+						</suisei:TextEffects.OutlineBrush>
+					</TextBlock>
+					<Border Grid.Column="1" Padding="14,4" CornerRadius="8" Background="#DCE4F2" HorizontalAlignment="Center"
+					        VerticalAlignment="Center">
+						<TextBlock Text="1:23.456" FontSize="32" Foreground="#1B2233"
+						           suisei:TextEffects.ShadowOffset="0.04,0.08" suisei:TextEffects.ShadowSoftness="0.3"
+						           suisei:TextEffects.ShadowBrush="#90000000" />
+					</Border>
+					<TextBlock Grid.Column="2" Text="GO!" FontSize="36" Foreground="#FFD23F" HorizontalAlignment="Center"
+					           VerticalAlignment="Center"
+					           suisei:TextEffects.ShadowOffset="0.08,0.08" suisei:TextEffects.ShadowBrush="#FF3B6B" />
+					<TextBlock Grid.Column="3" Text="P1" FontSize="36" Foreground="#FFFFFF" HorizontalAlignment="Center"
+					           VerticalAlignment="Center"
+					           suisei:TextEffects.OutlineThickness="0.06" suisei:TextEffects.OutlineBrush="#0B0E14"
+					           suisei:TextEffects.ShadowOffset="0.1,0.1" suisei:TextEffects.ShadowBrush="#3A7BD5" />
+					<StackPanel Grid.Column="4" HorizontalAlignment="Center" VerticalAlignment="Center">
+						<TextBlock Text="LAST 1:11.111" FontSize="15" Foreground="#C8D2E6" Typography.NumeralAlignment="Tabular" />
+						<TextBlock Text="BEST 1:08.880" FontSize="15" Foreground="#C8D2E6" Typography.NumeralAlignment="Tabular" />
+					</StackPanel>
+				</Grid>
 			</StackPanel>
 		</Border>
 	</Grid>

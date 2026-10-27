@@ -11,19 +11,22 @@ namespace Loom.Gallery.Demos;
 /// SUIsei's vector UI through XAML, drawn by the engine: a <c>VectorUIView</c> page of WinUI shapes (<c>Rectangle</c>,
 /// <c>Ellipse</c>, <c>Line</c>, <c>Polyline</c>, <c>Polygon</c>, and <c>Path</c> from path markup), every stroke join
 /// and cap, dash patterns, linear gradients on fills and strokes, a translucent stroke that crosses itself,
-/// <c>UIElement.Clip</c>, and an <c>ImageBrush</c> on rounded borders. Two SUIsei extensions sit beside them:
-/// <c>suisei:StrokeTrim</c> drawing a trail on in a loop, and <c>suisei:StrokeBrushMapping.Mode="AlongLength"</c>
-/// running its gradient along the trail rather than across the canvas.
+/// <c>UIElement.Clip</c>, and an <c>ImageBrush</c> on rounded borders. SUIsei extensions sit beside them:
+/// <c>suisei:StrokeTrim</c> drawing a trail on in a loop, <c>suisei:StrokeBrushMapping.Mode="AlongLength"</c> running its
+/// gradient along the trail rather than across the canvas, and <c>suisei:TextEffects</c> giving text a gradient outline,
+/// a soft drop shadow, a hard shadow, and an outline over a shadow. Lap times beside them are set in tabular figures
+/// (<c>Typography.NumeralAlignment="Tabular"</c>).
 /// <para>
 /// The page is the demo's <see cref="OverlayContent"/>, so the shared shell shows it and the gallery's capture renders
 /// it; the graph only clears the frame and draws the shell. Everything on the page reaches the GPU as SUIsei's draw
 /// list through the <c>ui</c> technique: shapes as tessellated vector triangles, the translucent stroke opaque inside a
-/// group layer that carries its alpha, and the image through the vector prim, since a rounded rect's own prim has no
-/// room for a texture.
+/// group layer that carries its alpha, the image through the vector prim, since a rounded rect's own prim has no room
+/// for a texture, and each text effect as glyph quads drawn from the atlas's true-distance channel, under the glyphs in
+/// the same command.
 /// </para>
 /// <para>
-/// Not shown: outlined text and tabular digits. SUIsei's text has neither a glyph outline effect nor
-/// <c>Typography.NumeralAlignment</c>, so the titles are plain text.
+/// The page's font is SUIsei's default, Cascadia Code, whose digits all advance alike, so its tabular lap times look as
+/// proportional ones would; a font with proportional digits is what shows the setting change anything.
 /// </para>
 /// </summary>
 internal sealed class VectorUIDemo : IDemo

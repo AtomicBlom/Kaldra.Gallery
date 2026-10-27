@@ -9,8 +9,11 @@ using Loom.Core.Materials;
 using Loom.Gallery.Demos;
 using Loom.Gallery.UI;
 using Loom.UI.SUIsei;
+using SUIsei;
+using SUIsei.Controls;
 using SUIsei.Drawing;
 using SUIsei.Extensions;
+using SUIsei.Media;
 using LoomDrawCommand = Loom.Core.Hosting.DrawCommand;
 using LoomOverlayVertex = Loom.Core.Geometry.OverlayVertex;
 using SoftwareRasterizer = SUIsei.Rasterizer.SoftwareRasterizer;
@@ -29,15 +32,19 @@ namespace Loom.Tests;
 /// <para>
 /// The same comparison runs over a list SUIsei's compositor made rather than one built by hand: the page of
 /// <see cref="VectorUIDemo"/>, composed from its XAML — shapes and their strokes, dashes, a trimmed stroke whose gradient
-/// runs along its length, gradient fills, a translucent stroke in a group layer, a clip, an image on rounded corners
-/// and glyph runs — so the GPU is held to the oracle on what a compositor emits for shapes, not only on hand-built
-/// triangles. Both lists are held to the same bar.
+/// runs along its length, gradient fills, a translucent stroke in a group layer, a clip, an image on rounded corners,
+/// glyph runs and their outlines and shadows — so the GPU is held to the oracle on what a compositor emits for shapes,
+/// not only on hand-built triangles. A third list is text alone with every effect <c>suisei:TextEffects</c> draws (solid
+/// and gradient outlines, soft and hard shadows, an outline over a glow, a translucent outline on a faded run, and small
+/// text whose outline the atlas's field clamps), at layout scales 1 and 1.5, so the glyph arm's true-distance branch and
+/// the run's screenPxRange under scale are held to the oracle too. All three lists are held to the same bar.
 /// </para>
 /// <para>
 /// What the bar absorbs, measured on an RTX 2080 Ti with both desktop backends identical: the vector-prims list differs
-/// from the oracle by at most 2/255 anywhere. The page differs by at most 3/255 except in one row of 130 pixels, the
-/// bottom edge of its clip card's <c>UIElement.Clip</c>, which layout places between two pixel rows. There a hard clip's
-/// two implementations disagree by one row: <see cref="Loom.Core.Hosting.DrawListGeometry.Scissor"/> truncates a
+/// from the oracle by at most 2/255 anywhere. The text-effects lists differ by at most 3/255 except in at most 39 pixels
+/// (0.01%), none by more than 9/255. The page differs by at most 3/255 except in about 130 pixels, nearly all one row:
+/// the bottom edge of its clip card's <c>UIElement.Clip</c>, which layout places between two pixel rows. There a hard
+/// clip's two implementations disagree by one row: <see cref="Loom.Core.Hosting.DrawListGeometry.Scissor"/> truncates a
 /// fractional far edge, so a row less than half inside the clip is cut, while the rasterizer rounds the far edge out and
 /// draws it. GPU-gated.
 /// </para>
@@ -70,6 +77,85 @@ public class VectorPrimRenderTests
 		root.Content = view;
 		host.Tick(0, 0f, size);
 		AssertGpuMatchesRasterizer("vectorui", root.Render(), GalleryCapture.Width, GalleryCapture.Height, VectorUIDemo.Background);
+	}
+
+	[Test]
+	[Arguments(1f)]
+	[Arguments(1.5f)]
+	public void The_GPU_draws_text_effects_as_SUIsei_s_rasterizer_does(float layoutScale)
+	{
+		const int Width = 960, Height = 540;
+		var host = new UIHost();
+		var root = host.CreateRoot(new UILayer(0, layoutScale)).Root;
+		root.Content = BuildTextEffects();
+		host.Tick(0, 0f, new Vector2(Width, Height));
+		AssertGpuMatchesRasterizer($"texteffects-{layoutScale}x", root.Render(), Width, Height, TextEffectsBackground);
+	}
+
+	// A mid-dark ground, so black shadows and outlines show against it as well as light ones.
+	private static readonly Vector4 TextEffectsBackground = new(0.05f, 0.06f, 0.08f, 1f);
+
+	// Every effect at a few sizes: solid and gradient outlines, soft and hard shadows, an outline over a shadow, a
+	// translucent effect, a run faded as a whole (one group layer), and small text whose outline the field clamps.
+	private static UIElement BuildTextEffects()
+	{
+		var panel = new StackPanel { Margin = new Thickness(16f) };
+		void Add(string text, float size, Action<TextBlock> effects, float opacity = 1f)
+		{
+			var block = new TextBlock { Text = text, FontSize = size, Foreground = Solid(236, 239, 246), Opacity = opacity, Margin = new Thickness(0f, 0f, 0f, 6f) };
+			effects(block);
+			panel.Children.Add(block);
+		}
+
+		Add("Outline 8SsB$ 1:23.456", 36f, t =>
+		{
+			TextEffects.SetOutlineThickness(t, 0.1f);
+			TextEffects.SetOutlineBrush(t, Solid(10, 12, 20));
+		});
+		Add("Gradient outline LAP 3", 32f, t =>
+		{
+			TextEffects.SetOutlineThickness(t, 0.12f);
+			var gradient = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+			gradient.GradientStops.Add(new GradientStop { Color = HdrColor.FromRgb(255, 77, 109), Offset = 0f });
+			gradient.GradientStops.Add(new GradientStop { Color = HdrColor.FromRgb(255, 176, 0), Offset = 1f });
+			TextEffects.SetOutlineBrush(t, gradient);
+		});
+		Add("Soft shadow 0:59.404", 32f, t =>
+		{
+			TextEffects.SetShadowOffset(t, new Point(0.05f, 0.08f));
+			TextEffects.SetShadowSoftness(t, 0.3f);
+			TextEffects.SetShadowBrush(t, Solid(0, 0, 0, 200));
+		});
+		Add("Hard shadow GO!", 32f, t =>
+		{
+			TextEffects.SetShadowOffset(t, new Point(0.08f, 0.08f));
+			TextEffects.SetShadowBrush(t, Solid(255, 59, 107));
+		});
+		Add("Outline over a glow P1", 28f, t =>
+		{
+			TextEffects.SetOutlineThickness(t, 0.06f);
+			TextEffects.SetOutlineBrush(t, Solid(10, 12, 20));
+			TextEffects.SetShadowSoftness(t, 0.35f);
+			TextEffects.SetShadowBrush(t, Solid(64, 200, 255, 176));
+		});
+		Add("Translucent outline, faded run", 28f, t =>
+		{
+			TextEffects.SetOutlineThickness(t, 0.08f);
+			TextEffects.SetOutlineBrush(t, Solid(58, 123, 213, 128));
+			TextEffects.SetShadowOffset(t, new Point(0.06f, 0.06f));
+			TextEffects.SetShadowBrush(t, Solid(0, 0, 0));
+		}, opacity: 0.6f);
+		Add("Small text, outlined and shadowed: 0123456789", 12f, t =>
+		{
+			TextEffects.SetOutlineThickness(t, 0.15f);
+			TextEffects.SetOutlineBrush(t, Solid(10, 12, 20));
+			TextEffects.SetShadowOffset(t, new Point(0.1f, 0.1f));
+			TextEffects.SetShadowSoftness(t, 0.2f);
+			TextEffects.SetShadowBrush(t, Solid(255, 176, 0, 160));
+		});
+		return panel;
+
+		static SolidColorBrush Solid(byte r, byte g, byte b, byte a = 255) => new(HdrColor.FromRgb(r, g, b, a));
 	}
 
 	// Rasterize `list` on the CPU, draw it on each desktop backend, and hold every backend to the oracle at the parity bar,
