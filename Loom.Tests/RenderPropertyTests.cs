@@ -371,6 +371,95 @@ public class RenderPropertyTests
 
 	private const int W = 512, H = 384;
 
+	/// <summary>
+	/// Group-opacity layers on two targets of different sizes in one frame each keep targets of their own size. A layer
+	/// target matches the scope its list draws into, and a frame routinely layers UI on two: a panel's texture and the
+	/// backbuffer. The backend pools them per size, so neither list throws the other's away mid-frame — while a frame
+	/// recorded earlier, and still in flight, samples them. This draws a faded panel into a half-size texture and
+	/// another onto the backbuffer every frame, for more frames than are in flight, and holds each backend to its debug
+	/// layer and the backbuffer's panel to the overlap invariant above.
+	/// </summary>
+	[Test]
+	public void Group_layers_on_two_target_sizes_in_one_frame_keep_targets_of_their_own()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var nonOverlap = new Vector2(110, 100);
+		var overlap = new Vector2(185, 155);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-twosizedlayers-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderTwoSizedLayers(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, h, rgba) = PngReader.Read(path);
+				var a = AverageBlock(rgba, w, h, nonOverlap, 6);
+				var o = AverageBlock(rgba, w, h, overlap, 6);
+				var delta = MaxChannelDelta(a, o);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: overlap {Fmt(o)} != non-overlap {Fmt(a)} (Δ{delta}) — the backbuffer's layer was lost or overwritten.");
+				if (a.W < 8 || o.W < 8)
+					failures.Add($"{backend.Name}: a sample missed the panel (non-overlap {Fmt(a)}, overlap {Fmt(o)}).");
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Layers on two target sizes in one frame interfere:\n  " + string.Join("\n  ", failures));
+	}
+
+	// A faded panel drawn into a half-size texture, then the group-opacity panel onto the backbuffer, every frame: two
+	// lists, each opening a layer, at two scope sizes. The backbuffer pass samples the texture so the first pass stays
+	// live; it need not show it.
+	private static void RenderTwoSizedLayers(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		var small = InWorldPanel.Create(engine, W / 2, H / 2, Matrix4x4.Identity, billboard: false);
+		small.View.Root.Content = BuildFadedFills(0.5f);
+		var full = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
+		full.View.Root.Content = BuildGroupOpacityPanel();
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var smallTarget = g.Domain("small", W / 2, H / 2).Color("small_color", Format.Rgba8Srgb);
+			g.Pass("small").Writes(smallTarget).Draw(ctx => small.Draw(ctx));
+			g.Pass("ui").Samples(smallTarget).Writes(screen).Draw(ctx => full.Draw(ctx));
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 8; frame++)
+		{
+			small.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W / 2, H / 2));
+			small.Render();
+			full.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W, H));
+			full.Render();
+			if (frame == 6)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
 	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath) =>
 		RenderPanel(backend, outPath, BuildGroupOpacityPanel);
 
