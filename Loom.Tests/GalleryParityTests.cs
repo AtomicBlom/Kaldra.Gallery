@@ -46,6 +46,7 @@ public class GalleryParityTests
 		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("InWorldUI", () => new InWorldUIDemo()),
 		("VectorPrims", () => new VectorPrimsDemo()),
+		("UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
 	[Test]

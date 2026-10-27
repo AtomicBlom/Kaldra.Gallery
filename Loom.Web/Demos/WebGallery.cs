@@ -28,6 +28,7 @@ internal static class WebGallery
 		["fullreference"] = () => new FullReferenceDemo(),
 		["inworldui"] = () => new InWorldUIDemo(),
 		["vectorprims"] = () => new VectorPrimsDemo(),
+		["uilivetexture"] = () => new UILiveTextureDemo(),
 		["debug2d"] = () => new Debug2DDemo(),
 		["foliage"] = () => new FoliageDemo(),
 		["instancing"] = () => new InstancingDemo(),

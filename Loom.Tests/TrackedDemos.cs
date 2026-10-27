@@ -32,6 +32,7 @@ internal static class TrackedDemos
 		("PixelArt", () => new PixelArtDemo()),
 		("StylizedReference", () => new StylizedDemo()),
 		("VectorPrims", () => new VectorPrimsDemo()),
+		("UILiveTexture", () => new UILiveTextureDemo()),
 		.. UI,
 	];
 }

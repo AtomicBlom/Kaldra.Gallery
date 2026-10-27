@@ -102,7 +102,7 @@ public class VectorPrimRenderTests
 		UIPainter.Create(engine, new global::SUIsei.UIHost()); // defines the ui technique; this draws no host
 
 		var slots = list.TextureSlots;
-		var textures = new Texture[slots.Count];
+		var textures = new TextureRef[slots.Count];
 		for (var i = 0; i < slots.Count; i++)
 			textures[i] = engine.CreateTexture(TextureData.FromRgba8(slots[i].Width, slots[i].Height, slots[i].Pixels.Span, TextureFormat.Rgba8Unorm, generateMips: false));
 		var vertices = MemoryMarshal.Cast<SUIsei.Drawing.OverlayVertex, LoomOverlayVertex>(list.Vertices.Span).ToArray();
