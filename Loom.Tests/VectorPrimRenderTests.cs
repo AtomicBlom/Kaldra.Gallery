@@ -42,11 +42,12 @@ namespace Loom.Tests;
 /// <para>
 /// What the bar absorbs, measured on an RTX 2080 Ti with both desktop backends identical: the vector-prims list differs
 /// from the oracle by at most 2/255 anywhere. The text-effects lists differ by at most 3/255 except in at most 39 pixels
-/// (0.01%), none by more than 9/255. The page differs by at most 3/255 except in about 130 pixels, nearly all one row:
-/// the bottom edge of its clip card's <c>UIElement.Clip</c>, which layout places between two pixel rows. There a hard
-/// clip's two implementations disagree by one row: <see cref="Loom.Core.Hosting.DrawListGeometry.Scissor"/> truncates a
-/// fractional far edge, so a row less than half inside the clip is cut, while the rasterizer rounds the far edge out and
-/// draws it. GPU-gated.
+/// (0.01%), none by more than 9/255, and the page by at most 3/255 except in about ten pixels, none by more than 8/255.
+/// A hard clip whose edge layout places between two pixel rows, as on the page's clip card, keeps the same row on both:
+/// <see cref="Loom.Core.Hosting.DrawListGeometry.Scissor"/> and the rasterizer both keep the pixels whose centres the
+/// clip covers, which a one-row difference would be far too small for this bar to show, so
+/// <see cref="A_clip_between_pixel_rows_keeps_the_same_pixels_on_the_GPU_as_in_the_rasterizer"/> checks it pixel by
+/// pixel. GPU-gated.
 /// </para>
 /// </summary>
 [NotInParallel] // one GPU engine at a time, and LoomLog.Sink is process-wide
@@ -156,6 +157,75 @@ public class VectorPrimRenderTests
 		return panel;
 
 		static SolidColorBrush Solid(byte r, byte g, byte b, byte a = 255) => new(HdrColor.FromRgb(r, g, b, a));
+	}
+
+	/// <summary>
+	/// A clip whose edges fall between pixel rows and columns keeps the same pixels on the GPU as in the rasterizer: those
+	/// whose centres it covers. <see cref="Loom.Core.Hosting.DrawListGeometry.Scissor"/> rounds the clip to the scissor by
+	/// that rule and the oracle clips by it, so a fill clipped to x 100.4..300.4 and y 50.6..150.6 covers columns 100 to
+	/// 299 and rows 51 to 150 on every desktop backend and in the rasterizer, checked on the lines either side of each
+	/// edge. The page comparison cannot see this: one row is far inside its bar.
+	/// </summary>
+	[Test]
+	public void A_clip_between_pixel_rows_keeps_the_same_pixels_on_the_GPU_as_in_the_rasterizer()
+	{
+		const int Width = 400, Height = 200;
+		var fill = new Border { Width = Width, Height = Height, Background = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+		fill.Clip = new RectangleGeometry { Rect = new Rect(100.4f, 50.6f, 200f, 100f) };
+		var canvas = new Canvas { Width = Width, Height = Height };
+		canvas.Children.Add(fill);
+		var host = new UIHost();
+		var root = host.CreateRoot(UILayer.Default).Root;
+		root.Content = canvas;
+		host.Tick(0, 0f, new Vector2(Width, Height));
+		var list = root.Render();
+		var black = new Vector4(0f, 0f, 0f, 1f);
+
+		var oracle = new SoftwareRasterizer(Width, Height);
+		oracle.Clear(black);
+		oracle.Render(list);
+		var failures = new List<string>();
+		Check("the rasterizer", oracle.ResolveToRgba8(), Width);
+
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-cliprows-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderList(backend, list, Width, Height, black, path);
+				var (w, _, rgba) = PngReader.Read(path);
+				Check(backend.Name, rgba, w);
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("A fractional clip keeps different pixels:\n  " + string.Join("\n  ", failures));
+
+		// Every pixel on the lines either side of the clip's edges is drawn exactly when its centre is inside the clip.
+		void Check(string name, byte[] rgba, int stride)
+		{
+			int[] columns = [99, 100, 299, 300];
+			int[] rows = [50, 51, 150, 151];
+			foreach (var x in columns)
+				for (var y = 40; y < 160; y++)
+					Expect(x, y);
+			foreach (var y in rows)
+				for (var x = 90; x < 310; x++)
+					Expect(x, y);
+
+			void Expect(int x, int y)
+			{
+				var inside = x is >= 100 and <= 299 && y is >= 51 and <= 150;
+				var drawn = rgba[((y * stride) + x) * 4 + 1] > 128;
+				if (drawn != inside)
+					failures.Add($"{name}: pixel ({x},{y}) is {(drawn ? "drawn" : "not drawn")}, its centre is {(inside ? "inside" : "outside")} the clip.");
+			}
+		}
 	}
 
 	// Rasterize `list` on the CPU, draw it on each desktop backend, and hold every backend to the oracle at the parity bar,
