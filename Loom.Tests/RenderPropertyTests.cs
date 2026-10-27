@@ -3,15 +3,20 @@ using System.Numerics;
 using Loom.Backend.DirectX12;
 using Loom.Backend.Vulkan;
 using Loom.Concepts;
+using Loom.Core.Diagnostics;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+using Loom.Core.Primitives;
 using Loom.Gallery.Demos;
 using Loom.UI.SUIsei;
 
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Media;
+
+using VectorVertex = SUIsei.Drawing.VectorVertex;
 
 namespace Loom.Tests;
 
@@ -399,8 +404,9 @@ public class RenderPropertyTests
 	private static UIElement BuildGroupOpacityPanel()
 	{
 		var overlapCanvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -413,8 +419,8 @@ public class RenderPropertyTests
 			HorizontalAlignment = HorizontalAlignment.Left,
 			VerticalAlignment = VerticalAlignment.Top,
 			Padding = new Thickness(24f),
-			Background = HdrColor.FromRgb(18, 22, 30),
-			CornerRadius = 14f,
+			Background = new SolidColorBrush(HdrColor.FromRgb(18, 22, 30)),
+			CornerRadius = new CornerRadius(14f),
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};
@@ -427,8 +433,9 @@ public class RenderPropertyTests
 	private static UIElement BuildFadedFills(params float[] opacities)
 	{
 		var canvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -452,13 +459,13 @@ public class RenderPropertyTests
 				Width = 100f,
 				Height = 60f,
 				Opacity = 0.9f,
-				Child = new Border { Background = HdrColor.FromRgb(255, 120, 60) },
+				Child = new Border { Background = new SolidColorBrush(HdrColor.FromRgb(255, 120, 60)) },
 			};
 			Canvas.SetLeft(deep, 0f);
 			Canvas.SetTop(deep, 0f);
 			canvas.Children.Add(deep);
 		}
-		var siblingFill = new Border { Width = 120f, Height = 100f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var siblingFill = new Border { Width = 120f, Height = 100f, Background = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255)) };
 		Canvas.SetLeft(siblingFill, 60f);
 		Canvas.SetTop(siblingFill, 50f);
 		canvas.Children.Add(siblingFill);
@@ -480,6 +487,168 @@ public class RenderPropertyTests
 				Child = content,
 			};
 		return content;
+	}
+
+	/// <summary>
+	/// The <c>ui</c> shader antialiases an edge over one screen pixel whatever the edge's angle: it divides a distance by
+	/// the length of its screen-space gradient. <c>fwidth</c> — the L1 norm |ddx| + |ddy| — would over-state that
+	/// gradient by √2 on a diagonal and blur a 45° edge across √2 as many pixels as a vertical one, which is the
+	/// difference this test exists to catch.
+	/// <para>
+	/// Both arms that take edge coverage from a distance are checked: a rounded rect, whose distance is its own SDF in
+	/// local rect space, and a vector triangle, whose distance arrives interpolated in <c>Custom</c>, with its three other
+	/// half-plane slots unused. Each draws one straight edge through the middle of the target, at 0° and at 45°. The edge
+	/// is known exactly, so every pixel's signed distance <c>s</c> from it is too, and its coverage is the capture's
+	/// alpha; the ramp width is the least-squares fit of <c>coverage − 0.5 = s / width</c> over the partly covered pixels.
+	/// The driver's debug layer must stay silent throughout, so the two arms are held to validation as well.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void An_edge_ramps_across_one_pixel_at_0_and_45_degrees()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// Off the pixel grid on both axes, so the pixels the edge crosses are partly covered rather than exactly half.
+		var edge = new Vector2(256.2f, 192.45f);
+		(string Name, uint Kind)[] arms = [("rounded rect", 1), ("vector", 7)];
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			foreach (var (name, kind) in arms)
+			{
+				var widths = new double[2];
+				for (var a = 0; a < 2; a++)
+				{
+					var degrees = a == 0 ? 0f : 45f;
+					var inward = new Vector2(MathF.Cos(degrees * MathF.PI / 180f), MathF.Sin(degrees * MathF.PI / 180f));
+					var path = Path.Combine(Path.GetTempPath(), $"loom-edgeramp-{backend.Name}-{kind}-{degrees}-{Guid.NewGuid():N}.png");
+					// The engine runs with the driver's debug layer on, which reports through LoomLog; an error it raises
+					// while drawing these arms fails the test as surely as a wrong ramp.
+					var errors = new List<string>();
+					var previousSink = LoomLog.Sink;
+					LoomLog.Sink = (level, message) =>
+					{
+						if (level == LoomLogLevel.Error)
+							lock (errors) errors.Add(message);
+					};
+					try
+					{
+						RenderEdge(backend, path, kind, edge, inward);
+						LoomLog.Sink = previousSink;
+						foreach (var error in errors)
+							failures.Add($"{backend.Name} {name} at {degrees}°: the debug layer reported: {error}");
+						var (w, h, rgba) = PngReader.Read(path);
+						var ramp = MeasureRamp(rgba, w, h, edge, inward);
+						var label = $"{backend.Name} {name} at {degrees}°";
+
+						// Vacuous-pass guards: the edge must actually be there, solid on its inside and clear outside it.
+						if (ramp.Partial < 200)
+							failures.Add($"{label}: only {ramp.Partial} partly covered pixels along the edge.");
+						if (!ramp.InsideSolid || !ramp.OutsideClear)
+							failures.Add($"{label}: the edge is not solid inside and clear outside (inside solid {ramp.InsideSolid}, outside clear {ramp.OutsideClear}).");
+
+						widths[a] = ramp.Width;
+						if (Math.Abs(ramp.Width - 1.0) > 0.1)
+							failures.Add($"{label}: the ramp is {ramp.Width:F3} px wide, not one pixel.");
+					}
+					finally
+					{
+						LoomLog.Sink = previousSink;
+						if (File.Exists(path)) File.Delete(path);
+					}
+				}
+
+				if (Math.Abs(widths[1] - widths[0]) > 0.05)
+					failures.Add($"{backend.Name} {name}: the ramp is {widths[0]:F3} px wide at 0° but {widths[1]:F3} px at 45°.");
+			}
+		}
+
+		failures.ShouldBeEmpty("Edge antialiasing depends on the edge's angle:\n  " + string.Join("\n  ", failures));
+	}
+
+	// A shape whose one straight edge passes through `edge`, its inside towards `inward`, drawn white through the ui
+	// technique as a raw draw list: no compositor, so nothing but the shader decides the coverage. The shape is a square
+	// 1200 px across, so its other edges are far outside the target. A rounded rect (kind 1) carries its local rect in uv
+	// and params, with a zero radius; a vector triangle (kind 7) carries its signed distance to the edge in Custom.x and
+	// leaves the other three distances unused.
+	private static void RenderEdge(IRenderBackend backend, string outPath, uint kind, Vector2 edge, Vector2 inward)
+	{
+		const float Half = 600f;
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		UIPainter.Create(engine, new UIHost()); // defines the ui technique; this draws no host
+		var white = engine.CreateTexture(TextureData.FromRgba8(1, 1, [255, 255, 255, 255], TextureFormat.Rgba8Unorm, generateMips: false));
+
+		var along = new Vector2(-inward.Y, inward.X);
+		var centre = edge + inward * Half;
+		var colour = new Half4((Half)1f, (Half)1f, (Half)1f, (Half)1f);
+		var vertices = new OverlayVertex[4];
+		for (var v = 0; v < 4; v++)
+		{
+			// Corners (0,0) (1,0) (1,1) (0,1) of the square's local rect, whose u = 0 side is the edge.
+			var uv = new Vector2(v is 1 or 2 ? 1f : 0f, v >= 2 ? 1f : 0f);
+			var position = centre + inward * (Half * (2f * uv.X - 1f)) + along * (Half * (2f * uv.Y - 1f));
+			vertices[v] = kind == 7
+				? new OverlayVertex(position, new Vector2(0.5f), colour,
+					new Vector4(Vector2.Dot(position - edge, inward), VectorVertex.Unused, VectorVertex.Unused, VectorVertex.Unused))
+				: new OverlayVertex(position, uv, colour, new Vector4(0f, 0f, 2f * Half, 2f * Half));
+		}
+		ushort[] indices = [0, 1, 2, 0, 2, 3];
+		DrawCommand[] commands = [new(new Loom.Core.Primitives.Rect(0, 0, W, H), TextureIndex: 0, IndexOffset: 0, IndexCount: 6, VertexOffset: 0, Tag: kind)];
+		Texture[] textures = [white];
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			g.Pass("edge").Writes(screen).Draw(ctx =>
+			{
+				// Surface pixels → clip, paper white 1, SDR.
+				Span<float> push = [2f / W, 2f / H, -1f, -1f, 1f, 0f];
+				ctx.DrawList("ui", DrawListIdentity.Transient, textures, vertices, indices, commands, push);
+			});
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
+	private readonly record struct Ramp(double Width, int Partial, bool InsideSolid, bool OutsideClear);
+
+	// Fit the ramp width over the middle of the target, clear of its borders: for each partly covered pixel, its centre's
+	// signed distance s from the edge and its coverage c (the alpha, which premultiplied alpha-over onto a clear target
+	// leaves equal to the coverage) give c − 0.5 = s / width, solved by least squares. Pixels two or more pixels from
+	// the edge must be fully covered inside and clear outside.
+	private static Ramp MeasureRamp(byte[] rgba, int width, int height, Vector2 edge, Vector2 inward)
+	{
+		double ss = 0, sc = 0;
+		var partial = 0;
+		bool insideSolid = true, outsideClear = true;
+		for (var y = 64; y < height - 64; y++)
+			for (var x = 64; x < width - 64; x++)
+			{
+				var s = (x + 0.5 - edge.X) * inward.X + (y + 0.5 - edge.Y) * inward.Y;
+				var c = rgba[((y * width) + x) * 4 + 3] / 255.0;
+				if (s >= 2)
+					insideSolid &= c > 0.98;
+				else if (s <= -2)
+					outsideClear &= c < 0.02;
+				else if (c > 0.02 && c < 0.98)
+				{
+					ss += s * s;
+					sc += s * (c - 0.5);
+					partial++;
+				}
+			}
+		return new Ramp(sc > 0 ? ss / sc : double.PositiveInfinity, partial, insideSolid, outsideClear);
 	}
 
 	/// <summary>

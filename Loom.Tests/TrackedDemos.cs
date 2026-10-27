@@ -31,6 +31,7 @@ internal static class TrackedDemos
 		("Particles", () => new ParticlesDemo()),
 		("PixelArt", () => new PixelArtDemo()),
 		("StylizedReference", () => new StylizedDemo()),
+		("VectorPrims", () => new VectorPrimsDemo()),
 		.. UI,
 	];
 }

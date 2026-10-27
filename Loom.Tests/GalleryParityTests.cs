@@ -45,6 +45,7 @@ public class GalleryParityTests
 		("UIInteractive", () => new UIInteractiveDemo()),
 		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("InWorldUI", () => new InWorldUIDemo()),
+		("VectorPrims", () => new VectorPrimsDemo()),
 	];
 
 	[Test]

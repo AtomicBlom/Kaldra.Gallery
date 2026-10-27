@@ -2,6 +2,7 @@ using System.Numerics;
 
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Media;
 using SUIsei.RoutedEvents;
 
 namespace Loom.Gallery.UI;
@@ -18,19 +19,19 @@ internal sealed partial class InWorldPanelView
 	{
 		InitializeComponent();
 
-		//Root.Background = HdrColor.FromRgb(10, 15, 25, 210);
+		//Root.Background = new SolidColorBrush(HdrColor.FromRgb(10, 15, 25, 210));
 
 		PanelBody.Padding = new Thickness(20f, 16f, 20f, 16f);
-		PanelBody.Background = HdrColor.FromRgb(18, 24, 38, 230);
-		PanelBody.BorderBrush = HdrColor.FromRgb(80, 200, 140);
+		PanelBody.Background = new SolidColorBrush(HdrColor.FromRgb(18, 24, 38, 230));
+		PanelBody.BorderBrush = new SolidColorBrush(HdrColor.FromRgb(80, 200, 140));
 		PanelBody.BorderThickness = new Thickness(2f);
 
-		//TitleLabel.Foreground = HdrColor.FromRgb(80, 200, 140);
-		StatusLabel.Foreground = HdrColor.FromRgb(210, 230, 220);
+		//TitleLabel.Foreground = new SolidColorBrush(HdrColor.FromRgb(80, 200, 140));
+		StatusLabel.Foreground = new SolidColorBrush(HdrColor.FromRgb(210, 230, 220));
 
-		var btnColor = HdrColor.FromRgb(30, 120, 80);
-		IncrementButton.Background = btnColor;
-		ResetButton.Background = btnColor;
+		var btnBrush = new SolidColorBrush(HdrColor.FromRgb(30, 120, 80));
+		IncrementButton.Background = btnBrush;
+		ResetButton.Background = btnBrush;
 	}
 
 	private void OnIncrementClick(object sender, RoutedEventArgs e) => ViewModel.Bump();

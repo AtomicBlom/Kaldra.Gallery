@@ -113,6 +113,7 @@
     <Compile Include="..\Loom.Gallery\Demos\UIGroupOpacityDemo.cs" Link="Demos\UIGroupOpacityDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\FullReferenceDemo.cs" Link="Demos\FullReferenceDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\InWorldUIDemo.cs" Link="Demos\InWorldUIDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\VectorPrimsDemo.cs" Link="Demos\VectorPrimsDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\Debug2DDemo.cs" Link="Demos\Debug2DDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\FoliageDemo.cs" Link="Demos\FoliageDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\InstancingDemo.cs" Link="Demos\InstancingDemo.cs" />

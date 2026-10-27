@@ -27,6 +27,7 @@ internal static class DemoGallery
 			new CubeLightingDemo(),
 			new UIInteractiveDemo(),
 			new UIGroupOpacityDemo(),
+			new VectorPrimsDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),
 			new TonemappingDemo(),
