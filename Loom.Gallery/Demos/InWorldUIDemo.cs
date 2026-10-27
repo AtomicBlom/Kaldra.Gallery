@@ -12,7 +12,10 @@ using Loom.Gallery.UI;
 #endif
 using Loom.UI.SUIsei;
 using SUIsei;
+using SUIsei.Controls;
 using SUIsei.Input;
+using SUIsei.Media;
+using SUIsei.Shapes;
 
 namespace Loom.Gallery.Demos;
 
@@ -21,6 +24,13 @@ namespace Loom.Gallery.Demos;
 /// world-space quad, with screen-space pointer events projected onto the quad's surface so clicks reach the
 /// in-world buttons. The panel is an independent <see cref="InWorldPanel"/> whose dedicated <c>UIHost</c>
 /// never sees the 3D world — all projection logic lives in the bridge.
+/// <para>
+/// Beside it, the other way to put UI in the world: <see cref="ScreenAnchors"/> keeps screen-space labels pinned to
+/// points in the scene — the cube's base corners and the ground's corners — moving them each frame to where the camera
+/// puts their points, and fading out those whose points leave the frame. The labels stay crisp and upright at any
+/// distance, where the panel is drawn into the scene and turns with it. They are drawn over the frame, so the scene does
+/// not hide them.
+/// </para>
 /// </summary>
 internal sealed class InWorldUIDemo : IDemo
 {
@@ -29,6 +39,11 @@ internal sealed class InWorldUIDemo : IDemo
 	private Mesh? _panelQuad;
 	private ConstantsHandle _viewproj = null!;
 	private IEngine _engine = null!;
+	// Screen-space labels pinned to points in the scene, on a host of their own: they move every frame, and a host of
+	// their own lets this demo place them against this frame's camera, after the shell's host has already composited.
+	private UIHost? _anchorHost;
+	private UIPainter? _anchorPainter;
+	private ScreenAnchors? _anchors;
 
 	public string Name => "In-World UI";
 
@@ -61,6 +76,25 @@ internal sealed class InWorldUIDemo : IDemo
 			worldTransform: worldTransform, billboard: true);
 		_panelView = new InWorldPanelView();
 		_panel.View.Root.Content = _panelView;
+
+		// Labels on the cube's four base corners and the ground's four corners, each the middle of its bottom edge lifted
+		// clear of a dot centred on the point. The camera orbits, so ground corners leave and re-enter the frame, fading
+		// out and back in as they do.
+		_anchorHost = new UIHost();
+		_anchorPainter = UIPainter.Create(engine, _anchorHost);
+		_anchors = ScreenAnchors.Create(engine, _anchorHost.CreateRoot(UILayer.Default));
+		ReadOnlySpan<(Vector3 Point, string Name)> corners =
+		[
+			(new(-0.5f, -0.5f, 0.5f), "-x +z"), (new(0.5f, -0.5f, 0.5f), "+x +z"),
+			(new(0.5f, -0.5f, -0.5f), "+x -z"), (new(-0.5f, -0.5f, -0.5f), "-x -z"),
+			(new(-4f, -0.5f, 4f), "ground -x +z"), (new(4f, -0.5f, 4f), "ground +x +z"),
+			(new(4f, -0.5f, -4f), "ground +x -z"), (new(-4f, -0.5f, -4f), "ground -x -z"),
+		];
+		foreach (var (point, name) in corners)
+		{
+			_anchors.Add(AnchorDot(), point, new Vector2(0.5f, 0.5f));
+			_anchors.Add(AnchorLabel(name), point, new Vector2(0.5f, 1f), new Vector2(0f, -8f));
+		}
 	}
 
 	public RenderGraph Build(DemoScene scene) => RenderGraph.Define(g =>
@@ -107,6 +141,15 @@ internal sealed class InWorldUIDemo : IDemo
 				}
 			});
 
+		// 3. The anchored labels over the lit frame, under the shell's HUD.
+		g.Pass("ui.anchors")
+			.Blends(screen)
+			.Draw(ctx =>
+			{
+				if (_anchorPainter is { } painter && _anchors is { } anchors)
+					painter.Draw(ctx, anchors.View.Surface);
+			});
+
 		DemoGraph.Hud(g, screen, scene);
 		g.Present(screen);
 	});
@@ -120,6 +163,13 @@ internal sealed class InWorldUIDemo : IDemo
 		if (_panel is null) return;
 		_panel.Tick(deltaSeconds, time, camera.View, camera.ViewProjection, framebufferSize);
 		_panel.Render();
+
+		// Lay the labels out, pin them to where this frame's camera puts their points, then composite and prepare them.
+		if (_anchorHost is null || _anchors is null || _anchorPainter is null) return;
+		_anchorHost.Tick(deltaSeconds, time, framebufferSize);
+		_anchors.Update(camera.ViewProjection, framebufferSize, deltaSeconds);
+		_anchorHost.Render();
+		_anchorPainter.Prepare();
 	}
 
 	// A capture clicks the panel's Increment button once, through the same screen-to-panel projection a real pointer
@@ -133,4 +183,20 @@ internal sealed class InWorldUIDemo : IDemo
 		var centre = button.TransformToVisual(null).TransformPoint(new Point(button.LayoutRect.Width / 2f, button.LayoutRect.Height / 2f));
 		return _panel.ProjectToScreen(new Vector2(centre.X, centre.Y), camera.ViewProjection, framebufferSize);
 	}
+
+	private static readonly SolidColorBrush AnchorAccent = new(HdrColor.FromRgb(120, 180, 255));
+	private static readonly SolidColorBrush AnchorBackground = new(HdrColor.FromRgb(16, 20, 28, 220));
+	private static readonly SolidColorBrush AnchorText = new(HdrColor.FromRgb(235, 240, 255));
+
+	private static UIElement AnchorDot() => new Ellipse { Width = 8f, Height = 8f, Fill = AnchorAccent };
+
+	private static UIElement AnchorLabel(string text) => new Border
+	{
+		Background = AnchorBackground,
+		BorderBrush = AnchorAccent,
+		BorderThickness = new Thickness(1f),
+		CornerRadius = new CornerRadius(8f),
+		Padding = new Thickness(6f, 2f, 6f, 2f),
+		Child = new TextBlock { Text = text, FontSize = 12f, Foreground = AnchorText },
+	};
 }

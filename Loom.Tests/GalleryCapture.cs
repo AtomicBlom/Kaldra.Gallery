@@ -181,8 +181,11 @@ internal static class GalleryCapture
 	}
 
 	// Drive the demo through `frames` frames as a host would, requesting the capture on CaptureFrame when a path is
-	// given. The scripted click is queued first on its frame, before the demo's PreFrame and the shell's Tick consume
-	// that frame's pointers — through both, as a real pointer reaches both.
+	// given. The scripted click is queued first on its frame, before the shell's Tick and the demo's PreFrame consume
+	// that frame's pointers — through both, as a real pointer reaches both. Then the order both hosts use (the
+	// sandbox's SandboxApp and the browser's App): the shell ticks and composites, and only then does the demo update
+	// and run its PreFrame, so anything a demo starts there (a storyboard on the shell's clock) is as many ticks old at
+	// the captured frame here as in a browser capture.
 	private static void RunFrames(IEngine engine, IDemo demo, DemoScene scene, UIHost uiHost, Loom.Concepts.Camera camera,
 		int frames, string? capturePath, bool withUI)
 	{
@@ -197,12 +200,12 @@ internal static class GalleryCapture
 				demo.OnPointer(PointerInput.Press(click));
 				demo.OnPointer(PointerInput.Release(click));
 			}
-			demo.Update(camera);
-			if (withUI)
-				demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
 			uiHost.Tick(CaptureDelta, CaptureTime, surfaceSize);
 			uiHost.Render();
 			scene.UI.Prepare();
+			demo.Update(camera);
+			if (withUI)
+				demo.PreFrame(CaptureDelta, CaptureTime, camera, surfaceSize);
 			if (frame == CaptureFrame && capturePath is not null)
 				engine.RequestCapture(capturePath);
 			engine.Render(inputs);

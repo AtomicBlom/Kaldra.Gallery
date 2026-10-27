@@ -97,6 +97,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- A XAML page shared verbatim with the sandbox: its code-behind linked like the demos, and its markup handed to
+         the SUIsei.SourceGen generator as one more AdditionalFile (SUIsei.targets only globs this project's own folder),
+         so both hosts compile the same Loom.Gallery.UI.VectorUIView. -->
+    <Compile Include="..\Loom.Gallery\UI\VectorUIView.cs" Link="UI\Shared\VectorUIView.cs" />
+    <AdditionalFiles Include="..\Loom.Gallery\UI\VectorUIView.xaml" Link="UI\Shared\VectorUIView.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The demos themselves, shared verbatim with the sandbox (one IDemo per file). The browser host (Program.cs,
          WebGallery) drives them exactly as the desktop launcher does; ImGui debug panels are #if'd out for the browser
          and asset loads route through DemoScene.Asset (embedded resources here, files on desktop). -->
@@ -114,6 +122,7 @@
     <Compile Include="..\Loom.Gallery\Demos\FullReferenceDemo.cs" Link="Demos\FullReferenceDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\InWorldUIDemo.cs" Link="Demos\InWorldUIDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\VectorPrimsDemo.cs" Link="Demos\VectorPrimsDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\VectorUIDemo.cs" Link="Demos\VectorUIDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\Debug2DDemo.cs" Link="Demos\Debug2DDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\FoliageDemo.cs" Link="Demos\FoliageDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\InstancingDemo.cs" Link="Demos\InstancingDemo.cs" />

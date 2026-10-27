@@ -16,6 +16,9 @@ using SUIsei;
 using SUIsei.Controls;
 using SUIsei.Media;
 
+using Polygon = SUIsei.Shapes.Polygon;
+using Polyline = SUIsei.Shapes.Polyline;
+using Rectangle = SUIsei.Shapes.Rectangle;
 using VectorVertex = SUIsei.Drawing.VectorVertex;
 
 namespace Loom.Tests;
@@ -368,6 +371,95 @@ public class RenderPropertyTests
 
 	private const int W = 512, H = 384;
 
+	/// <summary>
+	/// Group-opacity layers on two targets of different sizes in one frame each keep targets of their own size. A layer
+	/// target matches the scope its list draws into, and a frame routinely layers UI on two: a panel's texture and the
+	/// backbuffer. The backend pools them per size, so neither list throws the other's away mid-frame — while a frame
+	/// recorded earlier, and still in flight, samples them. This draws a faded panel into a half-size texture and
+	/// another onto the backbuffer every frame, for more frames than are in flight, and holds each backend to its debug
+	/// layer and the backbuffer's panel to the overlap invariant above.
+	/// </summary>
+	[Test]
+	public void Group_layers_on_two_target_sizes_in_one_frame_keep_targets_of_their_own()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var nonOverlap = new Vector2(110, 100);
+		var overlap = new Vector2(185, 155);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-twosizedlayers-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderTwoSizedLayers(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, h, rgba) = PngReader.Read(path);
+				var a = AverageBlock(rgba, w, h, nonOverlap, 6);
+				var o = AverageBlock(rgba, w, h, overlap, 6);
+				var delta = MaxChannelDelta(a, o);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: overlap {Fmt(o)} != non-overlap {Fmt(a)} (Δ{delta}) — the backbuffer's layer was lost or overwritten.");
+				if (a.W < 8 || o.W < 8)
+					failures.Add($"{backend.Name}: a sample missed the panel (non-overlap {Fmt(a)}, overlap {Fmt(o)}).");
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Layers on two target sizes in one frame interfere:\n  " + string.Join("\n  ", failures));
+	}
+
+	// A faded panel drawn into a half-size texture, then the group-opacity panel onto the backbuffer, every frame: two
+	// lists, each opening a layer, at two scope sizes. The backbuffer pass samples the texture so the first pass stays
+	// live; it need not show it.
+	private static void RenderTwoSizedLayers(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		var small = InWorldPanel.Create(engine, W / 2, H / 2, Matrix4x4.Identity, billboard: false);
+		small.View.Root.Content = BuildFadedFills(0.5f);
+		var full = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
+		full.View.Root.Content = BuildGroupOpacityPanel();
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var smallTarget = g.Domain("small", W / 2, H / 2).Color("small_color", Format.Rgba8Srgb);
+			g.Pass("small").Writes(smallTarget).Draw(ctx => small.Draw(ctx));
+			g.Pass("ui").Samples(smallTarget).Writes(screen).Draw(ctx => full.Draw(ctx));
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 8; frame++)
+		{
+			small.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W / 2, H / 2));
+			small.Render();
+			full.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W, H));
+			full.Render();
+			if (frame == 6)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
 	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath) =>
 		RenderPanel(backend, outPath, BuildGroupOpacityPanel);
 
@@ -497,10 +589,12 @@ public class RenderPropertyTests
 	/// <para>
 	/// Both arms that take edge coverage from a distance are checked: a rounded rect, whose distance is its own SDF in
 	/// local rect space, and a vector triangle, whose distance arrives interpolated in <c>Custom</c>, with its three other
-	/// half-plane slots unused. Each draws one straight edge through the middle of the target, at 0° and at 45°. The edge
-	/// is known exactly, so every pixel's signed distance <c>s</c> from it is too, and its coverage is the capture's
-	/// alpha; the ramp width is the least-squares fit of <c>coverage − 0.5 = s / width</c> over the partly covered pixels.
-	/// The driver's debug layer must stay silent throughout, so the two arms are held to validation as well.
+	/// half-plane slots unused. A third case draws the same edge as a SUIsei <c>Polygon</c> through the compositor, so
+	/// the tessellator's fill — an interior inset by half a pixel inside a one-pixel fringe straddling each edge — is held
+	/// to the same ramp as a hand-built triangle. Each draws one straight edge through the middle of the target, at 0° and
+	/// at 45°. The edge is known exactly, so every pixel's signed distance <c>s</c> from it is too, and its coverage is the
+	/// capture's alpha; the ramp width is the least-squares fit of <c>coverage − 0.5 = s / width</c> over the partly
+	/// covered pixels. The driver's debug layer must stay silent throughout, so every case is held to validation as well.
 	/// </para>
 	/// </summary>
 	[Test]
@@ -513,19 +607,24 @@ public class RenderPropertyTests
 
 		// Off the pixel grid on both axes, so the pixels the edge crosses are partly covered rather than exactly half.
 		var edge = new Vector2(256.2f, 192.45f);
-		(string Name, uint Kind)[] arms = [("rounded rect", 1), ("vector", 7)];
+		(string Name, Action<IRenderBackend, string, Vector2, Vector2> Render)[] arms =
+		[
+			("rounded rect", static (backend, path, edge, inward) => RenderEdge(backend, path, 1, edge, inward)),
+			("vector", static (backend, path, edge, inward) => RenderEdge(backend, path, 7, edge, inward)),
+			("polygon", RenderShapeEdge),
+		];
 
 		var failures = new List<string>();
 		foreach (var backend in Backends.Available)
 		{
-			foreach (var (name, kind) in arms)
+			foreach (var (name, render) in arms)
 			{
 				var widths = new double[2];
 				for (var a = 0; a < 2; a++)
 				{
 					var degrees = a == 0 ? 0f : 45f;
 					var inward = new Vector2(MathF.Cos(degrees * MathF.PI / 180f), MathF.Sin(degrees * MathF.PI / 180f));
-					var path = Path.Combine(Path.GetTempPath(), $"loom-edgeramp-{backend.Name}-{kind}-{degrees}-{Guid.NewGuid():N}.png");
+					var path = Path.Combine(Path.GetTempPath(), $"loom-edgeramp-{backend.Name}-{name.Replace(' ', '-')}-{degrees}-{Guid.NewGuid():N}.png");
 					// The engine runs with the driver's debug layer on, which reports through LoomLog; an error it raises
 					// while drawing these arms fails the test as surely as a wrong ramp.
 					var errors = new List<string>();
@@ -537,7 +636,7 @@ public class RenderPropertyTests
 					};
 					try
 					{
-						RenderEdge(backend, path, kind, edge, inward);
+						render(backend, path, edge, inward);
 						LoomLog.Sink = previousSink;
 						foreach (var error in errors)
 							failures.Add($"{backend.Name} {name} at {degrees}°: the debug layer reported: {error}");
@@ -649,6 +748,186 @@ public class RenderPropertyTests
 				}
 			}
 		return new Ramp(sc > 0 ? ss / sc : double.PositiveInfinity, partial, insideSolid, outsideClear);
+	}
+
+	// RenderEdge's square as a white SUIsei Polygon on a canvas at the target's origin, so the compositor tessellates its
+	// fill and the panel draws the list through the ui technique.
+	private static void RenderShapeEdge(IRenderBackend backend, string outPath, Vector2 edge, Vector2 inward)
+	{
+		const float Half = 600f;
+		var along = new Vector2(-inward.Y, inward.X);
+		var centre = edge + inward * Half;
+		RenderPanel(backend, outPath, () =>
+		{
+			var polygon = new Polygon { Fill = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+			for (var v = 0; v < 4; v++)
+			{
+				var corner = centre + inward * (Half * (v is 1 or 2 ? 1f : -1f)) + along * (Half * (v >= 2 ? 1f : -1f));
+				polygon.Points.Add(new Point(corner.X, corner.Y));
+			}
+			var canvas = new Canvas { Width = W, Height = H };
+			canvas.Children.Add(polygon);
+			return canvas;
+		});
+	}
+
+	/// <summary>
+	/// A translucent stroke that crosses itself is no more opaque where it crosses than anywhere else. SUIsei draws a
+	/// stroke whose brush has one alpha below 1 opaque inside a group layer and composites the layer once at that alpha,
+	/// so the two passes over a crossing cannot blend twice. This draws a half-transparent <c>Polyline</c> whose two
+	/// diagonals cross in the middle of the target, through the compositor and the <c>ui</c> technique, and compares the
+	/// crossing with a point on one diagonal alone. Blended triangle by triangle instead, the crossing would come out at
+	/// three-quarters coverage rather than a half.
+	/// </summary>
+	[Test]
+	public void A_translucent_stroke_is_no_more_opaque_where_it_crosses_itself()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var crossing = new Vector2(256, 192);
+		var single = new Vector2(176, 144); // a quarter of the way along the first diagonal, 80 px from the other
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-crossingstroke-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildCrossingStroke);
+				var (w, h, rgba) = PngReader.Read(path);
+				var c = AverageBlock(rgba, w, h, crossing, 2);
+				var s = AverageBlock(rgba, w, h, single, 2);
+
+				var delta = Math.Max(MaxChannelDelta(c, s), Math.Abs(c.W - s.W));
+				if (delta > 2)
+					failures.Add($"{backend.Name}: crossing {Fmt(c)} != one pass {Fmt(s)} (Δ{delta}) — the crossing blended twice.");
+				// Vacuous-pass guard: both samples on a half-transparent stroke, not on the clear target or an opaque one.
+				if (s.W is < 112 or > 144)
+					failures.Add($"{backend.Name}: the stroke away from the crossing is {Fmt(s)}, not half transparent.");
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("A translucent stroke double-blends where it crosses itself:\n  " + string.Join("\n  ", failures));
+	}
+
+	// A 24 px Polyline at half alpha: down one diagonal of the target, up its right side, and back down the other
+	// diagonal, so the two diagonals cross at the target's centre.
+	private static UIElement BuildCrossingStroke()
+	{
+		var stroke = new Polyline { Stroke = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255, 128)), StrokeThickness = 24f };
+		stroke.Points.Add(new Point(96, 96));
+		stroke.Points.Add(new Point(416, 288));
+		stroke.Points.Add(new Point(416, 96));
+		stroke.Points.Add(new Point(96, 288));
+		var canvas = new Canvas { Width = W, Height = H };
+		canvas.Children.Add(stroke);
+		return canvas;
+	}
+
+	/// <summary>
+	/// A gradient is exact at its stops. SUIsei splits the painted geometry at every stop, so each stop's colour is a
+	/// vertex colour rather than a sample of a ramp, and a pixel whose centre lies on a stop shows that stop's colour.
+	/// Both prims a gradient reaches are checked — a <c>Rectangle</c>, which draws through the vector prim, and a
+	/// <c>Border</c> background, which draws as rect bands — in both of WinUI's interpolation modes: linear
+	/// (<c>ScRgbLinearInterpolation</c>) and sRGB (the default, drawn as sub-bands that still meet each stop exactly).
+	/// Each stop pixel is compared with a solid swatch of the stop's colour in the same frame, which holds the
+	/// comparison to the gradient path alone, whatever the target's encoding.
+	/// </summary>
+	[Test]
+	public void Gradient_pixels_at_the_stops_are_the_stop_colours()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-gradientstops-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildGradientStrips);
+				var (w, h, rgba) = PngReader.Read(path);
+				for (var strip = 0; strip < StripNames.Length; strip++)
+				{
+					var y = StripTop + strip * StripPitch + StripHeight / 2;
+					for (var i = 0; i < StopColours.Length; i++)
+					{
+						var swatch = AverageBlock(rgba, w, h, new Vector2(SwatchLeft + i * SwatchPitch + 16, SwatchTop + 16), 4);
+						var stop = AverageBlock(rgba, w, h, new Vector2(StopColumns[i], y), 0);
+						var delta = Math.Max(MaxChannelDelta(stop, swatch), Math.Abs(stop.W - swatch.W));
+						if (delta > 1)
+							failures.Add($"{backend.Name} {StripNames[strip]}: stop {i} at x={StopColumns[i]} is {Fmt(stop)}, the stop colour is {Fmt(swatch)} (Δ{delta}).");
+					}
+
+					// Vacuous-pass guard: between two stops the strip is neither stop's colour, so it is a gradient at all.
+					var between = AverageBlock(rgba, w, h, new Vector2((StopColumns[1] + StopColumns[2]) / 2, y), 0);
+					var left = AverageBlock(rgba, w, h, new Vector2(StopColumns[1], y), 0);
+					var right = AverageBlock(rgba, w, h, new Vector2(StopColumns[2], y), 0);
+					if (MaxChannelDelta(between, left) < 16 || MaxChannelDelta(between, right) < 16)
+						failures.Add($"{backend.Name} {StripNames[strip]}: {Fmt(between)} between stops 1 and 2 is not a blend of {Fmt(left)} and {Fmt(right)}.");
+				}
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Gradient stops are not exact:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Four horizontal strips, each painted with the same five stops — a Rectangle and a Border, in linear and in sRGB
+	// interpolation — over a row of solid swatches, one per stop colour.
+	private const float StripLeft = 32f, StripWidth = 448f, StripTop = 16f, StripHeight = 40f, StripPitch = 56f;
+	private const float SwatchLeft = 32f, SwatchTop = 256f, SwatchPitch = 64f;
+	private static readonly string[] StripNames = ["Rectangle, linear", "Rectangle, sRGB", "Border, linear", "Border, sRGB"];
+
+	// Each stop sits on a pixel centre: column x is covered by [x, x + 1), so its centre is x + 0.5.
+	private static readonly int[] StopColumns = [32, 144, 256, 368, 479];
+	private static readonly HdrColor[] StopColours =
+	[
+		HdrColor.FromRgb(230, 60, 80), HdrColor.FromRgb(60, 200, 90), HdrColor.FromRgb(40, 90, 230),
+		HdrColor.FromRgb(240, 200, 40), HdrColor.FromRgb(180, 70, 220),
+	];
+
+	private static UIElement BuildGradientStrips()
+	{
+		var canvas = new Canvas { Width = W, Height = H };
+		for (var strip = 0; strip < StripNames.Length; strip++)
+		{
+			var brush = new LinearGradientBrush
+			{
+				StartPoint = new Point(0, 0),
+				EndPoint = new Point(1, 0),
+				ColorInterpolationMode = strip % 2 == 0 ? ColorInterpolationMode.ScRgbLinearInterpolation : ColorInterpolationMode.SRgbLinearInterpolation,
+			};
+			for (var i = 0; i < StopColours.Length; i++)
+				brush.GradientStops.Add(new GradientStop { Color = StopColours[i], Offset = (StopColumns[i] + 0.5f - StripLeft) / StripWidth });
+
+			UIElement painted = strip < 2
+				? new Rectangle { Width = StripWidth, Height = StripHeight, Fill = brush }
+				: new Border { Width = StripWidth, Height = StripHeight, Background = brush };
+			Canvas.SetLeft(painted, StripLeft);
+			Canvas.SetTop(painted, StripTop + strip * StripPitch);
+			canvas.Children.Add(painted);
+		}
+		for (var i = 0; i < StopColours.Length; i++)
+		{
+			var swatch = new Border { Width = 32f, Height = 32f, Background = new SolidColorBrush(StopColours[i]) };
+			Canvas.SetLeft(swatch, SwatchLeft + i * SwatchPitch);
+			Canvas.SetTop(swatch, SwatchTop);
+			canvas.Children.Add(swatch);
+		}
+		return canvas;
 	}
 
 	/// <summary>
