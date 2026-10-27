@@ -1,6 +1,7 @@
 using SUIsei.Animation;
 using SUIsei.Drawing;
 using SUIsei.Media;
+using SUIsei.Media.Imaging;
 
 namespace Loom.Gallery.UI;
 
@@ -53,6 +54,6 @@ internal sealed partial class VectorUIView
 				rgba[i + 2] = (byte)b;
 				rgba[i + 3] = 255;
 			}
-		return ImageSource.FromRgba8(Width, Height, rgba);
+		return BitmapSource.FromRgba8(Width, Height, rgba);
 	}
 }

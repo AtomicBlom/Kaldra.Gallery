@@ -697,7 +697,7 @@ public class RenderPropertyTests
 		}
 		ushort[] indices = [0, 1, 2, 0, 2, 3];
 		DrawCommand[] commands = [new(new Loom.Core.Primitives.Rect(0, 0, W, H), TextureIndex: 0, IndexOffset: 0, IndexCount: 6, VertexOffset: 0, Tag: kind)];
-		Texture[] textures = [white];
+		TextureRef[] textures = [white];
 
 		engine.SetGraph(RenderGraph.Define(g =>
 		{

@@ -128,21 +128,22 @@ public class VectorPrimRenderTests
 		failures.ShouldBeEmpty($"The GPU's {name} list differs from SUIsei's rasterizer:\n  " + string.Join("\n  ", failures));
 	}
 
-	// Draw `list` alone through the ui technique onto an offscreen target cleared to `background`, and capture it: its slot table uploaded,
-	// its vertices and commands reinterpreted as the engine's byte-identical structs, pushed as UIPainter pushes an SDR
-	// list.
+	// Draw `list` alone through the ui technique onto an offscreen target cleared to `background`, and capture it: its slot
+	// table uploaded and its commands tagged by UIPainter's own helpers, its vertices reinterpreted as the engine's
+	// byte-identical struct, pushed as UIPainter pushes an SDR list.
 	private static void RenderList(IRenderBackend backend, DrawListData list, int width, int height, Vector4 background, string outPath)
 	{
 		using var engine = backend.Create(Surface.Offscreen(width, height), width, height, new EngineSettings());
 		UIPainter.Create(engine, new global::SUIsei.UIHost()); // defines the ui technique; this draws no host
 
 		var slots = list.TextureSlots;
-		var textures = new Texture[slots.Count];
+		var textures = new TextureRef[slots.Count];
 		for (var i = 0; i < slots.Count; i++)
-			textures[i] = engine.CreateTexture(TextureData.FromRgba8(slots[i].Width, slots[i].Height, slots[i].Pixels.Span, TextureFormat.Rgba8Unorm, generateMips: false));
+			textures[i] = engine.CreateTexture(UIPainter.UploadData(slots[i]));
 		var vertices = MemoryMarshal.Cast<SUIsei.Drawing.OverlayVertex, LoomOverlayVertex>(list.Vertices.Span).ToArray();
 		var indices = list.Indices.ToArray();
-		var commands = MemoryMarshal.Cast<SUIsei.Drawing.DrawCommand, LoomDrawCommand>(list.Commands.Span).ToArray();
+		var commands = new LoomDrawCommand[list.Commands.Length];
+		UIPainter.CopyCommands(list.Commands.Span, slots, commands);
 		var size = list.CoordinateSize;
 
 		engine.SetGraph(RenderGraph.Define(g =>

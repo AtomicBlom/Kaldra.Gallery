@@ -62,6 +62,7 @@ public class WebGpuParityTests
 		("inworldui", "InWorldUI", () => new InWorldUIDemo()),
 		("vectorprims", "VectorPrims", () => new VectorPrimsDemo()),
 		("vectorui", "VectorUI", () => new VectorUIDemo()),
+		("uilivetexture", "UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
 	// Demos deliberately NOT checked, with the reason recorded rather than the tolerance widened — the numbers are

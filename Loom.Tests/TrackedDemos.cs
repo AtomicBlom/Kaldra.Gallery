@@ -22,6 +22,7 @@ internal static class TrackedDemos
 		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("InWorldUI", () => new InWorldUIDemo()),
 		("VectorUI", () => new VectorUIDemo()),
+		("UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
 	// Baseline filename (without .png) → the demo that produces it.

@@ -27,15 +27,25 @@ internal static class DemoGraph
 	/// hosts one, its own centred UI content) through the public draw-list API, then — desktop-only — this frame's
 	/// Dear ImGui draw data on top for the dev-tools window. Every demo ends with this so the shell renders on all of
 	/// them identically; entirely ImGui-free on the browser build, which has no Dear ImGui bridge.
+	/// <para>
+	/// <paramref name="uiSamples"/> are the graph textures the demo's own UI shows (host images bound with
+	/// <see cref="Loom.UI.SUIsei.UIPainter.SetExternalTexture"/>): the pass declares them with <c>.Samples</c>, which orders
+	/// it after the passes that render them.
+	/// </para>
 	/// </summary>
-	public static void Hud(GraphBuilder g, ColorHandle screen, DemoScene scene) =>
-		g.Pass("hud").Blends(screen).Draw(ctx =>
+	public static void Hud(GraphBuilder g, ColorHandle screen, DemoScene scene, params ITextureHandle[] uiSamples)
+	{
+		var hud = g.Pass("hud");
+		if (uiSamples.Length > 0)
+			hud.Samples(uiSamples);
+		hud.Blends(screen).Draw(ctx =>
 		{
 			scene.UI.Draw(ctx, SUIsei.UISurface.Hud);
 #if !LOOM_WEB
 			Overlay?.Draw(ctx);
 #endif
 		});
+	}
 
 	/// <summary>
 	/// View a matrix as its 16 contiguous floats (System.Numerics field order — exactly what a shader's

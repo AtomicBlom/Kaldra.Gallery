@@ -41,7 +41,7 @@ internal sealed class VectorPrimsDemo : IDemo
 	private LoomOverlayVertex[] _vertices = [];
 	private ushort[] _indices = [];
 	private LoomDrawCommand[] _commands = [];
-	private Texture[] _textures = [];
+	private TextureRef[] _textures = [];
 	private DrawListIdentity _identity;
 
 	public string Name => "Vector Prims";
@@ -197,7 +197,7 @@ internal sealed class VectorPrimsDemo : IDemo
 		_indices = list.Indices.ToArray();
 		_commands = MemoryMarshal.Cast<SUIsei.Drawing.DrawCommand, LoomDrawCommand>(list.Commands.Span).ToArray();
 		var slots = list.TextureSlots;
-		_textures = new Texture[slots.Count];
+		_textures = new TextureRef[slots.Count];
 		for (var i = 0; i < slots.Count; i++)
 		{
 			var source = slots[i];

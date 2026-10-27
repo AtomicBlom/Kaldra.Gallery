@@ -47,6 +47,7 @@ public class GalleryParityTests
 		("InWorldUI", () => new InWorldUIDemo()),
 		("VectorPrims", () => new VectorPrimsDemo()),
 		("VectorUI", () => new VectorUIDemo()),
+		("UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
 	[Test]
