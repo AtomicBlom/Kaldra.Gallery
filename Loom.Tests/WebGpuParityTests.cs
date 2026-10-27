@@ -61,6 +61,7 @@ public class WebGpuParityTests
 		("uigroupopacity", "UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("inworldui", "InWorldUI", () => new InWorldUIDemo()),
 		("vectorprims", "VectorPrims", () => new VectorPrimsDemo()),
+		("vectorui", "VectorUI", () => new VectorUIDemo()),
 		("uilivetexture", "UILiveTexture", () => new UILiveTextureDemo()),
 	];
 

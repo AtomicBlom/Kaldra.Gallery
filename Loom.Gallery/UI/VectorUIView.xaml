@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	The vector-ui demo's page: SUIsei's shapes, strokes, brushes and clips, written as WinUI writes them, plus the two
+	suisei: stroke extensions. Eight cards, each about one thing; VectorUIView.cs supplies the image the image-brush
+	card shows and starts the draw-on loop.
+-->
+<ContentControl xmlns="https://github.com/AtomicBlom/SUIsei/ui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:suisei="https://github.com/AtomicBlom/SUIsei/extensions"
+                x:Class="Loom.Gallery.UI.VectorUIView"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="Auto" />
+		</Grid.ColumnDefinitions>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<!-- One of each WinUI shape. -->
+		<Border Grid.Row="0" Grid.Column="0" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Shapes" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Rectangle Canvas.Left="4" Canvas.Top="4" Width="110" Height="64" RadiusX="12" RadiusY="12"
+					           Fill="#3A7BD5" Stroke="#E8EEF8" StrokeThickness="2" />
+					<Ellipse Canvas.Left="132" Canvas.Top="4" Width="110" Height="64"
+					         Fill="#F5A623" Stroke="#E8EEF8" StrokeThickness="2" />
+					<Line X1="6" Y1="92" X2="242" Y2="84" Stroke="#8FA3BF" StrokeThickness="3" StrokeStartLineCap="Round"
+					      StrokeEndLineCap="Round" />
+					<Polyline Points="6,150 40,108 74,140 108,104 142,134 176,100 210,126 242,110" Stroke="#7ED321"
+					          StrokeThickness="3" StrokeLineJoin="Round" />
+					<Polygon Points="58,132 72,162 104,166 80,186 86,218 58,202 30,218 36,186 12,166 44,162"
+					         Fill="#D0021B" Stroke="#FF8A8A" StrokeThickness="1.5" />
+					<Path Canvas.Left="124" Canvas.Top="150" Fill="#4A2C7A" Stroke="#C9A7FF" StrokeThickness="2"
+					      Data="M 0,60 C 0,10 50,10 50,40 S 100,70 100,30 A 18,18 0 1 1 116,60 Z" />
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- Every join and every cap, each over a hairline of its own centre line. -->
+		<Border Grid.Row="0" Grid.Column="1" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Joins and caps" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Polyline Points="16,96 36,20 56,96" Stroke="#F5A623" StrokeThickness="14" StrokeLineJoin="Miter" />
+					<Polyline Points="16,96 36,20 56,96" Stroke="#FFFFFF" StrokeThickness="1" />
+					<Polyline Points="76,96 96,20 116,96" Stroke="#F5A623" StrokeThickness="14" StrokeLineJoin="Bevel" />
+					<Polyline Points="76,96 96,20 116,96" Stroke="#FFFFFF" StrokeThickness="1" />
+					<Polyline Points="136,96 156,20 176,96" Stroke="#F5A623" StrokeThickness="14" StrokeLineJoin="Round" />
+					<Polyline Points="136,96 156,20 176,96" Stroke="#FFFFFF" StrokeThickness="1" />
+					<Polyline Points="196,96 216,20 236,96" Stroke="#F5A623" StrokeThickness="14" StrokeLineJoin="Miter"
+					          StrokeMiterLimit="1" />
+					<Polyline Points="196,96 216,20 236,96" Stroke="#FFFFFF" StrokeThickness="1" />
+
+					<Line X1="28" Y1="132" X2="220" Y2="132" Stroke="#3A7BD5" StrokeThickness="14"
+					      StrokeStartLineCap="Flat" StrokeEndLineCap="Flat" />
+					<Line X1="28" Y1="158" X2="220" Y2="158" Stroke="#3A7BD5" StrokeThickness="14"
+					      StrokeStartLineCap="Square" StrokeEndLineCap="Square" />
+					<Line X1="28" Y1="184" X2="220" Y2="184" Stroke="#3A7BD5" StrokeThickness="14"
+					      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+					<Line X1="28" Y1="210" X2="220" Y2="210" Stroke="#3A7BD5" StrokeThickness="14"
+					      StrokeStartLineCap="Triangle" StrokeEndLineCap="Triangle" />
+					<Line X1="28" Y1="120" X2="28" Y2="218" Stroke="#FFFFFF" StrokeThickness="1" />
+					<Line X1="220" Y1="120" X2="220" Y2="218" Stroke="#FFFFFF" StrokeThickness="1" />
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- Dash patterns, in thickness units, with each dash cap and an offset, then a dashed curve. A line's own two ends take
+		     StrokeStartLineCap and StrokeEndLineCap rather than the dash cap, as in WinUI, so each line sets them to match. -->
+		<Border Grid.Row="0" Grid.Column="2" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Dashes" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Line X1="8" Y1="14" X2="240" Y2="14" Stroke="#7ED321" StrokeThickness="5" StrokeDashArray="4 2" />
+					<Line X1="8" Y1="38" X2="240" Y2="38" Stroke="#7ED321" StrokeThickness="6" StrokeDashArray="1 2" StrokeStartLineCap="Round"
+					      StrokeDashCap="Round" StrokeEndLineCap="Round" />
+					<Line X1="8" Y1="62" X2="240" Y2="62" Stroke="#7ED321" StrokeThickness="6" StrokeDashArray="2 2" StrokeStartLineCap="Triangle"
+					      StrokeDashCap="Triangle" StrokeEndLineCap="Triangle" />
+					<Line X1="8" Y1="86" X2="240" Y2="86" Stroke="#7ED321" StrokeThickness="5" StrokeDashArray="6 2 1 2" StrokeStartLineCap="Square"
+					      StrokeDashCap="Square" StrokeEndLineCap="Square" StrokeDashOffset="3" />
+					<Ellipse Canvas.Left="20" Canvas.Top="108" Width="104" Height="104" Stroke="#F5A623" StrokeThickness="4"
+					         StrokeDashArray="3 2" StrokeDashCap="Round" />
+					<Path Canvas.Left="140" Canvas.Top="112" Stroke="#C9A7FF" StrokeThickness="3" StrokeDashArray="5 1.5"
+					      StrokeLineJoin="Round" Data="M 0,96 Q 50,-40 100,96 Z" />
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- suisei:StrokeTrim drawing a trail on in a loop, its gradient running along its length. -->
+		<Border Grid.Row="0" Grid.Column="3" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Draw-on trim" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Path Stroke="#3A4560" StrokeThickness="2"
+					      Data="M 16,200 C 16,120 100,180 100,110 S 30,40 90,20 S 230,30 200,100 S 120,190 232,204" />
+					<Path x:Name="Trail" StrokeThickness="9" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+					      suisei:StrokeTrim.End="0" suisei:StrokeBrushMapping.Mode="AlongLength"
+					      Data="M 16,200 C 16,120 100,180 100,110 S 30,40 90,20 S 230,30 200,100 S 120,190 232,204">
+						<Path.Stroke>
+							<LinearGradientBrush ColorInterpolationMode="ScRgbLinearInterpolation">
+								<GradientStop Color="#33D6FF" Offset="0" />
+								<GradientStop Color="#7ED321" Offset="0.4" />
+								<GradientStop Color="#F5A623" Offset="0.7" />
+								<GradientStop Color="#FF3B6B" Offset="1" />
+							</LinearGradientBrush>
+						</Path.Stroke>
+					</Path>
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- Linear gradients on fills and strokes: sRGB and linear interpolation, and a stroke mapped in space beside
+		     the same stroke mapped along its length. -->
+		<Border Grid.Row="1" Grid.Column="0" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Gradients" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Rectangle Canvas.Left="4" Canvas.Top="4" Width="240" Height="36" RadiusX="6" RadiusY="6">
+						<Rectangle.Fill>
+							<LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+								<GradientStop Color="#FF3B6B" Offset="0" />
+								<GradientStop Color="#F5A623" Offset="0.5" />
+								<GradientStop Color="#33D6FF" Offset="1" />
+							</LinearGradientBrush>
+						</Rectangle.Fill>
+					</Rectangle>
+					<Rectangle Canvas.Left="4" Canvas.Top="46" Width="240" Height="36" RadiusX="6" RadiusY="6">
+						<Rectangle.Fill>
+							<LinearGradientBrush StartPoint="0,0" EndPoint="1,0" ColorInterpolationMode="ScRgbLinearInterpolation">
+								<GradientStop Color="#FF3B6B" Offset="0" />
+								<GradientStop Color="#F5A623" Offset="0.5" />
+								<GradientStop Color="#33D6FF" Offset="1" />
+							</LinearGradientBrush>
+						</Rectangle.Fill>
+					</Rectangle>
+					<Ellipse Canvas.Left="4" Canvas.Top="92" Width="72" Height="120">
+						<Ellipse.Fill>
+							<LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+								<GradientStop Color="#C9A7FF" Offset="0" />
+								<GradientStop Color="#3A7BD5" Offset="1" />
+							</LinearGradientBrush>
+						</Ellipse.Fill>
+					</Ellipse>
+					<Polyline Points="96,104 160,104 160,204 104,204 104,140 140,140" StrokeThickness="10" StrokeLineJoin="Round">
+						<Polyline.Stroke>
+							<LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+								<GradientStop Color="#33D6FF" Offset="0" />
+								<GradientStop Color="#FF3B6B" Offset="1" />
+							</LinearGradientBrush>
+						</Polyline.Stroke>
+					</Polyline>
+					<Polyline Points="176,104 240,104 240,204 184,204 184,140 220,140" StrokeThickness="10" StrokeLineJoin="Round"
+					          suisei:StrokeBrushMapping.Mode="AlongLength">
+						<Polyline.Stroke>
+							<LinearGradientBrush>
+								<GradientStop Color="#33D6FF" Offset="0" />
+								<GradientStop Color="#FF3B6B" Offset="1" />
+							</LinearGradientBrush>
+						</Polyline.Stroke>
+					</Polyline>
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- Half-transparent strokes that cross themselves: the crossings stay the colour of the rest of the stroke. -->
+		<Border Grid.Row="1" Grid.Column="1" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Translucent stroke" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Rectangle Canvas.Left="0" Canvas.Top="90" Width="248" Height="40" Fill="#E8EEF8" />
+					<Polygon Points="124,8 176,200 18,80 230,80 72,200" Stroke="#8033D6FF" StrokeThickness="12"
+					         StrokeLineJoin="Round" />
+					<Path Stroke="#80FF3B6B" StrokeThickness="10"
+					      Data="M 30,30 C 70,-10 70,70 124,30 S 180,-10 218,30" />
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- UIElement.Clip: a rectangle geometry cutting a canvas of shapes that reach past it. -->
+		<Border Grid.Row="1" Grid.Column="2" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Clip" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Rectangle Canvas.Left="24" Canvas.Top="24" Width="200" Height="172" Stroke="#4A5670" StrokeThickness="1"
+					           StrokeDashArray="4 4" />
+					<Canvas Width="248" Height="220">
+						<Canvas.Clip>
+							<RectangleGeometry Rect="24,24,200,172" />
+						</Canvas.Clip>
+						<Ellipse Canvas.Left="-40" Canvas.Top="60" Width="200" Height="200" Fill="#3A7BD5" />
+						<Ellipse Canvas.Left="120" Canvas.Top="-60" Width="180" Height="180" Fill="#F5A623" />
+						<Line X1="0" Y1="220" X2="248" Y2="0" Stroke="#FFFFFF" StrokeThickness="8" />
+					</Canvas>
+				</Canvas>
+			</StackPanel>
+		</Border>
+
+		<!-- An ImageBrush on rounded borders, which draw through the vector prim: a card, a round avatar, a frame. -->
+		<Border Grid.Row="1" Grid.Column="3" Margin="8" Padding="12" CornerRadius="12" Background="#161B26">
+			<StackPanel>
+				<TextBlock FontSize="16" Foreground="#B4D2FF" Text="Image brush" />
+				<Canvas Width="248" Height="220" Margin="0,8,0,0">
+					<Border x:Name="Banner" Canvas.Left="4" Canvas.Top="4" Width="240" Height="100" CornerRadius="24">
+						<Border.Background>
+							<ImageBrush Stretch="UniformToFill" />
+						</Border.Background>
+					</Border>
+					<Border x:Name="Avatar" Canvas.Left="12" Canvas.Top="120" Width="88" Height="88" CornerRadius="44">
+						<Border.Background>
+							<ImageBrush Stretch="UniformToFill" />
+						</Border.Background>
+					</Border>
+					<Border x:Name="Frame" Canvas.Left="120" Canvas.Top="124" Width="120" Height="80" CornerRadius="14"
+					        BorderThickness="8" Background="#0B0E14">
+						<Border.BorderBrush>
+							<ImageBrush Stretch="Fill" />
+						</Border.BorderBrush>
+					</Border>
+				</Canvas>
+			</StackPanel>
+		</Border>
+	</Grid>
+
+	<VisualStateManager.VisualStateGroups>
+		<VisualStateGroup Name="DrawOn">
+			<VisualState Name="Idle" />
+			<!-- Draw the trail on, hold it, then erase it from its start, forever: End leads, Start follows. -->
+			<VisualState Name="Looping">
+				<Storyboard>
+					<DoubleAnimationUsingKeyFrames Storyboard.TargetName="Trail" Storyboard.TargetProperty="(suisei:StrokeTrim.End)"
+					                               Duration="0:0:3.6" RepeatBehavior="Forever">
+						<LinearDoubleKeyFrame KeyTime="0:0:0" Value="0" />
+						<EasingDoubleKeyFrame KeyTime="0:0:2" Value="1">
+							<EasingDoubleKeyFrame.EasingFunction>
+								<CubicEase EasingMode="EaseInOut" />
+							</EasingDoubleKeyFrame.EasingFunction>
+						</EasingDoubleKeyFrame>
+					</DoubleAnimationUsingKeyFrames>
+					<DoubleAnimationUsingKeyFrames Storyboard.TargetName="Trail" Storyboard.TargetProperty="(suisei:StrokeTrim.Start)"
+					                               Duration="0:0:3.6" RepeatBehavior="Forever">
+						<LinearDoubleKeyFrame KeyTime="0:0:2.6" Value="0" />
+						<EasingDoubleKeyFrame KeyTime="0:0:3.6" Value="1">
+							<EasingDoubleKeyFrame.EasingFunction>
+								<CubicEase EasingMode="EaseInOut" />
+							</EasingDoubleKeyFrame.EasingFunction>
+						</EasingDoubleKeyFrame>
+					</DoubleAnimationUsingKeyFrames>
+				</Storyboard>
+			</VisualState>
+		</VisualStateGroup>
+	</VisualStateManager.VisualStateGroups>
+</ContentControl>

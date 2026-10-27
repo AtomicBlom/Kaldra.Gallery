@@ -28,6 +28,7 @@ internal static class DemoGallery
 			new UIInteractiveDemo(),
 			new UIGroupOpacityDemo(),
 			new VectorPrimsDemo(),
+			new VectorUIDemo(),
 			new UILiveTextureDemo(),
 			new ShadowsDemo(),
 			new SsaoDemo(),

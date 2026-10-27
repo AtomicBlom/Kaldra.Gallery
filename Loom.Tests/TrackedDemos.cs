@@ -21,6 +21,7 @@ internal static class TrackedDemos
 		("UIInteractive", () => new UIInteractiveDemo()),
 		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("InWorldUI", () => new InWorldUIDemo()),
+		("VectorUI", () => new VectorUIDemo()),
 		("UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
