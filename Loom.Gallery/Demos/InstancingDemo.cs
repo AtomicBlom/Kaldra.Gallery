@@ -14,8 +14,13 @@ namespace Loom.Gallery.Demos;
 /// app-owned <see cref="Scene"/> against it on the CPU, and hands only the surviving transforms to
 /// <c>ctx.Draw</c> with a <c>DrawCall.Instances</c> source; the HUD reports drawn vs culled. Culling stays optional and app-owned; the engine
 /// just offers the Scene + cull helper.
+/// <para>
+/// Uploaded once (<c>uploadOnce</c>), the same field goes to the GPU a single time as an <see cref="InstanceBuffer"/>,
+/// row by row, and each frame draws ranges of it (<see cref="DrawCall.Static(InstanceBuffer, int, int)"/>): the runs of
+/// rows whose bounds meet the frustum, nothing uploaded. It draws the same picture, which the tests hold it to.
+/// </para>
 /// </summary>
-internal sealed class InstancingDemo : IDemo
+internal sealed class InstancingDemo(bool uploadOnce = false) : IDemo
 {
 	private const int GridSize = 50;        // 50×50 = 2500 cubes
 	private const float Spacing = 0.5f;
@@ -28,7 +33,12 @@ internal sealed class InstancingDemo : IDemo
 	private IEngine _engine = null!;
 	private ConstantsHandle _viewproj = null!;
 
-	public string Name => "Instancing + Cull";
+	// Uploaded once: the field in rows, each row's box, and the runs of rows to draw this frame
+	private InstanceBuffer? _stored;
+	private Bounds[] _rows = [];
+	private readonly List<(int First, int Count)> _runs = [];
+
+	public string Name => uploadOnce ? "Instancing, uploaded once" : "Instancing + Cull";
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -45,7 +55,11 @@ internal sealed class InstancingDemo : IDemo
 		_group = world.AddInstanced(scene.Cube, "instanced");
 		var localBounds = Bounds.FromCenterExtents(Vector3.Zero, new Vector3(0.5f)); // the unit cube spans ±0.5
 		var half = (GridSize - 1) * Spacing * 0.5f;
+		var transforms = new Matrix4x4[GridSize * GridSize];
+		_rows = new Bounds[GridSize];
 		for (var ix = 0; ix < GridSize; ix++)
+		{
+			Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
 			for (var iz = 0; iz < GridSize; iz++)
 			{
 				var x = ix * Spacing - half;
@@ -56,10 +70,23 @@ internal sealed class InstancingDemo : IDemo
 					* Matrix4x4.CreateRotationY(angle)
 					* Matrix4x4.CreateTranslation(x, y, z);
 				_group.Add(transform, localBounds);
+				transforms[ix * GridSize + iz] = transform;
+				var reach = new Vector3(CubeScale);   // a spun cube stays inside its scale either way, and then some
+				(lo, hi) = (Vector3.Min(lo, new Vector3(x, y, z) - reach), Vector3.Max(hi, new Vector3(x, y, z) + reach));
 			}
+			_rows[ix] = new Bounds(lo, hi);
+		}
 		_total = _group.Count;
 		_visible = new Matrix4x4[_total];
 		_drawn = _total;
+		if (uploadOnce)
+		{
+			if (_stored is { } old)
+				_engine.ReleaseInstances(old);
+			_stored = _engine.CreateInstances<Matrix4x4>(transforms, VertexLayout.Transform);
+			_runs.Clear();
+			_runs.Add((0, _total));
+		}
 
 		return RenderGraph.Define(g =>
 		{
@@ -71,8 +98,20 @@ internal sealed class InstancingDemo : IDemo
 				.Reads(_viewproj)
 				.Writes(screen)
 				.WritesDepth(depth)
-				// The app hands the engine the culled draw list — the visible transforms compacted in Update().
-				.Draw(ctx => ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "instanced", Instances = DrawCall.From(_visible.AsSpan(0, _drawn)) }));
+				// The app hands the engine the culled draw list — the visible transforms compacted in Update(), or the
+				// runs of visible rows of the buffer uploaded once.
+				.Draw(ctx =>
+				{
+					if (_stored is { } stored)
+					{
+						foreach (var (first, count) in _runs)
+							ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "instanced", Instances = DrawCall.Static(stored, first, count) });
+					}
+					else
+					{
+						ctx.Draw(new DrawCall { Mesh = scene.Cube, Technique = "instanced", Instances = DrawCall.From(_visible.AsSpan(0, _drawn)) });
+					}
+				});
 
 			DemoGraph.Hud(g, screen, scene);
 			g.Present(screen);
@@ -82,8 +121,28 @@ internal sealed class InstancingDemo : IDemo
 	public void Update(Concepts.Camera camera)
 	{
 		_engine.Write(_viewproj, camera.ViewProjection);
-		_drawn = _group.Cull(camera.ExtractFrustum(), _visible);
+		var frustum = camera.ExtractFrustum();
+		if (!uploadOnce)
+		{
+			_drawn = _group.Cull(frustum, _visible);
+			return;
+		}
+		// Neighbouring visible rows join into one run, so one draw covers them
+		_runs.Clear();
+		_drawn = 0;
+		for (var row = 0; row < _rows.Length; row++)
+		{
+			if (!frustum.Intersects(_rows[row]))
+				continue;
+			if (_runs.Count > 0 && _runs[^1].First + _runs[^1].Count == row * GridSize)
+				_runs[^1] = (_runs[^1].First, _runs[^1].Count + GridSize);
+			else
+				_runs.Add((row * GridSize, GridSize));
+			_drawn += GridSize;
+		}
 	}
 
-	public string? HudStatus => $"instances {_drawn}/{_total} drawn ({_total - _drawn} culled)";
+	public string? HudStatus => uploadOnce
+		? $"instances {_drawn}/{_total} drawn in {_runs.Count} ranges of one buffer, uploaded once"
+		: $"instances {_drawn}/{_total} drawn ({_total - _drawn} culled)";
 }

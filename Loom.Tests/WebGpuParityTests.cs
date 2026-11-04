@@ -63,6 +63,7 @@ public class WebGpuParityTests
 		("vectorprims", "VectorPrims", () => new VectorPrimsDemo()),
 		("vectorui", "VectorUI", () => new VectorUIDemo()),
 		("uilivetexture", "UILiveTexture", () => new UILiveTextureDemo()),
+		("instancing-once", "InstancingOnce", () => new InstancingDemo(uploadOnce: true)),
 	];
 
 	// Demos deliberately NOT checked, with the reason recorded rather than the tolerance widened — the numbers are

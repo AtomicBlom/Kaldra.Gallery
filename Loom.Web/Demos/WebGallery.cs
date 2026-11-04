@@ -33,6 +33,7 @@ internal static class WebGallery
 		["debug2d"] = () => new Debug2DDemo(),
 		["foliage"] = () => new FoliageDemo(),
 		["instancing"] = () => new InstancingDemo(),
+		["instancing-once"] = () => new InstancingDemo(uploadOnce: true),
 		["lighting2d"] = () => new Lighting2DDemo(),
 		["nightglade"] = () => new NightGladeDemo(),
 		["normalmapping"] = () => new NormalMappingDemo(),
