@@ -153,9 +153,10 @@ public class TargetedParityTests
 	/// <summary>
 	/// Fixed-function alpha blending is backend-specific code (a <see cref="BlendMode"/> maps to the Vulkan
 	/// colour-blend state / the DirectX12 blend desc), so a mistranslation would diverge silently. Combine two
-	/// controlled probe gradients under a blend mode — additive (order-independent) and alpha-over (order-dependent,
-	/// alpha-weighted) — and assert Vulkan and DirectX12 produce the same frame. Guards the mapping that bloom /
-	/// particles (additive) and the transparent / sky passes (alpha-over) rely on.
+	/// controlled probe gradients under a blend mode — additive (order-independent), alpha-over (order-dependent,
+	/// alpha-weighted) and multiply (darkening) — and assert Vulkan and DirectX12 produce the same frame. Guards the
+	/// mapping that bloom / particles (additive), the transparent / sky passes (alpha-over) and decals (multiply)
+	/// rely on.
 	/// </summary>
 	[Test]
 	public void Blend_modes_are_backend_parity_clean()
@@ -176,6 +177,12 @@ public class TargetedParityTests
 		var alphaOver = CompareBlend(vulkan, dx12, BlendMode.AlphaOver,
 			bg: [0.20f, 0.20f, 0.20f, 1f], a: [0.80f, 0.25f, 0.25f, 0.5f], b: [0.25f, 0.25f, 0.80f, 0.5f]);
 		alphaOver.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"alpha-over blend diverges across backends: {alphaOver}");
+
+		// Multiply: two colours darkening an opaque light grey (src·dst). Its colour factor (the destination's colour) has no
+		// place in DirectX12's alpha equation, which once failed the pipeline outright there.
+		var multiply = CompareBlend(vulkan, dx12, BlendMode.Multiply,
+			bg: [0.90f, 0.90f, 0.90f, 1f], a: [0.80f, 0.50f, 0.30f, 1f], b: [0.60f, 0.90f, 0.70f, 1f]);
+		multiply.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"multiply blend diverges across backends: {multiply}");
 	}
 
 	private static ImageDiff CompareBlend(IRenderBackend vulkan, IRenderBackend dx12, BlendMode mode, float[] bg, float[] a, float[] b)
