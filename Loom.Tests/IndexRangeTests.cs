@@ -95,7 +95,7 @@ public class IndexRangeTests
 
 	// Two quads either side of the origin, sharing one vertex and index buffer — the shape a glTF model's primitives
 	// take once they stop being a mesh each.
-	private static (Vertex[] Vertices, uint[] Indices) TwoQuads()
+	internal static (Vertex[] Vertices, uint[] Indices) TwoQuads()
 	{
 		var n = new Vector3(0, 0, 1);
 		var tan = new Vector4(1, 0, 0, 1);
