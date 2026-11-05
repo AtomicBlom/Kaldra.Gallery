@@ -36,6 +36,7 @@ public class GalleryParityTests
 		("FullReference", () => new FullReferenceDemo()),
 		("Bloom", () => new BloomDemo()),
 		("Particles", () => new ParticlesDemo()),
+		("Msaa", () => new MsaaDemo(grille: false)),   // alpha-to-coverage's sample mask is the driver's choice, per API
 		("PixelArt", () => new PixelArtDemo()),
 		("StylizedReference", () => new StylizedDemo()),
 		("CubeLighting", () => new CubeLightingDemo()),

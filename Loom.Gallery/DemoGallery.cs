@@ -35,6 +35,7 @@ internal static class DemoGallery
 			new TonemappingDemo(),
 			new BloomDemo(),
 			new ParticlesDemo(),
+			new MsaaDemo(),
 			new HighlightingDemo(),
 			new InstancingDemo(),
 			new InstancingDemo(uploadOnce: true),

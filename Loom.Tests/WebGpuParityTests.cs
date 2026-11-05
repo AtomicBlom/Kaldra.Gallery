@@ -57,6 +57,7 @@ public class WebGpuParityTests
 		("pixelart", "PixelArt", () => new PixelArtDemo()),
 		("bloom", "Bloom", () => new BloomDemo()),
 		("particles", "Particles", () => new ParticlesDemo()),
+		("msaa-resolve", "Msaa", () => new MsaaDemo(grille: false)),   // alpha-to-coverage's sample mask is the driver's choice
 		("uiinteractive", "UIInteractive", () => new UIInteractiveDemo()),
 		("uigroupopacity", "UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("inworldui", "InWorldUI", () => new InWorldUIDemo()),
