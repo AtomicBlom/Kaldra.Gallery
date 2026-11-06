@@ -41,6 +41,32 @@ public class ComputeConstantsTests
 		}
 	}
 
+	// And its .Reads Storage likewise: a compute technique reading a read-only storage buffer its pass does not .Reads
+	// throws at dispatch, on every backend, rather than dispatching with the slot unbound (the Storage Scatter demo's
+	// parity shows the bound case working)
+	[Test]
+	public void A_compute_technique_reading_storage_its_pass_does_not_read_throws()
+	{
+		foreach (var backend in AvailableBackends())
+		{
+			using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+			engine.DefineTechnique("expand", TechniqueDescriptor.Compute("storage_scatter", hasFragmentPush: true));
+			engine.SetGraph(RenderGraph.Define(g =>
+			{
+				var sparks = g.Buffer("sparks", 96 * 96, SandboxVertexLayouts.ParticlePosition);
+				g.Compute("expand")
+					.ReadWrites(sparks)   // and no .Reads of the density map
+					.Dispatch(ctx => ctx.Dispatch("expand", (144, 1, 1), [0f], [], [sparks]));
+				g.Pass("consume").ReadsVertex(sparks).Writes(g.Backbuffer).Draw(_ => { });
+				g.Present(g.Backbuffer);
+			}));
+
+			var thrown = Should.Throw<Exception>(() => engine.Render(new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 }));
+			Flatten(thrown).ShouldContain(e => e is InvalidOperationException && e.Message.Contains("storage buffer"),
+				$"{backend.Name}: expected the dispatch to refuse the unread storage, got: {thrown}");
+		}
+	}
+
 	private static IEnumerable<Exception> Flatten(Exception e)
 	{
 		for (var x = e; x != null; x = x.InnerException)

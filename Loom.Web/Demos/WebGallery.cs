@@ -16,6 +16,7 @@ internal static class WebGallery
 	{
 		["cube"] = () => new CubeLightingDemo(),
 		["particles"] = () => new ParticlesDemo(),
+		["storage-scatter"] = () => new StorageScatterDemo(),
 		["msaa"] = () => new MsaaDemo(),
 		["msaa-resolve"] = () => new MsaaDemo(grille: false),
 		["highlighting"] = () => new HighlightingDemo(),

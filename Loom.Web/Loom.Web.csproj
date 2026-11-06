@@ -111,6 +111,7 @@
     <Compile Include="..\Loom.Gallery\Demos\CubeLightingDemo.cs" Link="Demos\CubeLightingDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\ParticlesDemo.cs" Link="Demos\ParticlesDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\MsaaDemo.cs" Link="Demos\MsaaDemo.cs" />
+    <Compile Include="..\Loom.Gallery\Demos\StorageScatterDemo.cs" Link="Demos\StorageScatterDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\HighlightingDemo.cs" Link="Demos\HighlightingDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\BloomDemo.cs" Link="Demos\BloomDemo.cs" />
     <Compile Include="..\Loom.Gallery\Demos\TonemappingDemo.cs" Link="Demos\TonemappingDemo.cs" />
