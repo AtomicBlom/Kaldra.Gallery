@@ -47,10 +47,17 @@ static const float3 kSamples[16] = {
 	float3(0.30, 0.22, 0.34), float3(-0.28, 0.26, 0.40), float3(0.20, -0.34, 0.44), float3(-0.36, -0.30, 0.50),
 };
 
-float hash(float2 p)
+// A random number from 0 to 1 for an integer, the same on every GPU: the PCG hash, in integers alone. (frac(sin(n) *
+// 43758.5453) was here: sin's last bits differ between GPUs and drivers, and the multiply makes them the whole answer.)
+float Hash01(uint v)
 {
-	return frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
+	uint state = v * 747796405u + 2891336453u;
+	uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+	return float(((word >> 22u) ^ word) >> 8) / 16777216.0;
 }
+
+// The pixel a uv lies in, as one integer, for its random rotation
+uint PixelOf(float2 uv) { uint2 p = uint2(uv * 8192.0); return p.x * 73856093u ^ p.y * 19349663u; }
 
 [shader("fragment")]
 float fragmentMain(VsOut input) : SV_Target
@@ -70,7 +77,7 @@ float fragmentMain(VsOut input) : SV_Target
 	float3 n = normalize(normalTex.SampleLevel(input.uv, 0.0).rgb * 2.0 - 1.0);
 
 	// Per-pixel rotated tangent basis (Gram-Schmidt) so the fixed kernel varies across the image.
-	float angle = hash(input.uv) * 6.2831853;
+	float angle = Hash01(PixelOf(input.uv)) * 6.2831853;
 	float3 randVec = float3(cos(angle), sin(angle), 0.0);
 	float3 t = normalize(randVec - n * dot(randVec, n));
 	float3 b = cross(n, t);

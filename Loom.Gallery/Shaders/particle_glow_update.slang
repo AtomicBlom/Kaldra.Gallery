@@ -26,9 +26,14 @@ struct PushConstants
 
 LOOM_PUSH_CONSTANT PushConstants pc;
 
-float hash11(float n)
+// A random number from 0 to 1 for an integer, the same on every GPU: the PCG hash, in integers alone. (frac(sin(n) *
+// 43758.5453) was here: sin's last bits differ between GPUs and drivers, the multiply makes them the whole answer, and
+// the particles fell elsewhere on every machine, so this demo's golden held only on the GPU that made it.)
+float Hash01(uint v)
 {
-	return frac(sin(n) * 43758.5453123);
+	uint state = v * 747796405u + 2891336453u;
+	uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+	return float(((word >> 22u) ^ word) >> 8) / 16777216.0;
 }
 
 [shader("compute")]
@@ -54,9 +59,9 @@ void computeMain(uint3 id : SV_DispatchThreadID)
 	float originZ = pc.p2.z;
 
 	// Per-particle randoms, stable across the whole life (they depend only on the index).
-	float seed = hash11(float(i) * 1.7 + 0.3);
-	float seedX = hash11(float(i) * 3.1 + 0.5);
-	float seedAng = hash11(float(i) * 5.3 + 1.2);
+	float seed = Hash01(i * 3u);
+	float seedX = Hash01(i * 3u + 1u);
+	float seedAng = Hash01(i * 3u + 2u);
 
 	// Each particle loops on its own staggered phase → a continuous stream of births rather than a pulse.
 	float phase = frac(time / lifetime + seed);
