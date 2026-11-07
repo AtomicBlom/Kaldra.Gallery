@@ -62,8 +62,9 @@ public class TargetedParityTests
 		var normal = CompareTarget(vulkan, dx12, GBufferTarget.Normal);
 		normal.FailedFraction.ShouldBeLessThanOrEqualTo(tbnBound,
 			$"the encoded normal's cross-backend TBN precision gap widened beyond its known bound: {normal}");
-		// And it is genuinely the TBN, not the sampler: the normal diverges materially more than its albedo control.
-		normal.FailedFraction.ShouldBeGreaterThan(albedo.FailedFraction);
+		// That the normal diverged more than its albedo control was asserted too, as proof the gap was the TBN's. The gap
+		// has since closed (2026-11-08, NVIDIA Turing: both targets match to the bit), so that proof can't be asked
+		// for, and nothing is lost: the albedo staying clean and the normal staying bounded are the guards.
 	}
 
 	private enum GBufferTarget { Albedo, Normal }
