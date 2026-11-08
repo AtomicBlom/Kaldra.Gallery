@@ -17,7 +17,7 @@ namespace Loom.Tests;
 /// no backend is available.
 /// </summary>
 [NotInParallel] // one GPU engine at a time
-public class ShadowUploadTests
+public class FrameSlotUploadTests
 {
 	private const int W = 64, H = 64;
 	private const int FramesChecked = 4;   // more than any backend has slots
