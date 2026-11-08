@@ -205,6 +205,16 @@ public class MsaaTests
 			g.Pass("draw").WritesDepth(depth).Draw(_ => { });
 			g.Pass("sample").Samples(depth).Writes(color).Draw(_ => { });
 		});
+		foreach (var format in (Format[])[Format.R32F, Format.R32Uint])
+		{
+			Refused($"is {format}, which pass 'sample' samples", (g, msaa) =>
+			{
+				var ids = msaa.Color("ids", format);
+				var color = g.Screen.Color("color", Format.Rgba8Unorm);
+				g.Pass("draw").Writes(ids).Draw(_ => { });
+				g.Pass("sample").Samples(ids).Writes(color).Draw(_ => { });
+			});
+		}
 		Refused("is presented", (g, msaa) =>
 		{
 			var color = msaa.Color("color", Format.Rgba8Unorm);
