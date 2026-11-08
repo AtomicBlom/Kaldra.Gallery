@@ -6,20 +6,12 @@
 // ParticlePosition layout); the graph derives the compute->vertex barrier from the shared buffer.
 
 #include "loom_platform.module.slang"
+#include "hash.module.slang"
 
 LOOM_BINDING(0) RWStructuredBuffer<float4> fireflies;
 
 struct PushConstants { float4 p; }; // x = elapsed time (seconds)
 LOOM_PUSH_CONSTANT PushConstants pc;
-
-// A random number from 0 to 1 for an integer, the same on every GPU: the PCG hash, in integers alone. (frac(sin(n) *
-// 43758.5453) was here: sin's last bits differ between GPUs and drivers, and the multiply makes them the whole answer.)
-float Hash01(uint v)
-{
-	uint state = v * 747796405u + 2891336453u;
-	uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-	return float(((word >> 22u) ^ word) >> 8) / 16777216.0;
-}
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
