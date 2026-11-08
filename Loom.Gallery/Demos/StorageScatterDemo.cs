@@ -14,7 +14,9 @@ namespace Loom.Gallery.Demos;
 /// eye. The map's write is uploaded only into the frames in flight behind it, so a map written once costs nothing per
 /// frame.
 /// </summary>
-internal sealed class StorageScatterDemo : IDemo
+/// <param name="filled">Write a map of density 1 everywhere rather than the ring: the control a test holds the ring to,
+/// since a dispatch reading the wrong buffer, or none, would scatter the same field either way.</param>
+internal sealed class StorageScatterDemo(bool filled = false) : IDemo
 {
 	private const int Cells = 96, Map = 16;
 
@@ -78,7 +80,7 @@ internal sealed class StorageScatterDemo : IDemo
 			{
 				float dx = (x + 0.5f) / Map - 0.5f, dz = (z + 0.5f) / Map - 0.5f;
 				float r = MathF.Sqrt(dx * dx + dz * dz);
-				map[x + z * Map] = MathF.Max(0f, 1f - MathF.Abs(r - 0.3f) / 0.12f);   // a ring
+				map[x + z * Map] = filled ? 1f : MathF.Max(0f, 1f - MathF.Abs(r - 0.3f) / 0.12f);   // a ring, or the control's whole field
 			}
 		_engine.Write(_density, map);
 		_densityWritten = true;

@@ -34,6 +34,7 @@ public class MsaaTests
 			throw new TUnit.Core.Exceptions.SkipTestException("No GPU backend is available on this box (Backends.Available is empty).");
 		var keep = Environment.GetEnvironmentVariable("LOOM_KEEP_CAPTURES") is not null;
 
+		var rendered = 0;
 		foreach (var backend in Backends.Available)
 		{
 			var four = Path.Combine(Path.GetTempPath(), $"loom-msaa-{backend.Name}-4x.png");
@@ -43,6 +44,7 @@ public class MsaaTests
 				if (!GalleryCapture.TryRender(backend, () => new MsaaDemo(4), four, withUI: false)
 					|| !GalleryCapture.TryRender(backend, () => new MsaaDemo(1), one, withUI: false))
 					continue;
+				rendered++;
 				var (w, h, msaa) = PngReader.Read(four);
 				var (_, _, plain) = PngReader.Read(one);
 				var blended = Blended(w, h, msaa);
@@ -60,6 +62,58 @@ public class MsaaTests
 				}
 			}
 		}
+
+		// A backend that couldn't render is skipped above; all of them skipped would otherwise pass with nothing checked
+		rendered.ShouldBeGreaterThan(0, "no backend rendered the MSAA demo at both sample counts.");
+	}
+
+	/// <summary>
+	/// With <see cref="TechniqueDescriptor.AlphaToCoverage"/> a fragment covers the share of its pixel's samples its alpha
+	/// says, so a white fill over a black target resolves to black at alpha 0, white at alpha 1 and part way between at
+	/// alpha 0.5. A technique whose alpha-to-coverage did nothing would fill white at every alpha. At one sample a pixel
+	/// it has no effect, so alpha 0 still fills.
+	/// </summary>
+	[Test]
+	public void Alpha_to_coverage_covers_the_share_of_samples_the_alpha_says()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("No GPU backend is available on this box (Backends.Available is empty).");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			// The mean red, in sRGB bytes, over the right eighth of the frame, where the probe's ramp is near its full colour
+			int Fill(int samples, float alpha)
+			{
+				var (rgba, errors) = Render(backend, samples, (g, msaa) =>
+				{
+					var scene = msaa.Color("scene", Format.Rgba16F);
+					g.Pass("fill").Writes(scene).Draw(ctx => ctx.FullScreen("probe.coverage", [1f, 1f, 1f, alpha]));
+					g.Pass("show").Samples(scene).Writes(g.Backbuffer).Draw(ctx => ctx.FullScreen("blit", scene));
+					g.Present(g.Backbuffer);
+				}, Path.Combine(Path.GetTempPath(), $"loom-msaa-coverage-{backend.Name}-{samples}x-{alpha}-{Guid.NewGuid():N}.png"));
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+				long sum = 0, count = 0;
+				for (var y = 0; y < H; y++)
+					for (var x = W - (W / 8); x < W; x++, count++)
+						sum += rgba[((y * W) + x) * 4];
+				return (int)(sum / count);
+			}
+
+			int none = Fill(4, 0f), half = Fill(4, 0.5f), full = Fill(4, 1f), single = Fill(1, 0f);
+			if (full < 200)
+				failures.Add($"{backend.Name}: alpha 1 filled only {full}; the probe drew nothing.");
+			if (none > Dark)
+				failures.Add($"{backend.Name}: alpha 0 filled {none} at four samples; alpha-to-coverage covered samples it shouldn't.");
+			if (half < full / 2 || half > full * 9 / 10)
+				failures.Add($"{backend.Name}: alpha 0.5 filled {half} against alpha 1's {full}; it should cover about half the samples.");
+			if (single < 200)
+				failures.Add($"{backend.Name}: alpha 0 at one sample filled only {single}; alpha-to-coverage should have no effect there.");
+		}
+		failures.ShouldBeEmpty("alpha-to-coverage:\n  " + string.Join("\n  ", failures));
 	}
 
 	/// <summary>
@@ -238,6 +292,7 @@ public class MsaaTests
 			{
 				engine.DefineTechnique("probe.opaque", new TechniqueDescriptor("probe", HasFragmentPush: true));
 				engine.DefineTechnique("probe.add", new TechniqueDescriptor("probe", HasFragmentPush: true, Blend: BlendMode.Additive));
+				engine.DefineTechnique("probe.coverage", new TechniqueDescriptor("probe", HasFragmentPush: true, AlphaToCoverage: true));
 				engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
 				engine.DefineTechnique("blit.add", new TechniqueDescriptor("blit", Blend: BlendMode.Additive));
 				engine.SetGraph(RenderGraph.Define(g => define(g, g.Domain("msaa", W, H, samples))));
