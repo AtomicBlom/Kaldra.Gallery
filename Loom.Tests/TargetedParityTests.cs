@@ -178,14 +178,15 @@ public class TargetedParityTests
 			bg: [0.20f, 0.20f, 0.20f, 1f], a: [0.80f, 0.25f, 0.25f, 0.5f], b: [0.25f, 0.25f, 0.80f, 0.5f]);
 		alphaOver.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"alpha-over blend diverges across backends: {alphaOver}");
 
-		// Multiply: two colours darkening an opaque light grey (src·dst). Its colour factor (the destination's colour) has no
-		// place in DirectX12's alpha equation, which once failed the pipeline outright there.
+		// Multiply: two colours darkening a light grey (src·dst). Every alpha is below 1, so the alpha equation shows in the
+		// frame too: DirectX12 takes the destination's alpha where the colour equation takes its colour, and a wrong
+		// mapping there diverges in the alpha channel alone.
 		var multiply = CompareBlend(vulkan, dx12, BlendMode.Multiply,
-			bg: [0.90f, 0.90f, 0.90f, 1f], a: [0.80f, 0.50f, 0.30f, 1f], b: [0.60f, 0.90f, 0.70f, 1f]);
+			bg: [0.90f, 0.90f, 0.90f, 0.80f], a: [0.80f, 0.50f, 0.30f, 0.60f], b: [0.60f, 0.90f, 0.70f, 0.70f], alphaVaries: true);
 		multiply.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"multiply blend diverges across backends: {multiply}");
 	}
 
-	private static ImageDiff CompareBlend(IRenderBackend vulkan, IRenderBackend dx12, BlendMode mode, float[] bg, float[] a, float[] b)
+	private static ImageDiff CompareBlend(IRenderBackend vulkan, IRenderBackend dx12, BlendMode mode, float[] bg, float[] a, float[] b, bool alphaVaries = false)
 	{
 		var vkPath = Path.Combine(Path.GetTempPath(), $"loom-blend-{mode}-vk-{Guid.NewGuid():N}.png");
 		var dxPath = Path.Combine(Path.GetTempPath(), $"loom-blend-{mode}-dx-{Guid.NewGuid():N}.png");
@@ -203,6 +204,9 @@ public class TargetedParityTests
 			var right = (mid * vw + vw - 3) * 4;
 			var span = Math.Abs(vk[left] - vk[right]) + Math.Abs(vk[left + 1] - vk[right + 1]) + Math.Abs(vk[left + 2] - vk[right + 2]);
 			span.ShouldBeGreaterThan(16, $"{mode}: the blended frame is ~uniform — the probe likely rendered nothing, so parity would pass vacuously.");
+			// And where the alpha equation is under test, the capture must carry it: an alpha forced opaque would compare equal
+			if (alphaVaries)
+				vk[left + 3].ShouldBeLessThan((byte)250, $"{mode}: the captured alpha is opaque, so the alpha equation goes untested.");
 			return ImageComparison.Compare(vw, vh, vk, dx, PerChannelTolerance);
 		}
 		finally
