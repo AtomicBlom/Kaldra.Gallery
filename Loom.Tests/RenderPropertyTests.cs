@@ -428,6 +428,89 @@ public class RenderPropertyTests
 		failures.ShouldBeEmpty("Layers on two target sizes in one frame interfere:\n  " + string.Join("\n  ", failures));
 	}
 
+	/// <summary>
+	/// A group-opacity layer opened by a list drawn in a multisampled pass renders into a single-sample layer target, so
+	/// it is drawn by a pipeline baked for one sample, and composited back into the pass by one baked for the pass's
+	/// count. A layer drawn by the pass's own pipeline asks a multisampled pipeline to draw into a single-sample target,
+	/// which every debug layer refuses. The panel, drawn into a 4x target that the frame samples, holds to the overlap
+	/// invariant above, and each backend to its debug layer.
+	/// </summary>
+	[Test]
+	public void Group_opacity_in_a_multisampled_pass_keeps_the_overlap_the_same_colour()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var nonOverlap = new Vector2(110, 100);
+		var overlap = new Vector2(185, 155);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-msaaopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderMultisampledGroupOpacityPanel(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, h, rgba) = PngReader.Read(path);
+				var a = AverageBlock(rgba, w, h, nonOverlap, 6);
+				var o = AverageBlock(rgba, w, h, overlap, 6);
+				var delta = MaxChannelDelta(a, o);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: overlap {Fmt(o)} != non-overlap {Fmt(a)} (Δ{delta}) — the group fade darkened the overlap.");
+				if (a.W < 8 || o.W < 8)
+					failures.Add($"{backend.Name}: a sample missed the panel (non-overlap {Fmt(a)}, overlap {Fmt(o)}).");
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Group opacity in a multisampled pass is wrong:\n  " + string.Join("\n  ", failures));
+	}
+
+	// The group-opacity panel drawn into a four-sample target, which the frame samples (resolved) into the backbuffer
+	private static void RenderMultisampledGroupOpacityPanel(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
+		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
+		panel.View.Root.Content = BuildGroupOpacityPanel();
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var ui = g.Domain("msaa", W, H, 4).Color("ui", Format.Rgba8Srgb);
+			g.Pass("ui").Writes(ui).Draw(ctx => panel.Draw(ctx));
+			g.Pass("show").Samples(ui).Writes(screen).Draw(ctx => ctx.FullScreen("blit", ui));
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			panel.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W, H));
+			panel.Render();
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
 	// A faded panel drawn into a half-size texture, then the group-opacity panel onto the backbuffer, every frame: two
 	// lists, each opening a layer, at two scope sizes. The backbuffer pass samples the texture so the first pass stays
 	// live; it need not show it.
