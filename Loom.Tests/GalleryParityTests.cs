@@ -21,8 +21,10 @@ public class GalleryParityTests
 	private const int PerChannelTolerance = 4;
 	private const double MaxFailedFraction = 0.005;
 
-	// A spread of pure-render demos (no input needed for a deterministic frame). A demo unsupported on one backend
-	// is dropped by the capability filter rather than compared. (The normal-mapping demo is deliberately absent: it
+	// A spread of render demos, plus the UI demos — whose pages GalleryCapture shows chrome-free and whose scripted
+	// click it replays, so their frames are as deterministic as the rest; the group-opacity one is the only UI path
+	// whose pixels depend on the backend. A demo unsupported on one backend is dropped by the capability filter
+	// rather than compared. (The normal-mapping demo is deliberately absent: it
 	// diverges ~0.9% of pixels across the backends, just over the strict bar. It isolates to the tangent-space
 	// reconstruction in gbuffer_normalmap — the encoded normal alone already diverges ~0.7% while the SAME shader's
 	// albedo (a plain texture sample) stays clean at ~0.02%, so it is the normalize/cross/normalize rounding
@@ -34,12 +36,20 @@ public class GalleryParityTests
 		("FullReference", () => new FullReferenceDemo()),
 		("Bloom", () => new BloomDemo()),
 		("Particles", () => new ParticlesDemo()),
+		("StorageScatter", () => new StorageScatterDemo()),
+		("Msaa", () => new MsaaDemo(grille: false)),   // alpha-to-coverage's sample mask is the driver's choice, per API
 		("PixelArt", () => new PixelArtDemo()),
 		("StylizedReference", () => new StylizedDemo()),
 		("CubeLighting", () => new CubeLightingDemo()),
 		("Tonemapping", () => new TonemappingDemo()),
 		("Shadows", () => new ShadowsDemo()),
 		("Toon", () => new ToonDemo()),
+		("UIInteractive", () => new UIInteractiveDemo()),
+		("UIGroupOpacity", () => new UIGroupOpacityDemo()),
+		("InWorldUI", () => new InWorldUIDemo()),
+		("VectorPrims", () => new VectorPrimsDemo()),
+		("VectorUI", () => new VectorUIDemo()),
+		("UILiveTexture", () => new UILiveTextureDemo()),
 	];
 
 	[Test]

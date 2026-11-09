@@ -3,15 +3,24 @@ using System.Numerics;
 using Loom.Backend.DirectX12;
 using Loom.Backend.Vulkan;
 using Loom.Concepts;
+using Loom.Core.Diagnostics;
 using Loom.Core.Geometry;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
+using Loom.Core.Primitives;
 using Loom.Gallery.Demos;
 using Loom.UI.SUIsei;
 
 using SUIsei;
 using SUIsei.Controls;
+using SUIsei.Extensions;
+using SUIsei.Media;
+
+using Polygon = SUIsei.Shapes.Polygon;
+using Polyline = SUIsei.Shapes.Polyline;
+using Rectangle = SUIsei.Shapes.Rectangle;
+using VectorVertex = SUIsei.Drawing.VectorVertex;
 
 namespace Loom.Tests;
 
@@ -363,6 +372,178 @@ public class RenderPropertyTests
 
 	private const int W = 512, H = 384;
 
+	/// <summary>
+	/// Group-opacity layers on two targets of different sizes in one frame each keep targets of their own size. A layer
+	/// target matches the scope its list draws into, and a frame routinely layers UI on two: a panel's texture and the
+	/// backbuffer. The backend pools them per size, so neither list throws the other's away mid-frame — while a frame
+	/// recorded earlier, and still in flight, samples them. This draws a faded panel into a half-size texture and
+	/// another onto the backbuffer every frame, for more frames than are in flight, and holds each backend to its debug
+	/// layer and the backbuffer's panel to the overlap invariant above.
+	/// </summary>
+	[Test]
+	public void Group_layers_on_two_target_sizes_in_one_frame_keep_targets_of_their_own()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var nonOverlap = new Vector2(110, 100);
+		var overlap = new Vector2(185, 155);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-twosizedlayers-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderTwoSizedLayers(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, h, rgba) = PngReader.Read(path);
+				var a = AverageBlock(rgba, w, h, nonOverlap, 6);
+				var o = AverageBlock(rgba, w, h, overlap, 6);
+				var delta = MaxChannelDelta(a, o);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: overlap {Fmt(o)} != non-overlap {Fmt(a)} (Δ{delta}) — the backbuffer's layer was lost or overwritten.");
+				if (a.W < 8 || o.W < 8)
+					failures.Add($"{backend.Name}: a sample missed the panel (non-overlap {Fmt(a)}, overlap {Fmt(o)}).");
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Layers on two target sizes in one frame interfere:\n  " + string.Join("\n  ", failures));
+	}
+
+	/// <summary>
+	/// A group-opacity layer opened by a list drawn in a multisampled pass renders into a single-sample layer target, so
+	/// it is drawn by a pipeline baked for one sample, and composited back into the pass by one baked for the pass's
+	/// count. A layer drawn by the pass's own pipeline asks a multisampled pipeline to draw into a single-sample target,
+	/// which every debug layer refuses. The panel, drawn into a 4x target that the frame samples, holds to the overlap
+	/// invariant above, and each backend to its debug layer.
+	/// </summary>
+	[Test]
+	public void Group_opacity_in_a_multisampled_pass_keeps_the_overlap_the_same_colour()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var nonOverlap = new Vector2(110, 100);
+		var overlap = new Vector2(185, 155);
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-msaaopacity-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderMultisampledGroupOpacityPanel(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, h, rgba) = PngReader.Read(path);
+				var a = AverageBlock(rgba, w, h, nonOverlap, 6);
+				var o = AverageBlock(rgba, w, h, overlap, 6);
+				var delta = MaxChannelDelta(a, o);
+				if (delta > 4)
+					failures.Add($"{backend.Name}: overlap {Fmt(o)} != non-overlap {Fmt(a)} (Δ{delta}) — the group fade darkened the overlap.");
+				if (a.W < 8 || o.W < 8)
+					failures.Add($"{backend.Name}: a sample missed the panel (non-overlap {Fmt(a)}, overlap {Fmt(o)}).");
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Group opacity in a multisampled pass is wrong:\n  " + string.Join("\n  ", failures));
+	}
+
+	// The group-opacity panel drawn into a four-sample target, which the frame samples (resolved) into the backbuffer
+	private static void RenderMultisampledGroupOpacityPanel(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		engine.DefineTechnique("blit", new TechniqueDescriptor("blit"));
+		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
+		panel.View.Root.Content = BuildGroupOpacityPanel();
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var ui = g.Domain("msaa", W, H, 4).Color("ui", Format.Rgba8Srgb);
+			g.Pass("ui").Writes(ui).Draw(ctx => panel.Draw(ctx));
+			g.Pass("show").Samples(ui).Writes(screen).Draw(ctx => ctx.FullScreen("blit", ui));
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			panel.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W, H));
+			panel.Render();
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
+	// A faded panel drawn into a half-size texture, then the group-opacity panel onto the backbuffer, every frame: two
+	// lists, each opening a layer, at two scope sizes. The backbuffer pass samples the texture so the first pass stays
+	// live; it need not show it.
+	private static void RenderTwoSizedLayers(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		var small = InWorldPanel.Create(engine, W / 2, H / 2, Matrix4x4.Identity, billboard: false);
+		small.View.Root.Content = BuildFadedFills(0.5f);
+		var full = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
+		full.View.Root.Content = BuildGroupOpacityPanel();
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			var smallTarget = g.Domain("small", W / 2, H / 2).Color("small_color", Format.Rgba8Srgb);
+			g.Pass("small").Writes(smallTarget).Draw(ctx => small.Draw(ctx));
+			g.Pass("ui").Samples(smallTarget).Writes(screen).Draw(ctx => full.Draw(ctx));
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 8; frame++)
+		{
+			small.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W / 2, H / 2));
+			small.Render();
+			full.Tick(1.0 / 60.0, 0f, Matrix4x4.Identity, Matrix4x4.Identity, new Vector2(W, H));
+			full.Render();
+			if (frame == 6)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
 	private static void RenderGroupOpacityPanel(IRenderBackend backend, string outPath) =>
 		RenderPanel(backend, outPath, BuildGroupOpacityPanel);
 
@@ -372,7 +553,7 @@ public class RenderPropertyTests
 
 		// InWorldPanel renders a SUIsei tree to a target through the standard "ui" draw-list path — including the
 		// offscreen-layer composite a group-opacity subtree triggers. A flat identity transform, no billboard.
-		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false, fontAtlas: FontAtlas.Default);
+		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
 		panel.View.Root.Content = content();
 
 		var graph = RenderGraph.Define(g =>
@@ -399,8 +580,9 @@ public class RenderPropertyTests
 	private static UIElement BuildGroupOpacityPanel()
 	{
 		var overlapCanvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -413,8 +595,8 @@ public class RenderPropertyTests
 			HorizontalAlignment = HorizontalAlignment.Left,
 			VerticalAlignment = VerticalAlignment.Top,
 			Padding = new Thickness(24f),
-			Background = HdrColor.FromRgb(18, 22, 30),
-			CornerRadius = 14f,
+			Background = new SolidColorBrush(HdrColor.FromRgb(18, 22, 30)),
+			CornerRadius = new CornerRadius(14f),
 			Opacity = 0.5f,
 			Child = overlapCanvas,
 		};
@@ -427,8 +609,9 @@ public class RenderPropertyTests
 	private static UIElement BuildFadedFills(params float[] opacities)
 	{
 		var canvas = new Canvas { Width = 240f, Height = 180f };
-		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
-		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = 8f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var fill = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255));
+		var fillA = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
+		var fillB = new Border { Width = 150f, Height = 120f, CornerRadius = new CornerRadius(8f), Background = fill };
 		Canvas.SetLeft(fillA, 0f);
 		Canvas.SetTop(fillA, 0f);
 		Canvas.SetLeft(fillB, 80f);
@@ -452,13 +635,13 @@ public class RenderPropertyTests
 				Width = 100f,
 				Height = 60f,
 				Opacity = 0.9f,
-				Child = new Border { Background = HdrColor.FromRgb(255, 120, 60) },
+				Child = new Border { Background = new SolidColorBrush(HdrColor.FromRgb(255, 120, 60)) },
 			};
 			Canvas.SetLeft(deep, 0f);
 			Canvas.SetTop(deep, 0f);
 			canvas.Children.Add(deep);
 		}
-		var siblingFill = new Border { Width = 120f, Height = 100f, Background = HdrColor.FromRgb(80, 170, 255) };
+		var siblingFill = new Border { Width = 120f, Height = 100f, Background = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255)) };
 		Canvas.SetLeft(siblingFill, 60f);
 		Canvas.SetTop(siblingFill, 50f);
 		canvas.Children.Add(siblingFill);
@@ -480,6 +663,687 @@ public class RenderPropertyTests
 				Child = content,
 			};
 		return content;
+	}
+
+	/// <summary>
+	/// The <c>ui</c> shader antialiases an edge over one screen pixel whatever the edge's angle: it divides a distance by
+	/// the length of its screen-space gradient. <c>fwidth</c> — the L1 norm |ddx| + |ddy| — would over-state that
+	/// gradient by √2 on a diagonal and blur a 45° edge across √2 as many pixels as a vertical one, which is the
+	/// difference this test exists to catch.
+	/// <para>
+	/// Both arms that take edge coverage from a distance are checked: a rounded rect, whose distance is its own SDF in
+	/// local rect space, and a vector triangle, whose distance arrives interpolated in <c>Custom</c>, with its three other
+	/// half-plane slots unused. A third case draws the same edge as a SUIsei <c>Polygon</c> through the compositor, so
+	/// the tessellator's fill — an interior inset by half a pixel inside a one-pixel fringe straddling each edge — is held
+	/// to the same ramp as a hand-built triangle. Each draws one straight edge through the middle of the target, at 0° and
+	/// at 45°. The edge is known exactly, so every pixel's signed distance <c>s</c> from it is too, and its coverage is the
+	/// capture's alpha; the ramp width is the least-squares fit of <c>coverage − 0.5 = s / width</c> over the partly
+	/// covered pixels. The driver's debug layer must stay silent throughout, so every case is held to validation as well.
+	/// </para>
+	/// </summary>
+	[Test]
+	public void An_edge_ramps_across_one_pixel_at_0_and_45_degrees()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		// Off the pixel grid on both axes, so the pixels the edge crosses are partly covered rather than exactly half.
+		var edge = new Vector2(256.2f, 192.45f);
+		(string Name, Action<IRenderBackend, string, Vector2, Vector2> Render)[] arms =
+		[
+			("rounded rect", static (backend, path, edge, inward) => RenderEdge(backend, path, 1, edge, inward)),
+			("vector", static (backend, path, edge, inward) => RenderEdge(backend, path, 7, edge, inward)),
+			("polygon", RenderShapeEdge),
+		];
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			foreach (var (name, render) in arms)
+			{
+				var widths = new double[2];
+				for (var a = 0; a < 2; a++)
+				{
+					var degrees = a == 0 ? 0f : 45f;
+					var inward = new Vector2(MathF.Cos(degrees * MathF.PI / 180f), MathF.Sin(degrees * MathF.PI / 180f));
+					var path = Path.Combine(Path.GetTempPath(), $"loom-edgeramp-{backend.Name}-{name.Replace(' ', '-')}-{degrees}-{Guid.NewGuid():N}.png");
+					// The engine runs with the driver's debug layer on, which reports through LoomLog; an error it raises
+					// while drawing these arms fails the test as surely as a wrong ramp.
+					var errors = new List<string>();
+					var previousSink = LoomLog.Sink;
+					LoomLog.Sink = (level, message) =>
+					{
+						if (level == LoomLogLevel.Error)
+							lock (errors) errors.Add(message);
+					};
+					try
+					{
+						render(backend, path, edge, inward);
+						LoomLog.Sink = previousSink;
+						foreach (var error in errors)
+							failures.Add($"{backend.Name} {name} at {degrees}°: the debug layer reported: {error}");
+						var (w, h, rgba) = PngReader.Read(path);
+						var ramp = MeasureRamp(rgba, w, h, edge, inward);
+						var label = $"{backend.Name} {name} at {degrees}°";
+
+						// Vacuous-pass guards: the edge must actually be there, solid on its inside and clear outside it.
+						if (ramp.Partial < 200)
+							failures.Add($"{label}: only {ramp.Partial} partly covered pixels along the edge.");
+						if (!ramp.InsideSolid || !ramp.OutsideClear)
+							failures.Add($"{label}: the edge is not solid inside and clear outside (inside solid {ramp.InsideSolid}, outside clear {ramp.OutsideClear}).");
+
+						widths[a] = ramp.Width;
+						if (Math.Abs(ramp.Width - 1.0) > 0.1)
+							failures.Add($"{label}: the ramp is {ramp.Width:F3} px wide, not one pixel.");
+					}
+					finally
+					{
+						LoomLog.Sink = previousSink;
+						if (File.Exists(path)) File.Delete(path);
+					}
+				}
+
+				if (Math.Abs(widths[1] - widths[0]) > 0.05)
+					failures.Add($"{backend.Name} {name}: the ramp is {widths[0]:F3} px wide at 0° but {widths[1]:F3} px at 45°.");
+			}
+		}
+
+		failures.ShouldBeEmpty("Edge antialiasing depends on the edge's angle:\n  " + string.Join("\n  ", failures));
+	}
+
+	// A shape whose one straight edge passes through `edge`, its inside towards `inward`, drawn white through the ui
+	// technique as a raw draw list: no compositor, so nothing but the shader decides the coverage. The shape is a square
+	// 1200 px across, so its other edges are far outside the target. A rounded rect (kind 1) carries its local rect in uv
+	// and params, with a zero radius; a vector triangle (kind 7) carries its signed distance to the edge in Custom.x and
+	// leaves the other three distances unused.
+	private static void RenderEdge(IRenderBackend backend, string outPath, uint kind, Vector2 edge, Vector2 inward)
+	{
+		const float Half = 600f;
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		UIPainter.Create(engine, new UIHost()); // defines the ui technique; this draws no host
+		var white = engine.CreateTexture(TextureData.FromRgba8(1, 1, [255, 255, 255, 255], TextureFormat.Rgba8Unorm, generateMips: false));
+
+		var along = new Vector2(-inward.Y, inward.X);
+		var centre = edge + inward * Half;
+		var colour = new Half4((Half)1f, (Half)1f, (Half)1f, (Half)1f);
+		var vertices = new OverlayVertex[4];
+		for (var v = 0; v < 4; v++)
+		{
+			// Corners (0,0) (1,0) (1,1) (0,1) of the square's local rect, whose u = 0 side is the edge.
+			var uv = new Vector2(v is 1 or 2 ? 1f : 0f, v >= 2 ? 1f : 0f);
+			var position = centre + inward * (Half * (2f * uv.X - 1f)) + along * (Half * (2f * uv.Y - 1f));
+			vertices[v] = kind == 7
+				? new OverlayVertex(position, new Vector2(0.5f), colour,
+					new Vector4(Vector2.Dot(position - edge, inward), VectorVertex.Unused, VectorVertex.Unused, VectorVertex.Unused))
+				: new OverlayVertex(position, uv, colour, new Vector4(0f, 0f, 2f * Half, 2f * Half));
+		}
+		ushort[] indices = [0, 1, 2, 0, 2, 3];
+		DrawCommand[] commands = [new(new Loom.Core.Primitives.Rect(0, 0, W, H), TextureIndex: 0, IndexOffset: 0, IndexCount: 6, VertexOffset: 0, Tag: kind)];
+		TextureRef[] textures = [white];
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			g.Pass("edge").Writes(screen).Draw(ctx =>
+			{
+				// Surface pixels → clip, paper white 1, SDR.
+				Span<float> push = [2f / W, 2f / H, -1f, -1f, 1f, 0f];
+				ctx.DrawList("ui", DrawListIdentity.Transient, textures, vertices, indices, commands, push);
+			});
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
+	}
+
+	private readonly record struct Ramp(double Width, int Partial, bool InsideSolid, bool OutsideClear);
+
+	// Fit the ramp width over the middle of the target, clear of its borders: for each partly covered pixel, its centre's
+	// signed distance s from the edge and its coverage c (the alpha, which premultiplied alpha-over onto a clear target
+	// leaves equal to the coverage) give c − 0.5 = s / width, solved by least squares. Pixels two or more pixels from
+	// the edge must be fully covered inside and clear outside.
+	private static Ramp MeasureRamp(byte[] rgba, int width, int height, Vector2 edge, Vector2 inward)
+	{
+		double ss = 0, sc = 0;
+		var partial = 0;
+		bool insideSolid = true, outsideClear = true;
+		for (var y = 64; y < height - 64; y++)
+			for (var x = 64; x < width - 64; x++)
+			{
+				var s = (x + 0.5 - edge.X) * inward.X + (y + 0.5 - edge.Y) * inward.Y;
+				var c = rgba[((y * width) + x) * 4 + 3] / 255.0;
+				if (s >= 2)
+					insideSolid &= c > 0.98;
+				else if (s <= -2)
+					outsideClear &= c < 0.02;
+				else if (c > 0.02 && c < 0.98)
+				{
+					ss += s * s;
+					sc += s * (c - 0.5);
+					partial++;
+				}
+			}
+		return new Ramp(sc > 0 ? ss / sc : double.PositiveInfinity, partial, insideSolid, outsideClear);
+	}
+
+	// RenderEdge's square as a white SUIsei Polygon on a canvas at the target's origin, so the compositor tessellates its
+	// fill and the panel draws the list through the ui technique.
+	private static void RenderShapeEdge(IRenderBackend backend, string outPath, Vector2 edge, Vector2 inward)
+	{
+		const float Half = 600f;
+		var along = new Vector2(-inward.Y, inward.X);
+		var centre = edge + inward * Half;
+		RenderPanel(backend, outPath, () =>
+		{
+			var polygon = new Polygon { Fill = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+			for (var v = 0; v < 4; v++)
+			{
+				var corner = centre + inward * (Half * (v is 1 or 2 ? 1f : -1f)) + along * (Half * (v >= 2 ? 1f : -1f));
+				polygon.Points.Add(new Point(corner.X, corner.Y));
+			}
+			var canvas = new Canvas { Width = W, Height = H };
+			canvas.Children.Add(polygon);
+			return canvas;
+		});
+	}
+
+	/// <summary>
+	/// A translucent stroke that crosses itself is no more opaque where it crosses than anywhere else. SUIsei draws a
+	/// stroke whose brush has one alpha below 1 opaque inside a group layer and composites the layer once at that alpha,
+	/// so the two passes over a crossing cannot blend twice. This draws a half-transparent <c>Polyline</c> whose two
+	/// diagonals cross in the middle of the target, through the compositor and the <c>ui</c> technique, and compares the
+	/// crossing with a point on one diagonal alone. Blended triangle by triangle instead, the crossing would come out at
+	/// three-quarters coverage rather than a half.
+	/// </summary>
+	[Test]
+	public void A_translucent_stroke_is_no_more_opaque_where_it_crosses_itself()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var crossing = new Vector2(256, 192);
+		var single = new Vector2(176, 144); // a quarter of the way along the first diagonal, 80 px from the other
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-crossingstroke-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildCrossingStroke);
+				var (w, h, rgba) = PngReader.Read(path);
+				var c = AverageBlock(rgba, w, h, crossing, 2);
+				var s = AverageBlock(rgba, w, h, single, 2);
+
+				var delta = Math.Max(MaxChannelDelta(c, s), Math.Abs(c.W - s.W));
+				if (delta > 2)
+					failures.Add($"{backend.Name}: crossing {Fmt(c)} != one pass {Fmt(s)} (Δ{delta}) — the crossing blended twice.");
+				// Vacuous-pass guard: both samples on a half-transparent stroke, not on the clear target or an opaque one.
+				if (s.W is < 112 or > 144)
+					failures.Add($"{backend.Name}: the stroke away from the crossing is {Fmt(s)}, not half transparent.");
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("A translucent stroke double-blends where it crosses itself:\n  " + string.Join("\n  ", failures));
+	}
+
+	// A 24 px Polyline at half alpha: down one diagonal of the target, up its right side, and back down the other
+	// diagonal, so the two diagonals cross at the target's centre.
+	private static UIElement BuildCrossingStroke()
+	{
+		var stroke = new Polyline { Stroke = new SolidColorBrush(HdrColor.FromRgb(80, 170, 255, 128)), StrokeThickness = 24f };
+		stroke.Points.Add(new Point(96, 96));
+		stroke.Points.Add(new Point(416, 288));
+		stroke.Points.Add(new Point(416, 96));
+		stroke.Points.Add(new Point(96, 288));
+		var canvas = new Canvas { Width = W, Height = H };
+		canvas.Children.Add(stroke);
+		return canvas;
+	}
+
+	/// <summary>
+	/// A gradient is exact at its stops. SUIsei splits the painted geometry at every stop, so each stop's colour is a
+	/// vertex colour rather than a sample of a ramp, and a pixel whose centre lies on a stop shows that stop's colour.
+	/// Both prims a gradient reaches are checked — a <c>Rectangle</c>, which draws through the vector prim, and a
+	/// <c>Border</c> background, which draws as rect bands — in both of WinUI's interpolation modes: linear
+	/// (<c>ScRgbLinearInterpolation</c>) and sRGB (the default, drawn as sub-bands that still meet each stop exactly).
+	/// Each stop pixel is compared with a solid swatch of the stop's colour in the same frame, which holds the
+	/// comparison to the gradient path alone, whatever the target's encoding.
+	/// </summary>
+	[Test]
+	public void Gradient_pixels_at_the_stops_are_the_stop_colours()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-gradientstops-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildGradientStrips);
+				var (w, h, rgba) = PngReader.Read(path);
+				for (var strip = 0; strip < StripNames.Length; strip++)
+				{
+					var y = StripTop + strip * StripPitch + StripHeight / 2;
+					for (var i = 0; i < StopColours.Length; i++)
+					{
+						var swatch = AverageBlock(rgba, w, h, new Vector2(SwatchLeft + i * SwatchPitch + 16, SwatchTop + 16), 4);
+						var stop = AverageBlock(rgba, w, h, new Vector2(StopColumns[i], y), 0);
+						var delta = Math.Max(MaxChannelDelta(stop, swatch), Math.Abs(stop.W - swatch.W));
+						if (delta > 1)
+							failures.Add($"{backend.Name} {StripNames[strip]}: stop {i} at x={StopColumns[i]} is {Fmt(stop)}, the stop colour is {Fmt(swatch)} (Δ{delta}).");
+					}
+
+					// Vacuous-pass guard: between two stops the strip is neither stop's colour, so it is a gradient at all.
+					var between = AverageBlock(rgba, w, h, new Vector2((StopColumns[1] + StopColumns[2]) / 2, y), 0);
+					var left = AverageBlock(rgba, w, h, new Vector2(StopColumns[1], y), 0);
+					var right = AverageBlock(rgba, w, h, new Vector2(StopColumns[2], y), 0);
+					if (MaxChannelDelta(between, left) < 16 || MaxChannelDelta(between, right) < 16)
+						failures.Add($"{backend.Name} {StripNames[strip]}: {Fmt(between)} between stops 1 and 2 is not a blend of {Fmt(left)} and {Fmt(right)}.");
+				}
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Gradient stops are not exact:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Four horizontal strips, each painted with the same five stops — a Rectangle and a Border, in linear and in sRGB
+	// interpolation — over a row of solid swatches, one per stop colour.
+	private const float StripLeft = 32f, StripWidth = 448f, StripTop = 16f, StripHeight = 40f, StripPitch = 56f;
+	private const float SwatchLeft = 32f, SwatchTop = 256f, SwatchPitch = 64f;
+	private static readonly string[] StripNames = ["Rectangle, linear", "Rectangle, sRGB", "Border, linear", "Border, sRGB"];
+
+	// Each stop sits on a pixel centre: column x is covered by [x, x + 1), so its centre is x + 0.5.
+	private static readonly int[] StopColumns = [32, 144, 256, 368, 479];
+	private static readonly HdrColor[] StopColours =
+	[
+		HdrColor.FromRgb(230, 60, 80), HdrColor.FromRgb(60, 200, 90), HdrColor.FromRgb(40, 90, 230),
+		HdrColor.FromRgb(240, 200, 40), HdrColor.FromRgb(180, 70, 220),
+	];
+
+	private static UIElement BuildGradientStrips()
+	{
+		var canvas = new Canvas { Width = W, Height = H };
+		for (var strip = 0; strip < StripNames.Length; strip++)
+		{
+			var brush = new LinearGradientBrush
+			{
+				StartPoint = new Point(0, 0),
+				EndPoint = new Point(1, 0),
+				ColorInterpolationMode = strip % 2 == 0 ? ColorInterpolationMode.ScRgbLinearInterpolation : ColorInterpolationMode.SRgbLinearInterpolation,
+			};
+			for (var i = 0; i < StopColours.Length; i++)
+				brush.GradientStops.Add(new GradientStop { Color = StopColours[i], Offset = (StopColumns[i] + 0.5f - StripLeft) / StripWidth });
+
+			UIElement painted = strip < 2
+				? new Rectangle { Width = StripWidth, Height = StripHeight, Fill = brush }
+				: new Border { Width = StripWidth, Height = StripHeight, Background = brush };
+			Canvas.SetLeft(painted, StripLeft);
+			Canvas.SetTop(painted, StripTop + strip * StripPitch);
+			canvas.Children.Add(painted);
+		}
+		for (var i = 0; i < StopColours.Length; i++)
+		{
+			var swatch = new Border { Width = 32f, Height = 32f, Background = new SolidColorBrush(StopColours[i]) };
+			Canvas.SetLeft(swatch, SwatchLeft + i * SwatchPitch);
+			Canvas.SetTop(swatch, SwatchTop);
+			canvas.Children.Add(swatch);
+		}
+		return canvas;
+	}
+
+	/// <summary>
+	/// An outline grows a glyph's ink by its thickness and keeps a one-pixel edge. <c>suisei:TextEffects</c> draws an
+	/// outline as the glyphs again, under them, read from the atlas's true distance with the edge moved out by the
+	/// thickness, so in the glyphs' own colour the two together are the glyph grown by that much on every side. This draws
+	/// a row of <c>|</c> bars, whose sides are straight, at the sub-pixel phases the font's advance puts them at: once plain
+	/// and once outlined in the same white, 4 px at 64 px. Along each row through a bar's middle the ink's width is the sum
+	/// of its coverage and its centre the coverage-weighted mean, both exact for a symmetric bar whatever its edge does. The
+	/// outlined bar must be the plain one's width plus twice the thickness, and each pixel across its edges must read the
+	/// coverage of a one-pixel ramp centred on the grown edge.
+	/// </summary>
+	[Test]
+	public void An_outline_grows_the_ink_by_its_thickness_with_a_one_pixel_edge()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-outline-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildOutlinedBars);
+				var (w, _, rgba) = PngReader.Read(path);
+				var worstGrowth = 2.0 * OutlinePx;
+				var worstRamp = 0.0;
+				for (var row = BarRowsFrom; row < BarRowsTo; row++)
+				{
+					var plain = InkRuns(rgba, w, BarsTop + row);
+					var outlined = InkRuns(rgba, w, BarsTop + BarsPitch + row);
+					// Vacuous-pass guard: every bar is there in both copies.
+					if (plain.Count != Bars.Length || outlined.Count != Bars.Length)
+					{
+						failures.Add($"{backend.Name}: row {row} has {plain.Count} plain and {outlined.Count} outlined bars, not {Bars.Length}.");
+						continue;
+					}
+					for (var b = 0; b < plain.Count; b++)
+					{
+						var growth = outlined[b].Width - plain[b].Width;
+						if (Math.Abs(growth - 2 * OutlinePx) > Math.Abs(worstGrowth - 2 * OutlinePx))
+							worstGrowth = growth;
+						worstRamp = Math.Max(worstRamp, RampError(rgba, w, BarsTop + BarsPitch + row, outlined[b]));
+					}
+				}
+				if (Math.Abs(worstGrowth - 2 * OutlinePx) > 0.25)
+					failures.Add($"{backend.Name}: the outline grows a bar by {worstGrowth:F3} px, not {2 * OutlinePx}.");
+				if (worstRamp > 0.08)
+					failures.Add($"{backend.Name}: a pixel across the outline's edge is {worstRamp:F3} off a one-pixel ramp.");
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("Glyph outlines do not grow the ink by their thickness:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Two rows of '|' bars at 64 px, one plain and one BarsPitch below it outlined 4 px (1/16 EM), both white. Rows
+	// BarRowsFrom..BarRowsTo of each text block lie between the baseline and the x-height, inside every bar.
+	private const string Bars = "||||||";
+	private const float BarsFontSize = 64f, OutlinePx = 4f;
+	private const int BarsLeft = 32, BarsTop = 32, BarsPitch = 128, BarRowsFrom = 24, BarRowsTo = 48;
+
+	private static UIElement BuildOutlinedBars()
+	{
+		var canvas = new Canvas { Width = W, Height = H };
+		for (var copy = 0; copy < 2; copy++)
+		{
+			var text = new TextBlock { Text = Bars, FontSize = BarsFontSize, Foreground = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+			if (copy == 1)
+			{
+				TextEffects.SetOutlineThickness(text, OutlinePx / BarsFontSize);
+				TextEffects.SetOutlineBrush(text, new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)));
+			}
+			Canvas.SetLeft(text, BarsLeft);
+			Canvas.SetTop(text, BarsTop + copy * BarsPitch);
+			canvas.Children.Add(text);
+		}
+		return canvas;
+	}
+
+	private readonly record struct InkRun(double Width, double Centre);
+
+	// The runs of ink along row y, left to right: each run's width is the sum of its pixels' coverage, and its centre the
+	// coverage-weighted mean of their centres.
+	private static List<InkRun> InkRuns(byte[] rgba, int width, int y)
+	{
+		var runs = new List<InkRun>();
+		double sum = 0, moment = 0;
+		for (var x = 0; x <= width; x++)
+		{
+			var c = x < width ? rgba[((y * width) + x) * 4 + 3] / 255.0 : 0.0;
+			if (c > 2 / 255.0)
+			{
+				sum += c;
+				moment += (x + 0.5) * c;
+			}
+			else if (sum > 0)
+			{
+				runs.Add(new InkRun(sum, moment / sum));
+				sum = moment = 0;
+			}
+		}
+		return runs;
+	}
+
+	// How far the pixels across a run's two edges are from a one-pixel ramp centred on each: a pixel whose centre lies s
+	// pixels inside an edge should be saturate(0.5 + s) covered.
+	private static double RampError(byte[] rgba, int width, int y, InkRun run)
+	{
+		var left = run.Centre - run.Width / 2;
+		var right = run.Centre + run.Width / 2;
+		var worst = 0.0;
+		for (var x = (int)Math.Floor(left - 2); x <= (int)Math.Ceiling(right + 2); x++)
+		{
+			var s = Math.Min(x + 0.5 - left, right - (x + 0.5));
+			if (s > 2)
+				continue; // the solid middle, not an edge
+			var expected = Math.Clamp(0.5 + s, 0, 1);
+			worst = Math.Max(worst, Math.Abs(rgba[((y * width) + x) * 4 + 3] / 255.0 - expected));
+		}
+		return worst;
+	}
+
+	/// <summary>
+	/// A hard shadow is the glyphs moved by its offset. With no softness a shadow quad reads the atlas as a glyph does,
+	/// from the median of its RGB distances, so moved by whole pixels it covers the same pixels by the same amounts as the
+	/// glyphs drawn there. This draws text whose white shadow lies 4 px right of it and 6 px below, with a transparent
+	/// foreground so only the shadow shows, and under it the same text in white without effects, drawn where the shadow
+	/// would be a copy's; the two must match pixel for pixel. The text holds the glyphs with the most curves and counters
+	/// (<c>8</c>, <c>S</c>, <c>s</c>, <c>B</c>, <c>$</c>), so any rounding the shadow's offset picked up would show.
+	/// </summary>
+	[Test]
+	public void A_hard_shadow_is_the_glyphs_moved_by_whole_pixels()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-hardshadow-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				RenderPanel(backend, path, BuildHardShadow);
+				var (w, _, rgba) = PngReader.Read(path);
+				int differing = 0, inked = 0, worst = 0;
+				for (var y = ShadowTop - 8; y < ShadowTop + 64; y++)
+					for (var x = ShadowLeft - 8; x < ShadowLeft + 240; x++)
+					{
+						var shadow = ((y * w) + x) * 4;
+						var moved = (((y + ShadowCopyPitch) * w) + x) * 4;
+						var delta = 0;
+						for (var c = 0; c < 4; c++)
+							delta = Math.Max(delta, Math.Abs(rgba[shadow + c] - rgba[moved + c]));
+						worst = Math.Max(worst, delta);
+						if (delta > 1)
+							differing++;
+						if (rgba[moved + 3] > 128)
+							inked++;
+					}
+				if (differing > 0)
+					failures.Add($"{backend.Name}: {differing} pixels of the shadow differ from the glyphs moved by its offset (worst Δ{worst}).");
+				// Vacuous-pass guard: the glyphs drew, so the comparison is between two copies of text, not two empty blocks.
+				if (inked < 400)
+					failures.Add($"{backend.Name}: only {inked} pixels of the moved glyphs are inked.");
+			}
+			finally
+			{
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("A hard shadow is not its glyphs moved:\n  " + string.Join("\n  ", failures));
+	}
+
+	// Text at 32 px whose hard white shadow lies (1/8, 3/16) EM = (4, 6) px away, its own glyphs transparent; and the same
+	// text plain and white at that offset, ShadowCopyPitch rows lower.
+	private const string ShadowText = "8SsB$ 1:23";
+	private const float ShadowFontSize = 32f;
+	private const int ShadowLeft = 32, ShadowTop = 32, ShadowDx = 4, ShadowDy = 6, ShadowCopyPitch = 128;
+
+	private static UIElement BuildHardShadow()
+	{
+		var canvas = new Canvas { Width = W, Height = H };
+		var shadowed = new TextBlock { Text = ShadowText, FontSize = ShadowFontSize, Foreground = new SolidColorBrush(HdrColor.Transparent) };
+		TextEffects.SetShadowOffset(shadowed, new Point(ShadowDx / ShadowFontSize, ShadowDy / ShadowFontSize));
+		TextEffects.SetShadowBrush(shadowed, new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)));
+		Canvas.SetLeft(shadowed, ShadowLeft);
+		Canvas.SetTop(shadowed, ShadowTop);
+		canvas.Children.Add(shadowed);
+
+		var moved = new TextBlock { Text = ShadowText, FontSize = ShadowFontSize, Foreground = new SolidColorBrush(HdrColor.FromRgb(255, 255, 255)) };
+		Canvas.SetLeft(moved, ShadowLeft + ShadowDx);
+		Canvas.SetTop(moved, ShadowTop + ShadowDy + ShadowCopyPitch);
+		canvas.Children.Add(moved);
+		return canvas;
+	}
+
+	/// <summary>
+	/// The <c>ui</c> shader's glyph arm reads a fill from the median of the atlas's RGB distances, exactly as it did before
+	/// text had effects, and an outline or a shadow from the true distance in A, as SUIsei's contract and its rasterizer
+	/// do. Each quad here samples one uniform texel colour, so filtering leaves its distances as written, and that colour's
+	/// RGB median and its alpha are different distances: a fill read from A would come out clear. Quads with no effect, an
+	/// outline's bias, a shadow's softness, both, and a softness narrower than a pixel are each held to the contract's
+	/// coverage, <c>saturate(sd · k + 0.5)</c>, within one step of the 8-bit target. The driver's debug layer must stay
+	/// silent while they draw.
+	/// </summary>
+	[Test]
+	public void The_glyph_arm_reads_a_fill_from_the_median_and_an_effect_from_the_true_distance()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		if (Backends.Available.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("no GPU backend available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in Backends.Available)
+		{
+			var path = Path.Combine(Path.GetTempPath(), $"loom-glypharm-{backend.Name}-{Guid.NewGuid():N}.png");
+			var errors = new List<string>();
+			var previousSink = LoomLog.Sink;
+			LoomLog.Sink = (level, message) =>
+			{
+				if (level == LoomLogLevel.Error)
+					lock (errors) errors.Add(message);
+			};
+			try
+			{
+				RenderGlyphQuads(backend, path);
+				LoomLog.Sink = previousSink;
+				foreach (var error in errors)
+					failures.Add($"{backend.Name}: the debug layer reported: {error}");
+
+				var (w, _, rgba) = PngReader.Read(path);
+				for (var i = 0; i < GlyphParams.Length; i++)
+				{
+					var centre = GlyphQuadOrigin(i) + new Vector2(GlyphQuadSize / 2);
+					var actual = rgba[(((int)centre.Y * w) + (int)centre.X) * 4 + 3];
+					var expected = (int)MathF.Round(GlyphCoverage(GlyphParams[i]) * 255f);
+					if (Math.Abs(actual - expected) > 1)
+						failures.Add($"{backend.Name}: params {GlyphParams[i]} cover {actual}/255, the contract says {expected}/255.");
+				}
+			}
+			finally
+			{
+				LoomLog.Sink = previousSink;
+				if (File.Exists(path)) File.Delete(path);
+			}
+		}
+
+		failures.ShouldBeEmpty("The glyph arm does not follow the contract:\n  " + string.Join("\n  ", failures));
+	}
+
+	// One texel colour for every glyph sample: RGB with median 130/255 (just inside the edge), and A 100/255 (well outside).
+	private static readonly byte[] GlyphTexel = [150, 110, 130, 100];
+	private const float GlyphQuadSize = 48f;
+
+	// (screenPxRange, bias, softness, 0): a fill; an outline; a soft shadow; both; and a softness under a pixel.
+	private static readonly Vector4[] GlyphParams =
+	[
+		new(8f, 0f, 0f, 0f), new(8f, 0.12f, 0f, 0f), new(8f, 0f, 0.5f, 0f), new(8f, 0.1f, 0.25f, 0f), new(3f, 0.05f, 0.1f, 0f),
+	];
+
+	private static Vector2 GlyphQuadOrigin(int i) => new(32f + i * 80f, 32f);
+
+	// SUIsei's glyph contract, as its rasterizer computes it.
+	private static float GlyphCoverage(Vector4 p)
+	{
+		float r = GlyphTexel[0] / 255f, g = GlyphTexel[1] / 255f, b = GlyphTexel[2] / 255f, a = GlyphTexel[3] / 255f;
+		var median = MathF.Max(MathF.Min(r, g), MathF.Min(MathF.Max(r, g), b));
+		var effect = p.Y > 0f || p.Z > 0f;
+		var sd = effect ? a - 0.5f + p.Y : median - 0.5f;
+		var k = effect ? MathF.Min(p.X, 1f / MathF.Max(p.Z, 1e-6f)) : p.X;
+		return Math.Clamp(sd * k + 0.5f, 0f, 1f);
+	}
+
+	// One white glyph quad per GlyphParams entry, all in one glyph command over a 4×4 texture of GlyphTexel, drawn through
+	// the ui technique as a raw draw list onto a clear target.
+	private static void RenderGlyphQuads(IRenderBackend backend, string outPath)
+	{
+		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+		UIPainter.Create(engine, new UIHost()); // defines the ui technique; this draws no host
+		var texels = new byte[4 * 4 * 4];
+		for (var i = 0; i < texels.Length; i++)
+			texels[i] = GlyphTexel[i % 4];
+		var atlas = engine.CreateTexture(TextureData.FromRgba8(4, 4, texels, TextureFormat.Rgba8Unorm, generateMips: false));
+
+		var white = new Half4((Half)1f, (Half)1f, (Half)1f, (Half)1f);
+		var vertices = new OverlayVertex[GlyphParams.Length * 4];
+		var indices = new ushort[GlyphParams.Length * 6];
+		for (var q = 0; q < GlyphParams.Length; q++)
+		{
+			var origin = GlyphQuadOrigin(q);
+			for (var v = 0; v < 4; v++)
+			{
+				var uv = new Vector2(v is 1 or 2 ? 1f : 0f, v >= 2 ? 1f : 0f);
+				vertices[q * 4 + v] = new OverlayVertex(origin + uv * GlyphQuadSize, uv, white, GlyphParams[q]);
+			}
+			ReadOnlySpan<ushort> quad = [0, 1, 2, 0, 2, 3];
+			for (var k = 0; k < 6; k++)
+				indices[q * 6 + k] = (ushort)(q * 4 + quad[k]);
+		}
+		DrawCommand[] commands = [new(new Loom.Core.Primitives.Rect(0, 0, W, H), TextureIndex: 0, IndexOffset: 0, IndexCount: indices.Length, VertexOffset: 0, Tag: 3)];
+		TextureRef[] textures = [atlas];
+
+		engine.SetGraph(RenderGraph.Define(g =>
+		{
+			var screen = g.Backbuffer;
+			g.Pass("glyphs").Writes(screen).Draw(ctx =>
+			{
+				// Surface pixels → clip, paper white 1, SDR.
+				Span<float> push = [2f / W, 2f / H, -1f, -1f, 1f, 0f];
+				ctx.DrawList("ui", DrawListIdentity.Transient, textures, vertices, indices, commands, push);
+			});
+			g.Present(screen);
+		}));
+
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		for (var frame = 1; frame <= 3; frame++)
+		{
+			if (frame == 2)
+				engine.RequestCapture(outPath);
+			engine.Render(inputs);
+		}
 	}
 
 	/// <summary>

@@ -56,9 +56,6 @@ internal sealed class SandboxApp : LoomApplication
 	// The interactive UI demo, or -1 if its techniques were dropped on this backend: when it is active Tab drives
 	// the UI's focus navigation instead of cycling demos.
 	private int _interactiveIndex = -1;
-	// Host-owned overlay page per demo (its graph composites this through scene.UI), null where the demo owns none.
-	// Built once so a UI page's state (e.g. the interactive counter) persists across demo switches.
-	private UIElement?[] _overlayContent = [];
 
 	// The default perspective orbit camera (reconfigured each frame) + the detached free-fly debug camera.
 	private Loom.Concepts.Camera _orbit = null!;
@@ -120,7 +117,7 @@ internal sealed class SandboxApp : LoomApplication
 		// The game-UI painter: registers "ui", uploads the white texel + default glyph atlas, renders each overlay
 		// list. Created up front so the demo graphs capture it.
 		_uiHost = new UIHost();
-		var uiPainter = UIPainter.Create(engine, _uiHost, FontAtlas.Default);
+		var uiPainter = UIPainter.Create(engine, _uiHost);
 		_scene = new DemoScene(engine.CreateMesh(cubeVerts, cubeIndices), engine.CreateMesh(planeVerts, planeIndices), engine.CreateMesh(quadVerts, quadIndices), brick, uiPainter, name => File.ReadAllBytesAsync(Path.Combine(_assetsDir, name)));
 
 		// The gallery — one focused graph per capability. Build only registers techniques (cheap, synchronous; also
@@ -143,9 +140,6 @@ internal sealed class SandboxApp : LoomApplication
 		PumpUntilReady(engine, EnsureLoadedAsync(_currentDemo)).GetAwaiter().GetResult();
 
 		_interactiveIndex = IndexOf("UI Interactive");
-		_overlayContent = new UIElement?[_demos.Count];
-		for (var i = 0; i < _demos.Count; i++)
-			_overlayContent[i] = DemoGallery.OverlayContent(_demos[i]);
 
 		_dumpGraphPrefix = _opts.DumpGraph;
 
@@ -352,11 +346,13 @@ internal sealed class SandboxApp : LoomApplication
 		ImGui.Render();
 
 		// Swap the shell's centred content for the active demo, then drive the UI host: Tick drains queued pointer
-		// input → hit-tests → routes → synthesizes Click → lays out; Render composites each view → DrawLists. The
-		// "hud" pass renders the whole shell (chrome + centred content) via DemoGraph.Hud.
-		_shell.SetCenterContent(_overlayContent[_currentDemo]);
+		// input → hit-tests → routes → synthesizes Click → lays out; Render composites each view → DrawLists; Prepare
+		// uploads what those lists newly reference, which the "hud" pass (the whole shell, chrome + centred content, via
+		// DemoGraph.Hud) cannot do from inside the frame it draws.
+		_shell.SetCenterContent(_demos[_currentDemo].OverlayContent);
 		_uiHost.Tick(delta, (float)_elapsed, SurfaceSize);
 		_uiHost.Render();
+		_scene.UI.Prepare();
 
 		// Per-frame CPU work for the active demo — after any mid-frame demo switch via the shell menu (which routes
 		// during uiHost.Tick above), so the current demo's Update always fires before its graph records this frame.

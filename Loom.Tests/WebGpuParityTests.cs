@@ -35,21 +35,37 @@ public class WebGpuParityTests
 	private const int PerChannelTolerance = 4;
 	private const double MaxFailedFraction = 0.005;
 
-	// A real gallery scene renders thousands of distinct colours. Two blank frames compare as identical, so without
-	// this floor a browser that failed to initialise WebGPU and a Vulkan render that drew nothing would "pass".
-	private const int MinDistinctColors = 64;
+	// Two blank frames compare as identical, so without this floor a browser that failed to initialise WebGPU and a
+	// Vulkan render that drew nothing would "pass". A blank frame holds one or two colours; most checked demos render
+	// a thousand or more. The flattest is UIGroupOpacity — a flat-lit cube and plane under a panel of solid rounded
+	// rects — at 44 on Vulkan and 62 on WebGPU (RTX 2080 Ti), because the UI's one-pixel edge ramps add few shades.
+	// The floor sits well above blank and below that. A UI that vanished from both frames still fails, by
+	// UIDemoCaptureTests on the Vulkan side.
+	private const int MinDistinctColors = 16;
 
 	/// <summary>
 	/// Demos checked for Vulkan↔WebGPU parity: the web gallery's key (the <c>?capture=</c> value) beside the desktop
 	/// factory that renders the reference. The names must match <c>Loom.Web</c>'s <c>WebGallery</c> keys exactly —
 	/// an unknown key silently resolves to the default demo rather than erroring, so a typo shows up as a wild
-	/// mismatch rather than a missing capture.
+	/// mismatch rather than a missing capture. The UI demos compare because both sides show the same tree the same
+	/// way: the demo's own page in a chrome-hidden shell, and one scripted click the demo derives from that frame's
+	/// layout and camera (<see cref="IDemo.CaptureClick"/>), so it lands on its button although the browser's capture
+	/// clock advances where the desktop one holds still.
 	/// </summary>
 	private static readonly (string WebKey, string Name, Func<IDemo> Factory)[] Demos =
 	[
 		("pixelart", "PixelArt", () => new PixelArtDemo()),
 		("bloom", "Bloom", () => new BloomDemo()),
 		("particles", "Particles", () => new ParticlesDemo()),
+		("storage-scatter", "StorageScatter", () => new StorageScatterDemo()),
+		("msaa-resolve", "Msaa", () => new MsaaDemo(grille: false)),   // alpha-to-coverage's sample mask is the driver's choice
+		("uiinteractive", "UIInteractive", () => new UIInteractiveDemo()),
+		("uigroupopacity", "UIGroupOpacity", () => new UIGroupOpacityDemo()),
+		("inworldui", "InWorldUI", () => new InWorldUIDemo()),
+		("vectorprims", "VectorPrims", () => new VectorPrimsDemo()),
+		("vectorui", "VectorUI", () => new VectorUIDemo()),
+		("uilivetexture", "UILiveTexture", () => new UILiveTextureDemo()),
+		("instancing-once", "InstancingOnce", () => new InstancingDemo(uploadOnce: true)),
 	];
 
 	// Demos deliberately NOT checked, with the reason recorded rather than the tolerance widened — the numbers are
