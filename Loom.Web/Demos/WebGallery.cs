@@ -16,6 +16,9 @@ internal static class WebGallery
 	{
 		["cube"] = () => new CubeLightingDemo(),
 		["particles"] = () => new ParticlesDemo(),
+		["storage-scatter"] = () => new StorageScatterDemo(),
+		["msaa"] = () => new MsaaDemo(),
+		["msaa-resolve"] = () => new MsaaDemo(grille: false),
 		["highlighting"] = () => new HighlightingDemo(),
 		["bloom"] = () => new BloomDemo(),
 		["tonemapping"] = () => new TonemappingDemo(),
@@ -33,6 +36,7 @@ internal static class WebGallery
 		["debug2d"] = () => new Debug2DDemo(),
 		["foliage"] = () => new FoliageDemo(),
 		["instancing"] = () => new InstancingDemo(),
+		["instancing-once"] = () => new InstancingDemo(uploadOnce: true),
 		["lighting2d"] = () => new Lighting2DDemo(),
 		["nightglade"] = () => new NightGladeDemo(),
 		["normalmapping"] = () => new NormalMappingDemo(),

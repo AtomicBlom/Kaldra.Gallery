@@ -57,12 +57,15 @@ public class WebGpuParityTests
 		("pixelart", "PixelArt", () => new PixelArtDemo()),
 		("bloom", "Bloom", () => new BloomDemo()),
 		("particles", "Particles", () => new ParticlesDemo()),
+		("storage-scatter", "StorageScatter", () => new StorageScatterDemo()),
+		("msaa-resolve", "Msaa", () => new MsaaDemo(grille: false)),   // alpha-to-coverage's sample mask is the driver's choice
 		("uiinteractive", "UIInteractive", () => new UIInteractiveDemo()),
 		("uigroupopacity", "UIGroupOpacity", () => new UIGroupOpacityDemo()),
 		("inworldui", "InWorldUI", () => new InWorldUIDemo()),
 		("vectorprims", "VectorPrims", () => new VectorPrimsDemo()),
 		("vectorui", "VectorUI", () => new VectorUIDemo()),
 		("uilivetexture", "UILiveTexture", () => new UILiveTextureDemo()),
+		("instancing-once", "InstancingOnce", () => new InstancingDemo(uploadOnce: true)),
 	];
 
 	// Demos deliberately NOT checked, with the reason recorded rather than the tolerance widened — the numbers are

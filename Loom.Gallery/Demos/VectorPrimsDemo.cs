@@ -33,8 +33,6 @@ internal sealed class VectorPrimsDemo : IDemo
 	/// <summary>The opaque linear colour the frame is cleared to before the list is drawn over it.</summary>
 	public static readonly Vector4 Background = new(0.02f, 0.025f, 0.04f, 1f);
 
-	// UIPainter's paper-white lift for an HDR target: UIPaperWhiteNits / 80.
-	private const float HdrPaperWhite = 200f / 80f;
 
 	private IEngine _engine = null!;
 	private IEngine? _uploadedFor;
@@ -213,7 +211,7 @@ internal sealed class VectorPrimsDemo : IDemo
 		Span<float> push =
 		[
 			2f / Canvas.X, 2f / Canvas.Y, -1f, -1f,
-			ctx.HdrOutput ? HdrPaperWhite : 1f, BitConverter.UInt32BitsToSingle(ctx.HdrOutput ? 1u : 0u),
+			ctx.HdrOutput ? _engine.HdrPaperWhiteNits / 80f : 1f, BitConverter.UInt32BitsToSingle(ctx.HdrOutput ? 1u : 0u),
 		];
 		ctx.DrawList("ui", _identity, _textures, _vertices, _indices, _commands, push);
 	}
