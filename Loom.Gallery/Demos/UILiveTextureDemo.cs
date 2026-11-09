@@ -19,7 +19,7 @@ namespace Loom.Gallery.Demos;
 /// straight above into a small target every frame, and the page shows it through a <see cref="HostImageSource"/> that
 /// <see cref="Loom.UI.SUIsei.UIPainter.SetExternalTexture"/> binds to that target — a texture the GPU drew this frame,
 /// never copied to the CPU. And a trace the app draws on the CPU into a <see cref="WriteableBitmap"/> every frame, which
-/// the painter re-uploads and swaps in, releasing the old texture once the frames in flight are done with it.
+/// the painter writes into the bitmap's one texture in place (<see cref="IEngine.UpdateTexture"/>), allocating nothing.
 /// <para>
 /// The UI pass declares the minimap with <c>.Samples</c>, so the engine orders it after the map pass and moves the image
 /// into a sampleable layout itself; nothing in the demo names a barrier. The scene is the gallery's floor with a cube
@@ -112,7 +112,8 @@ internal sealed class UILiveTextureDemo : IDemo
 		_viewer = world.Translation;
 	}
 
-	// Redraw the trace for this frame's time and show it: the painter replaces the bitmap's texture before the frame.
+	// Redraw the trace for this frame's time and show it: the painter writes the new texels into the bitmap's texture
+	// before the frame.
 	public void PreFrame(double deltaSeconds, float time, Camera camera, Vector2 framebufferSize)
 	{
 		DrawTrace(_trace.PixelBuffer.Span, time);
