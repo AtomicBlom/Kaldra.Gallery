@@ -23,7 +23,7 @@ struct ViewProj
 };
 
 // The view-proj UBO follows the three samplers (binding 3); register(b1) — b0 is the unused root-constant slot.
-LOOM_BINDING(3) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(3) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
 
 struct VsIn
 {

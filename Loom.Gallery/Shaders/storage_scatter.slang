@@ -7,7 +7,7 @@
 #include "loom_platform.module.slang"
 
 LOOM_BINDING(0) RWStructuredBuffer<float4> sparks;
-LOOM_BINDING(1) StructuredBuffer<float> density : register(t0);
+LOOM_BINDING(1) StructuredBuffer<float> density LOOM_REGISTER(t0);
 
 struct PushConstants
 {

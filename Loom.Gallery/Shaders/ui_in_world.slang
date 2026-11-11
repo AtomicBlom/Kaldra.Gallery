@@ -11,8 +11,8 @@ LOOM_BINDING(0) Sampler2D panelTex;     // the composited UI panel texture (slot
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw  { float4x4 model; uint objectId; };
 
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
-LOOM_BINDING(2) ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+LOOM_BINDING(2) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
 
 struct VsIn
 {

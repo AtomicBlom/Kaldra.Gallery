@@ -9,7 +9,7 @@
 
 struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
 // No samplers precede it, so the UBO owns binding 0 (register b1; b0 is the unused root-constant slot).
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
 
 struct VsOut
 {

@@ -15,8 +15,8 @@ struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picki
 // No samplers precede them, so the UBOs own Vulkan bindings 0,1; register(b1)/(b2) on DX12 (b0 is the unused
 // root-constant slot). The cbuffer packs the model's transpose, so it applies column-form and the normal by the
 // inverse of that 3x3 (correct under any scale).
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
-LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
 
 struct VsIn
 {

@@ -17,7 +17,7 @@ struct SkyParams
 	float4 horizon;       // sky colour at the horizon (.rgb)
 	float4 sunColor;      // sun disc/glow colour (.rgb), glow sharpness (.w)
 };
-LOOM_BINDING(1) ConstantBuffer<SkyParams> sky : register(b1);
+LOOM_BINDING(1) ConstantBuffer<SkyParams> sky LOOM_REGISTER(b1);
 
 struct VsOut
 {

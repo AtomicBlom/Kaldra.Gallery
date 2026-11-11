@@ -13,7 +13,7 @@ LOOM_BINDING(0) Sampler2D atlas; // 4×1 spark sub-UV atlas (slot 0)
 
 struct ViewProj { float4x4 viewProj; }; // the app's view-projection, clip-space-corrected
 // The sampler owns binding 0, so the UBO follows at binding 1 (register b1; b0 is the unused root-constant slot).
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
 
 struct VsIn
 {

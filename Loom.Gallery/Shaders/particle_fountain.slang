@@ -13,7 +13,7 @@ struct Fountain
 	                // its base; w: how much it widens as it rises
 	float4 rise;    // x: the height it starts at; y: how high it rises
 };
-LOOM_BINDING(1) ConstantBuffer<Fountain> fountain : register(b1);
+LOOM_BINDING(1) ConstantBuffer<Fountain> fountain LOOM_REGISTER(b1);
 
 struct PushConstants
 {

@@ -13,14 +13,14 @@ LOOM_BINDING(0) Sampler2D bladeTex; // blade colour + alpha cutout (alpha < cuto
 // register b1). The per-instance world transform is rebuilt from the instance stream below, so there is no
 // per-draw model block; the wind parameters ride the per-draw Uniforms slot that follows (binding 2, register b2).
 struct ViewProj { float4x4 viewProj; };
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
 
 struct WindParams
 {
 	float4 dirTime;  // wind direction.xy, time (.z), _
 	float4 strength; // amplitude (.x), frequency (.y), _, _
 };
-LOOM_BINDING(2) ConstantBuffer<WindParams> wind : register(b2);
+LOOM_BINDING(2) ConstantBuffer<WindParams> wind LOOM_REGISTER(b2);
 
 struct VsIn
 {
