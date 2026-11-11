@@ -11,6 +11,7 @@ using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Gallery;
 using Loom.Gallery.Demos;
+using Loom.Gallery.Hosting;
 using Loom.UI.SUIsei;
 
 using SUIsei;
