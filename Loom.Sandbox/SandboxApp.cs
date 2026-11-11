@@ -77,6 +77,9 @@ internal sealed class SandboxApp : LoomApplication
 	// The shared SUIsei demo shell (switcher, debug panel, status bar) every demo's `hud` pass composites.
 	private DemoShell _shell = null!;
 
+	// The screen-space view the shell is the root of: its layout scale follows the display's each frame.
+	private UIView _overlay = null!;
+
 	// A pausable scene clock (frozen while "Pause camera" is on) driving the orbit + every demo's per-frame time.
 	// Framework-owned FrameInputs.Time (the shader clock) is the host's unpausable total, so a pause holds the
 	// camera and CPU-side animation while GPU-side time keeps advancing — the two coincide while never paused.
@@ -175,8 +178,8 @@ internal sealed class SandboxApp : LoomApplication
 
 		// A screen-space overlay surface driven by the UIHost; its root's content is the shell, and the UI-track
 		// demos' own page/panel is set into the shell's centred slot per active demo (see Draw).
-		var overlay = _uiHost.CreateRoot(UILayer.Default);
-		overlay.Root.Content = _shell.Root;
+		_overlay = _uiHost.CreateRoot(UILayer.Default);
+		_overlay.Root.Content = _shell.Root;
 
 		engine.SetGraph(_graphs[_currentDemo]!);
 		if (_dumpGraphPrefix is not null)
@@ -350,6 +353,9 @@ internal sealed class SandboxApp : LoomApplication
 		// uploads what those lists newly reference, which the "hud" pass (the whole shell, chrome + centred content, via
 		// DemoGraph.Hud) cannot do from inside the frame it draws.
 		_shell.SetCenterContent(_demos[_currentDemo].OverlayContent);
+		// Lay the shell out in units of the display's scale (2 on a 200% monitor), so it keeps its physical size; read
+		// each frame, since it changes when the window moves to another monitor.
+		_overlay.Root.LayoutScale = DisplayScale;
 		_uiHost.Tick(delta, (float)_elapsed, SurfaceSize);
 		_uiHost.Render();
 		_scene.UI.Prepare();
