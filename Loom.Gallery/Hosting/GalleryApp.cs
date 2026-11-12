@@ -10,6 +10,7 @@ using Loom.Input;
 using Loom.UI.SUIsei;
 
 using SUIsei;
+using SUIsei.Extensions;
 
 namespace Loom.Gallery.Hosting;
 
@@ -95,6 +96,8 @@ internal sealed class GalleryApp(Func<string, byte[]> readAsset) : LoomApplicati
 
 		_overlay = _uiHost.CreateRoot(UILayer.Default);
 		_overlay.Root.Content = _shell.Root;
+		// The shell's menu bar, panel and status bar keep clear of a camera cutout; the demo draws to the edges behind them.
+		SafeArea.SetEdges(_shell.Root, SafeAreaEdges.All);
 		engine.SetGraph(_graphs[0]!);
 
 		// Bottom to top: the active demo's in-world panel, the shell and the demos' own pages, then Escape to leave.
@@ -162,6 +165,7 @@ internal sealed class GalleryApp(Func<string, byte[]> readAsset) : LoomApplicati
 		// Read every frame: the scale follows the display, and the keyboard's height comes and goes.
 		_overlay.Root.LayoutScale = DisplayScale;
 		_overlay.Root.InputPaneHeight = InputPaneHeight;
+		_overlay.Root.SafeAreaInsets = SafeAreaInsets.ToThickness();
 		_uiHost.Tick(time.DeltaSeconds, camTime, SurfaceSize);
 		_uiHost.Render();
 		_scene.UI.Prepare();
