@@ -4,7 +4,7 @@ using Loom.Input;
 
 using Sui = SUIsei.Input;
 
-namespace Loom.Sandbox;
+namespace Loom.Gallery.Hosting;
 
 /// <summary>
 /// The bottom input layer: forwards the frame's surviving pointer stream to the active demo as SUIsei

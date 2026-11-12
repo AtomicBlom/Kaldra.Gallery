@@ -275,10 +275,10 @@
 	</Grid>
 
 	<VisualStateManager.VisualStateGroups>
-		<VisualStateGroup Name="DrawOn">
-			<VisualState Name="Idle" />
+		<VisualStateGroup x:Name="DrawOn">
+			<VisualState x:Name="Idle" />
 			<!-- Draw the trail on, hold it, then erase it from its start, forever: End leads, Start follows. -->
-			<VisualState Name="Looping">
+			<VisualState x:Name="Looping">
 				<Storyboard>
 					<DoubleAnimationUsingKeyFrames Storyboard.TargetName="Trail" Storyboard.TargetProperty="(suisei:StrokeTrim.End)"
 					                               Duration="0:0:3.6" RepeatBehavior="Forever">
