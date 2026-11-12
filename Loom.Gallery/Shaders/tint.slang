@@ -9,7 +9,7 @@ struct TintParams
 {
 	float4 color; // a single float4 packs identically under std140 and cbuffer rules — no cross-backend layout hazard
 };
-LOOM_BINDING(0) ConstantBuffer<TintParams> tint : register(b1);
+LOOM_BINDING(0) ConstantBuffer<TintParams> tint LOOM_REGISTER(b1);
 
 [shader("vertex")]
 float4 vertexMain(uint vertexId : SV_VertexID) : SV_Position

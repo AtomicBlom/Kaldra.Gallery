@@ -103,7 +103,7 @@ internal sealed class GalleryApp(Func<string, byte[]> readAsset) : LoomApplicati
 		// Bottom to top: the active demo's in-world panel, the shell and the demos' own pages, then Escape to leave.
 		PushInputLayer(new DemoPointerLayer(e => _demos[_currentDemo].OnPointer(e)));
 		// No demo plays with a controller, so it drives the shell: the d-pad and stick move between its controls.
-		PushInputLayer(new SUIseiInputLayer(_uiHost) { TakesGamepad = true });
+		PushInputLayer(new SUIseiInputLayer(_uiHost) { PadNavigation = true });
 		PushInputLayer(new ExitOnEscapeLayer(Exit));
 		_ready = true;
 	}

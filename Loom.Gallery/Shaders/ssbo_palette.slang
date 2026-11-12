@@ -10,7 +10,7 @@ struct Color
 	float4 rgba;
 };
 
-LOOM_BINDING(0) StructuredBuffer<Color> palette : register(t0);
+LOOM_BINDING(0) StructuredBuffer<Color> palette LOOM_REGISTER(t0);
 
 struct VsOut
 {

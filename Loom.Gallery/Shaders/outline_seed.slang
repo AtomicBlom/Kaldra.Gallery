@@ -15,7 +15,7 @@ struct OutlineParams
 
 // The hovered id rides a parameter buffer the seed pass .Reads — bound after the sampled input (Vulkan binding
 // 1 = SampleCount; the b1 root CBV on DirectX12), exactly as the reflected uniform seam places it.
-LOOM_BINDING(1) ConstantBuffer<OutlineParams> outline : register(b1);
+LOOM_BINDING(1) ConstantBuffer<OutlineParams> outline LOOM_REGISTER(b1);
 
 struct VsOut
 {

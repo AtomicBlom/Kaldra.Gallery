@@ -10,8 +10,8 @@
 struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused)
 
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
-LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw : register(b2);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
 
 struct VsIn
 {

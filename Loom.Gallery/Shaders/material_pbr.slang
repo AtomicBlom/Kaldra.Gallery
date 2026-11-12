@@ -31,9 +31,9 @@ struct LoomMaterial
 // `loomMaterial` is declared last by convention, but nothing depends on that: the engine binds it at whatever slot
 // reflection reports, which is its ordinal among these three cbuffers.
 LOOM_BINDING(0) Sampler2D albedoTex;
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view : register(b1);
-LOOM_BINDING(2) ConstantBuffer<PerDraw> draw : register(b2);
-LOOM_BINDING(3) ConstantBuffer<LoomMaterial> loomMaterial : register(b3);
+LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+LOOM_BINDING(2) ConstantBuffer<PerDraw> draw LOOM_REGISTER(b2);
+LOOM_BINDING(3) ConstantBuffer<LoomMaterial> loomMaterial LOOM_REGISTER(b3);
 
 struct VsIn
 {

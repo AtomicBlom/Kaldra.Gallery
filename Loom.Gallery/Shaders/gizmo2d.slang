@@ -13,7 +13,7 @@ struct ViewProj
 };
 
 // No samplers, so the view-proj UBO is the first binding (0); register(b1) — b0 is the unused root-constant slot.
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view : register(b1);
+LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
 
 struct VsIn
 {

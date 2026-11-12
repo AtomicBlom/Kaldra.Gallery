@@ -19,7 +19,7 @@ struct CsmSplits
 {
 	float4 splits;
 };
-LOOM_BINDING(6) ConstantBuffer<CsmSplits> csmSplits : register(b1);
+LOOM_BINDING(6) ConstantBuffer<CsmSplits> csmSplits LOOM_REGISTER(b1);
 
 struct CsmParams
 {
@@ -30,7 +30,7 @@ struct CsmParams
 	float4 sunColor;     // sun light colour .rgb
 	float4 ambientColor; // ambient colour .rgb
 };
-LOOM_BINDING(7) ConstantBuffer<CsmParams> csm : register(b2);
+LOOM_BINDING(7) ConstantBuffer<CsmParams> csm LOOM_REGISTER(b2);
 
 struct VsOut
 {
