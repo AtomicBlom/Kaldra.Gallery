@@ -17,7 +17,7 @@ namespace Loom.Tests;
 /// no backend is available.
 /// </summary>
 [NotInParallel] // one GPU engine at a time
-public class ShadowUploadTests
+public class FrameSlotUploadTests
 {
 	private const int W = 64, H = 64;
 	private const int FramesChecked = 4;   // more than any backend has slots
@@ -68,6 +68,72 @@ public class ShadowUploadTests
 			Frames(engine, backend, true, "and back");
 			engine.Resize(W, H);
 			Frames(engine, backend, true, "after a resize rebuilt what it rebuilds");
+		}
+	}
+
+	// The same for a Storage buffer, fixed in size and growable: a growth reallocates every slot's buffer, which must then
+	// be uploaded again in each, whatever slot the growing write lands on
+	[Test]
+	[Arguments(false)]
+	[Arguments(true)]
+	public void Every_frame_reads_the_last_storage_write(bool growable)
+	{
+		foreach (var backend in AvailableBackends())
+		{
+			using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
+			engine.DefineTechnique("palette", new TechniqueDescriptor("ssbo_palette"));
+
+			StorageBufferHandle palette = null!;
+			engine.SetGraph(RenderGraph.Define(g =>
+			{
+				palette = g.Storage<Vector4>("upload.palette", growable ? 1 : 8, growable);
+				g.Pass("paint").Reads(palette).Writes(g.Backbuffer).Draw(ctx => ctx.FullScreen("palette"));
+				g.Present(g.Backbuffer);
+			}));
+
+			Vector4[] Palette(Vector4 colour, int count) => [.. Enumerable.Repeat(colour, count)];
+			var red = new Vector4(1f, 0f, 0f, 1f);
+			var blue = new Vector4(0f, 0f, 1f, 1f);
+			var green = new Vector4(0f, 1f, 0f, 1f);
+
+			engine.Write(palette, Palette(red, 4));      // grows a growable buffer from one element
+			PaletteFrames(engine, backend, red, "written once, read in every slot");
+			engine.Write(palette, Palette(blue, 4));
+			PaletteFrames(engine, backend, blue, "written again, every slot caught up");
+			engine.Write(palette, Palette(green, 8));    // grows it again, past what it was
+			PaletteFrames(engine, backend, green, growable ? "grown, every slot's new buffer uploaded" : "the whole buffer written");
+			engine.Resize(W, H);
+			PaletteFrames(engine, backend, green, "after a resize rebuilt what it rebuilds");
+		}
+	}
+
+	// Each of several frames captured in turn, its top-left quadrant (the palette's first element) the expected colour
+	private static void PaletteFrames(IEngine engine, IRenderBackend backend, Vector4 expected, string step)
+	{
+		var inputs = new FrameInputs { Time = 0, DeltaSeconds = 1.0 / 60.0 };
+		var paths = Enumerable.Range(0, FramesChecked).Select(_ => Path.Combine(Path.GetTempPath(), $"loom-upload-{Guid.NewGuid():N}.png")).ToList();
+		try
+		{
+			foreach (var path in paths)
+			{
+				engine.RequestCapture(path);
+				engine.Render(inputs);
+			}
+			for (var flush = 0; flush < 3; flush++)
+				engine.Render(inputs);
+			for (var i = 0; i < paths.Count; i++)
+			{
+				var (width, _, rgba) = PngReader.Read(paths[i]);
+				var at = ((H / 4 * width) + (W / 4)) * 4;
+				var seen = new Vector3(rgba[at], rgba[at + 1], rgba[at + 2]) / 255f;
+				var close = Vector3.Distance(seen, new Vector3(expected.X, expected.Y, expected.Z)) < 0.1f;
+				close.ShouldBeTrue($"{backend.Name}, {step}: frame {i} showed {seen}, not the last write's {expected}.");
+			}
+		}
+		finally
+		{
+			foreach (var path in paths.Where(File.Exists))
+				File.Delete(path);
 		}
 	}
 
