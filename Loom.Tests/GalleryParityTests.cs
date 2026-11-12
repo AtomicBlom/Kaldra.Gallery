@@ -24,13 +24,11 @@ public class GalleryParityTests
 	// A spread of render demos, plus the UI demos — whose pages GalleryCapture shows chrome-free and whose scripted
 	// click it replays, so their frames are as deterministic as the rest; the group-opacity one is the only UI path
 	// whose pixels depend on the backend. A demo unsupported on one backend is dropped by the capability filter
-	// rather than compared. (The normal-mapping demo is deliberately absent: it
-	// diverges ~0.9% of pixels across the backends, just over the strict bar. It isolates to the tangent-space
-	// reconstruction in gbuffer_normalmap — the encoded normal alone already diverges ~0.7% while the SAME shader's
-	// albedo (a plain texture sample) stays clean at ~0.02%, so it is the normalize/cross/normalize rounding
-	// differently between SPIR-V and DXIL, not the sampler; the deferred lighting only nudges 0.7% up to 0.9%
-	// (≤68/255, no artifact, both renders correct). TargetedParityTests pins this and bounds the gap. A benign
-	// backend precision quirk, not a bug worth gating the demo suite on.)
+	// rather than compared. The normal-mapping demo is deliberately absent: on some GPUs its tangent-space
+	// reconstruction (normalize/cross/normalize in gbuffer_normalmap) rounds differently between SPIR-V and DXIL, and
+	// the lit frame then diverges on ~0.9% of pixels (≤22/255, both renders correct), just over the bar, while on
+	// others it matches to the bit. TargetedParityTests isolates that gap to the TBN math against an albedo control
+	// and bounds it, so the feature keeps coverage without gating this suite on a benign precision difference.
 	private static readonly (string Name, Func<IDemo> Factory)[] Demos =
 	[
 		("FullReference", () => new FullReferenceDemo()),

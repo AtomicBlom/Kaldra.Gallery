@@ -6,13 +6,12 @@
 // ParticlePosition layout); the graph derives the compute->vertex barrier from the shared buffer.
 
 #include "loom_platform.module.slang"
+#include "hash.module.slang"
 
 LOOM_BINDING(0) RWStructuredBuffer<float4> fireflies;
 
 struct PushConstants { float4 p; }; // x = elapsed time (seconds)
 LOOM_PUSH_CONSTANT PushConstants pc;
-
-float hash11(float n) { return frac(sin(n) * 43758.5453123); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -28,9 +27,9 @@ void computeMain(uint3 id : SV_DispatchThreadID)
 	float t = pc.p.x;
 
 	// Scatter a base point across the glade from stable per-index randoms.
-	float rx = hash11(i * 1.7 + 0.3);
-	float ry = hash11(i * 5.3 + 1.1);
-	float rz = hash11(i * 3.1 + 0.7);
+	float rx = Hash01(i * 3u);
+	float ry = Hash01(i * 3u + 1u);
+	float rz = Hash01(i * 3u + 2u);
 	float3 base = float3((rx - 0.5) * 7.0, 0.5 + ry * 1.9, (rz - 0.5) * 7.0);
 
 	// Slow wander: distinct per-axis frequencies + a per-mote phase so no two drift alike.

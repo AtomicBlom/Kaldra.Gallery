@@ -54,4 +54,46 @@ public class StaticInstancesTests
 		}
 		failures.ShouldBeEmpty("Instances uploaded once drew differently:\n  " + string.Join("\n  ", failures));
 	}
+
+	/// <summary>
+	/// Drawn in ranges of 333 instances, so all but the first draw of a run start part way into the buffer (and off a row's
+	/// boundary), the field still comes out as uploading it every frame does. This is where the backends differ: DirectX 12
+	/// offsets the instance stream's view, Vulkan and WebGPU bind the buffer at an offset. A wrong offset draws an earlier
+	/// range's cubes again and leaves later ones out.
+	/// </summary>
+	[Test]
+	public void Ranges_starting_part_way_into_the_buffer_draw_their_own_instances()
+	{
+		_ = new VulkanEngineSettings();
+		_ = new DirectX12EngineSettings();
+		var backends = Backends.Available.Where(b => b.Name is "Vulkan" or "DirectX12").ToList();
+		if (backends.Count == 0)
+			throw new TUnit.Core.Exceptions.SkipTestException("Neither Vulkan nor DirectX12 is available on this box.");
+
+		var failures = new List<string>();
+		foreach (var backend in backends)
+		{
+			var eachFrame = Path.Combine(Path.GetTempPath(), $"loom-instances-frame-{backend.Name}-{Guid.NewGuid():N}.png");
+			var ranged = Path.Combine(Path.GetTempPath(), $"loom-instances-ranged-{backend.Name}-{Guid.NewGuid():N}.png");
+			try
+			{
+				InstancingDemo? demo = null;
+				GalleryCapture.TryRender(backend, () => new InstancingDemo(), eachFrame).ShouldBeTrue();
+				GalleryCapture.TryRender(backend, () => demo = new InstancingDemo(uploadOnce: true, rangeSize: 333), ranged).ShouldBeTrue();
+				demo!.OffsetRanges.ShouldBeGreaterThan(0, $"{backend.Name}: no draw started past the buffer's first instance, so this proves nothing");
+
+				var (w, h, a) = PngReader.Read(eachFrame);
+				var (_, _, b) = PngReader.Read(ranged);
+				var diff = ImageComparison.Compare(w, h, a, b, perChannelTolerance: 1);
+				if (diff.FailedFraction > 0)
+					failures.Add($"{backend.Name}: {diff}");
+			}
+			finally
+			{
+				if (File.Exists(eachFrame)) File.Delete(eachFrame);
+				if (File.Exists(ranged)) File.Delete(ranged);
+			}
+		}
+		failures.ShouldBeEmpty("Instances drawn in ranges drew differently:\n  " + string.Join("\n  ", failures));
+	}
 }

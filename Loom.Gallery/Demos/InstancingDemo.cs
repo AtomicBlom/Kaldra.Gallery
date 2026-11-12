@@ -17,10 +17,12 @@ namespace Loom.Gallery.Demos;
 /// <para>
 /// Uploaded once (<c>uploadOnce</c>), the same field goes to the GPU a single time as an <see cref="InstanceBuffer"/>,
 /// row by row, and each frame draws ranges of it (<see cref="DrawCall.Static(InstanceBuffer, int, int)"/>): the runs of
-/// rows whose bounds meet the frustum, nothing uploaded. It draws the same picture, which the tests hold it to.
+/// rows whose bounds meet the frustum, nothing uploaded. It draws the same picture, which the tests hold it to. With
+/// <c>rangeSize</c> each run is drawn as draws of at most that many instances, so most start part way into the buffer,
+/// which is where the backends differ (an offset vertex-buffer view, or a bind offset).
 /// </para>
 /// </summary>
-internal sealed class InstancingDemo(bool uploadOnce = false) : IDemo
+internal sealed class InstancingDemo(bool uploadOnce = false, int rangeSize = 0) : IDemo
 {
 	private const int GridSize = 50;        // 50×50 = 2500 cubes
 	private const float Spacing = 0.5f;
@@ -39,6 +41,9 @@ internal sealed class InstancingDemo(bool uploadOnce = false) : IDemo
 	private readonly List<(int First, int Count)> _runs = [];
 
 	public string Name => uploadOnce ? "Instancing, uploaded once" : "Instancing + Cull";
+
+	/// <summary>How many of the last frame's draws started part way into the uploaded buffer (a first instance past 0).</summary>
+	public int OffsetRanges { get; private set; }
 
 	public void DefineTechniques(IEngine engine)
 	{
@@ -139,6 +144,26 @@ internal sealed class InstancingDemo(bool uploadOnce = false) : IDemo
 			else
 				_runs.Add((row * GridSize, GridSize));
 			_drawn += GridSize;
+		}
+
+		// Split into draws of at most rangeSize instances, each but a run's first starting part way into the buffer
+		if (rangeSize > 0)
+		{
+			for (var i = _runs.Count - 1; i >= 0; i--)
+			{
+				var (first, count) = _runs[i];
+				if (count <= rangeSize)
+					continue;
+				_runs.RemoveAt(i);
+				for (var start = first; start < first + count; start += rangeSize)
+					_runs.Insert(i + (start - first) / rangeSize, (start, Math.Min(rangeSize, first + count - start)));
+			}
+		}
+		OffsetRanges = 0;
+		foreach (var (first, _) in _runs)
+		{
+			if (first > 0)
+				OffsetRanges++;
 		}
 	}
 

@@ -5,6 +5,7 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using SUIsei;
+using SUIsei.Composition;
 using SUIsei.Drawing;
 using SUIsei.Media;
 
@@ -80,9 +81,9 @@ internal sealed class VectorPrimsDemo : IDemo
 		var chalk = PremultipliedHdrColor.FromStraight(0.9f, 0.9f, 0.9f, 1f);
 
 		// A zig-zag in each join, each with its own pair of caps: every join and cap WinUI has, at an acute angle.
-		Stroke(ZigZag(new Vector2(90f, 70f)), Style(18f, PenLineJoin.Miter, PenLineCap.Flat, PenLineCap.Square), amber, Matrix3x2.Identity);
-		Stroke(ZigZag(new Vector2(480f, 70f)), Style(18f, PenLineJoin.Bevel, PenLineCap.Round, PenLineCap.Triangle), sky, Matrix3x2.Identity);
-		Stroke(ZigZag(new Vector2(870f, 70f)), Style(18f, PenLineJoin.Round, PenLineCap.Square, PenLineCap.Round), leaf, Matrix3x2.Identity);
+		Stroke(ZigZag(new Vector2(90f, 70f)), Style(18f, CompositionStrokeLineJoin.Miter, CompositionStrokeCap.Flat, CompositionStrokeCap.Square), amber, Matrix3x2.Identity);
+		Stroke(ZigZag(new Vector2(480f, 70f)), Style(18f, CompositionStrokeLineJoin.Bevel, CompositionStrokeCap.Round, CompositionStrokeCap.Triangle), sky, Matrix3x2.Identity);
+		Stroke(ZigZag(new Vector2(870f, 70f)), Style(18f, CompositionStrokeLineJoin.Round, CompositionStrokeCap.Square, CompositionStrokeCap.Round), leaf, Matrix3x2.Identity);
 
 		// A concave fill, a curved one, and a dashed curve with round dash caps.
 		Fill(Star(new Vector2(190f, 350f)), rose, Matrix3x2.Identity);
@@ -90,8 +91,8 @@ internal sealed class VectorPrimsDemo : IDemo
 		var curve = new CompositionPath();
 		curve.MoveTo(new Vector2(640f, 430f));
 		curve.CubicTo(new Vector2(720f, 230f), new Vector2(860f, 470f), new Vector2(960f, 270f));
-		var dashed = Style(12f, PenLineJoin.Round, PenLineCap.Round, PenLineCap.Round);
-		dashed.DashCap = PenLineCap.Round;
+		var dashed = Style(12f, CompositionStrokeLineJoin.Round, CompositionStrokeCap.Round, CompositionStrokeCap.Round);
+		dashed.DashCap = CompositionStrokeCap.Round;
 		dashed.SetDashArray([2f, 1.5f]);
 		Stroke(curve, dashed, amber, Matrix3x2.Identity);
 
@@ -102,13 +103,13 @@ internal sealed class VectorPrimsDemo : IDemo
 		loop.LineTo(new Vector2(1210f, 280f));
 		loop.LineTo(new Vector2(1050f, 430f));
 		var loopTessellated = new TessellatedPath();
-		tessellator.Stroke(loop, Style(20f, PenLineJoin.Round, PenLineCap.Round, PenLineCap.Round), TessellationScale.Identity, loopTessellated);
+		tessellator.Stroke(loop, Style(20f, CompositionStrokeLineJoin.Round, CompositionStrokeCap.Round, CompositionStrokeCap.Round), TessellationScale.Identity, loopTessellated);
 		builder.AddVector(loopTessellated, PathTrim.None, Matrix3x2.Identity, leaf, clip, groupOpacity: 0.5f);
 
 		// The same kinds of shape rotated: no edge left on an axis.
 		var starCentre = new Vector2(190f, 600f);
 		Fill(Star(starCentre), leaf, Matrix3x2.CreateRotation(MathF.PI / 6f, starCentre));
-		Stroke(ZigZag(new Vector2(330f, 500f)), Style(14f, PenLineJoin.Miter, PenLineCap.Triangle, PenLineCap.Flat), rose,
+		Stroke(ZigZag(new Vector2(330f, 500f)), Style(14f, CompositionStrokeLineJoin.Miter, CompositionStrokeCap.Triangle, CompositionStrokeCap.Flat), rose,
 			Matrix3x2.CreateRotation(-MathF.PI / 9f, new Vector2(490f, 560f)));
 		var square = new CompositionPath();
 		square.MoveTo(new Vector2(1060f, 540f));
@@ -116,7 +117,7 @@ internal sealed class VectorPrimsDemo : IDemo
 		square.LineTo(new Vector2(1180f, 660f));
 		square.LineTo(new Vector2(1060f, 660f));
 		square.Close();
-		Stroke(square, Style(10f, PenLineJoin.Miter, PenLineCap.Flat, PenLineCap.Flat), amber, Matrix3x2.CreateRotation(MathF.PI / 4f, new Vector2(1120f, 600f)));
+		Stroke(square, Style(10f, CompositionStrokeLineJoin.Miter, CompositionStrokeCap.Flat, CompositionStrokeCap.Flat), amber, Matrix3x2.CreateRotation(MathF.PI / 4f, new Vector2(1120f, 600f)));
 
 		// Hairlines one pixel thick, every 15° from horizontal to vertical.
 		for (var i = 0; i <= 6; i++)
@@ -125,7 +126,7 @@ internal sealed class VectorPrimsDemo : IDemo
 			var line = new CompositionPath();
 			line.MoveTo(new Vector2(720f, 690f));
 			line.LineTo(new Vector2(720f + 220f * MathF.Cos(angle), 690f - 220f * MathF.Sin(angle)));
-			Stroke(line, Style(1f, PenLineJoin.Miter, PenLineCap.Flat, PenLineCap.Flat), chalk, Matrix3x2.Identity);
+			Stroke(line, Style(1f, CompositionStrokeLineJoin.Miter, CompositionStrokeCap.Flat, CompositionStrokeCap.Flat), chalk, Matrix3x2.Identity);
 		}
 
 		return builder.End();
@@ -145,7 +146,7 @@ internal sealed class VectorPrimsDemo : IDemo
 		}
 	}
 
-	private static CompositionStrokeStyle Style(float thickness, PenLineJoin join, PenLineCap start, PenLineCap end) =>
+	private static CompositionStrokeStyle Style(float thickness, CompositionStrokeLineJoin join, CompositionStrokeCap start, CompositionStrokeCap end) =>
 		new() { Thickness = thickness, LineJoin = join, StartCap = start, EndCap = end };
 
 	// Four legs of 80×120 px, starting at the bottom left of `origin`'s 320×120 box.
@@ -181,8 +182,8 @@ internal sealed class VectorPrimsDemo : IDemo
 		var path = new CompositionPath();
 		var radii = new Vector2(radius);
 		path.MoveTo(centre + new Vector2(radius, 0f));
-		path.ArcTo(radii, 0f, false, SweepDirection.Clockwise, centre - new Vector2(radius, 0f));
-		path.ArcTo(radii, 0f, false, SweepDirection.Clockwise, centre + new Vector2(radius, 0f));
+		path.ArcTo(radii, 0f, false, CompositionSweepDirection.Clockwise, centre - new Vector2(radius, 0f));
+		path.ArcTo(radii, 0f, false, CompositionSweepDirection.Clockwise, centre + new Vector2(radius, 0f));
 		path.Close();
 		return path;
 	}

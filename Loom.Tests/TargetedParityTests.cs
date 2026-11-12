@@ -28,17 +28,20 @@ public class TargetedParityTests
 	// and the frame fails above this fraction.
 	private const double StandardBar = 0.005;
 
+	// Fewer distinct colours than this and a target drew next to nothing (see ImageComparison.DistinctColors).
+	private const int MinDistinctColours = 256;
+
 	/// <summary>
-	/// Isolates the normal-mapped G-buffer's cross-backend divergence to the TBN reconstruction, and bounds it.
-	/// The <c>gbuffer_normalmap</c> fragment shader samples a texture and then rotates a tangent-space normal into
-	/// world space (<c>normalize</c>/<c>cross</c>/<c>normalize</c>). Its <b>albedo</b> output — same draw, same
-	/// sampler, no TBN math — is backend-clean at the standard bar, so texture sampling, rasterization, and
-	/// interpolation are not the source. Its encoded <b>normal</b> output carries a small, bounded precision gap
-	/// (measured ~0.7% of pixels, ≤68/255): the normalize/cross/normalize round differently between SPIR-V (Vulkan)
-	/// and DXIL (DirectX12). This is the stage the fully-lit NormalMapping demo is excluded from
-	/// <see cref="GalleryParityTests"/> for — the deferred lighting nudges 0.7% up to ~0.9%. Asserting the sampler
-	/// clean and the TBN gap bounded gives the feature real coverage and guards the gap from silently widening,
-	/// without gating the demo suite on a benign precision quirk.
+	/// Bounds the normal-mapped G-buffer's cross-backend divergence, against a control. The <c>gbuffer_normalmap</c>
+	/// fragment shader samples a texture and then rotates a tangent-space normal into world space
+	/// (<c>normalize</c>/<c>cross</c>/<c>normalize</c>). Its <b>albedo</b> output (same draw, same sampler, no TBN
+	/// math) must be backend-clean at the standard bar, so texture sampling, rasterization and interpolation are ruled
+	/// out as a source. Its encoded <b>normal</b> output may carry a small precision gap where SPIR-V (Vulkan) and DXIL
+	/// (DirectX12) round the TBN math differently: on some GPUs the two targets match to the bit, on others (an Adreno
+	/// X1-85) the normal diverges on ~0.74% of pixels, up to 68/255. That gap is why the fully-lit NormalMapping demo,
+	/// where the deferred lighting widens it to ~0.9%, stays out of <see cref="GalleryParityTests"/>. Holding the
+	/// albedo clean and the normal under a bound gives the feature real coverage on every GPU and catches the gap
+	/// widening, without gating the demo suite on a benign precision difference.
 	/// </summary>
 	[Test]
 	public void NormalMap_gbuffer_sampler_is_clean_and_the_TBN_gap_stays_bounded()
@@ -55,15 +58,14 @@ public class TargetedParityTests
 		albedo.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar,
 			$"the G-buffer albedo (a plain texture sample) diverges across backends — the sampler, not the TBN math, would be the culprit: {albedo}");
 
-		// The encoded normal (sampler + TBN reconstruction) carries a known, bounded precision gap. The bound sits
-		// above the measured ~0.7% with headroom, so it guards against the gap widening (a real regression) without
-		// flaking on the existing benign SPIR-V/DXIL rounding difference.
+		// The encoded normal (sampler + TBN reconstruction) may carry the precision gap. The bound sits above the widest
+		// gap measured (~0.74% of pixels) with headroom, so it catches the gap widening (a real regression) without
+		// flaking on the benign SPIR-V/DXIL rounding difference. Where the gap is absent the normal passes trivially;
+		// the albedo control and the content guard in CompareTarget are what keep that pass from being vacuous.
 		const double tbnBound = 0.012;
 		var normal = CompareTarget(vulkan, dx12, GBufferTarget.Normal);
 		normal.FailedFraction.ShouldBeLessThanOrEqualTo(tbnBound,
 			$"the encoded normal's cross-backend TBN precision gap widened beyond its known bound: {normal}");
-		// And it is genuinely the TBN, not the sampler: the normal diverges materially more than its albedo control.
-		normal.FailedFraction.ShouldBeGreaterThan(albedo.FailedFraction);
 	}
 
 	private enum GBufferTarget { Albedo, Normal }
@@ -82,6 +84,10 @@ public class TargetedParityTests
 			var (vw, vh, vk) = PngReader.Read(vkPath);
 			var (dw, dh, dx) = PngReader.Read(dxPath);
 			(vw, vh).ShouldBe((dw, dh));
+			// Guard against a vacuous pass: two frames that drew nothing compare as identical. The brick-textured cube
+			// and floor fill each target with thousands of distinct colours; a cleared or failed frame has a handful.
+			ImageComparison.DistinctColors(vk).ShouldBeGreaterThan(MinDistinctColours, $"the Vulkan {target} target rendered ~nothing, so its parity would pass vacuously.");
+			ImageComparison.DistinctColors(dx).ShouldBeGreaterThan(MinDistinctColours, $"the DirectX12 {target} target rendered ~nothing, so its parity would pass vacuously.");
 			return ImageComparison.Compare(vw, vh, vk, dx, PerChannelTolerance);
 		}
 		finally
@@ -178,14 +184,15 @@ public class TargetedParityTests
 			bg: [0.20f, 0.20f, 0.20f, 1f], a: [0.80f, 0.25f, 0.25f, 0.5f], b: [0.25f, 0.25f, 0.80f, 0.5f]);
 		alphaOver.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"alpha-over blend diverges across backends: {alphaOver}");
 
-		// Multiply: two colours darkening an opaque light grey (src·dst). Its colour factor (the destination's colour) has no
-		// place in DirectX12's alpha equation, which once failed the pipeline outright there.
+		// Multiply: two colours darkening a light grey (src·dst). Every alpha is below 1, so the alpha equation shows in the
+		// frame too: DirectX12 takes the destination's alpha where the colour equation takes its colour, and a wrong
+		// mapping there diverges in the alpha channel alone.
 		var multiply = CompareBlend(vulkan, dx12, BlendMode.Multiply,
-			bg: [0.90f, 0.90f, 0.90f, 1f], a: [0.80f, 0.50f, 0.30f, 1f], b: [0.60f, 0.90f, 0.70f, 1f]);
+			bg: [0.90f, 0.90f, 0.90f, 0.80f], a: [0.80f, 0.50f, 0.30f, 0.60f], b: [0.60f, 0.90f, 0.70f, 0.70f], alphaVaries: true);
 		multiply.FailedFraction.ShouldBeLessThanOrEqualTo(StandardBar, $"multiply blend diverges across backends: {multiply}");
 	}
 
-	private static ImageDiff CompareBlend(IRenderBackend vulkan, IRenderBackend dx12, BlendMode mode, float[] bg, float[] a, float[] b)
+	private static ImageDiff CompareBlend(IRenderBackend vulkan, IRenderBackend dx12, BlendMode mode, float[] bg, float[] a, float[] b, bool alphaVaries = false)
 	{
 		var vkPath = Path.Combine(Path.GetTempPath(), $"loom-blend-{mode}-vk-{Guid.NewGuid():N}.png");
 		var dxPath = Path.Combine(Path.GetTempPath(), $"loom-blend-{mode}-dx-{Guid.NewGuid():N}.png");
@@ -203,6 +210,9 @@ public class TargetedParityTests
 			var right = (mid * vw + vw - 3) * 4;
 			var span = Math.Abs(vk[left] - vk[right]) + Math.Abs(vk[left + 1] - vk[right + 1]) + Math.Abs(vk[left + 2] - vk[right + 2]);
 			span.ShouldBeGreaterThan(16, $"{mode}: the blended frame is ~uniform — the probe likely rendered nothing, so parity would pass vacuously.");
+			// And where the alpha equation is under test, the capture must carry it: an alpha forced opaque would compare equal
+			if (alphaVaries)
+				vk[left + 3].ShouldBeLessThan((byte)250, $"{mode}: the captured alpha is opaque, so the alpha equation goes untested.");
 			return ImageComparison.Compare(vw, vh, vk, dx, PerChannelTolerance);
 		}
 		finally

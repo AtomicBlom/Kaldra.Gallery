@@ -8,6 +8,7 @@
 // (SandboxVertexLayouts.Particle, two IPARTICLE float4 rows); the graph derives the compute→vertex barrier.
 
 #include "loom_platform.module.slang"
+#include "hash.module.slang"
 
 struct Particle
 {
@@ -25,11 +26,6 @@ struct PushConstants
 };
 
 LOOM_PUSH_CONSTANT PushConstants pc;
-
-float hash11(float n)
-{
-	return frac(sin(n) * 43758.5453123);
-}
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -54,9 +50,9 @@ void computeMain(uint3 id : SV_DispatchThreadID)
 	float originZ = pc.p2.z;
 
 	// Per-particle randoms, stable across the whole life (they depend only on the index).
-	float seed = hash11(float(i) * 1.7 + 0.3);
-	float seedX = hash11(float(i) * 3.1 + 0.5);
-	float seedAng = hash11(float(i) * 5.3 + 1.2);
+	float seed = Hash01(i * 3u);
+	float seedX = Hash01(i * 3u + 1u);
+	float seedAng = Hash01(i * 3u + 2u);
 
 	// Each particle loops on its own staggered phase → a continuous stream of births rather than a pulse.
 	float phase = frac(time / lifetime + seed);
