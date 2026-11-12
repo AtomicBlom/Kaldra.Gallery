@@ -1,0 +1,47 @@
+<Project>
+
+  <!--
+    The demo gallery on Android: an APK running Loom.Gallery's GalleryApp (the gallery without the desktop sandbox's
+    ImGui dev tools) on the Android host, Vulkan only.
+        dotnet build Loom.Sandbox.Android -t:Run      → build, install and start it on the connected device
+    The gallery's shaders are embedded in its assembly (LoomEmbedSpirv) and its models and textures are packed into the
+    APK as Android assets, since an APK has no folder beside the app. Kept out of Loom.slnx (in Loom.Android.slnx) so
+    the desktop build never needs the android workload.
+  -->
+
+  <PropertyGroup>
+    <UseVulkan>true</UseVulkan>
+    <UseDirectX12>false</UseDirectX12>
+    <UseWebGPU>false</UseWebGPU>
+    <UseSUIsei>true</UseSUIsei>
+    <UseImGui>false</UseImGui>
+  </PropertyGroup>
+
+  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-android</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Loom.Sandbox.Android</RootNamespace>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <ApplicationId>com.atomicblom.loom.gallery</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <!-- arm64 for phones; x64 for an emulator on an x64 machine. -->
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Gallery\Loom.Gallery.csproj" />
+  </ItemGroup>
+
+  <!-- The gallery's models and textures, at the root of the APK's assets under their paths in Loom.Gallery/Assets. -->
+  <ItemGroup>
+    <AndroidAsset Include="..\Loom.Gallery\Assets\**" Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
+
+</Project>

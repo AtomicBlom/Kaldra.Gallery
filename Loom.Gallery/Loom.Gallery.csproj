@@ -23,12 +23,16 @@
     <!-- The demo shaders, compiled to loose content under shaders\ that flows to the consuming output. -->
     <LoomShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</LoomShaderSourceDir>
     <LoomShaderOutputMode>Content</LoomShaderOutputMode>
+    <!-- The SPIR-V is also embedded in the assembly, for a host with no folder beside the app to hold the loose
+         copies (an Android APK), whose engine finds shaders through EmbeddedShaders. -->
+    <LoomEmbedSpirv>true</LoomEmbedSpirv>
   </PropertyGroup>
 
   <!-- The gallery is internal shared infrastructure, not a public API: the slimmed sandbox exe and the test
        project reach its internals directly rather than through a maintained public surface. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Loom.Sandbox" />
+    <InternalsVisibleTo Include="Loom.Sandbox.Android" />
     <InternalsVisibleTo Include="Loom.Tests" />
   </ItemGroup>
 
