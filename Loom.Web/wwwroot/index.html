@@ -11,8 +11,9 @@
   <script type="importmap"></script>
   <style>
     html, body { margin: 0; height: 100%; background: #14141a; color: #d8d8e0;
-                 font-family: system-ui, sans-serif; overflow: hidden; }
-    #loom-canvas { display: block; width: 100vw; height: 100vh; }
+                 font-family: system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; }
+    /* What is on screen now, between a phone browser's bars (the default shell's index.html says why) */
+    #loom-canvas { display: block; width: 100vw; height: 100vh; width: 100dvw; height: 100dvh; }
     #status { position: fixed; left: 10px; bottom: 8px; font-size: 12px; opacity: 0.65;
                white-space: pre-wrap; max-width: 90vw; max-height: 40vh; overflow-y: auto; }
     #status.status-error { background: rgba(20, 12, 14, 0.9); border: 1px solid rgba(255, 100, 100, 0.5);
