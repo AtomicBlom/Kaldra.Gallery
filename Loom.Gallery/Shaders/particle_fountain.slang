@@ -1,11 +1,10 @@
 // The Particles demo's fountain (particle_update.slang's), its shape read from a Constants block the compute pass
 // .Reads, as a draw reads one: written once by the demo, while the time, which changes every frame, rides the push.
-// The block binds at the first constant-buffer slot after the storage buffer: b1 on DirectX 12, whose b0 is the
-// compute's root constants.
+// The block is the compute's one uniform slot.
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) RWStructuredBuffer<float4> particles;
+RWStructuredBuffer<float4> particles;
 
 struct Fountain
 {
@@ -13,7 +12,7 @@ struct Fountain
 	                // its base; w: how much it widens as it rises
 	float4 rise;    // x: the height it starts at; y: how high it rises
 };
-LOOM_BINDING(1) ConstantBuffer<Fountain> fountain LOOM_REGISTER(b1);
+ConstantBuffer<Fountain> fountain;
 
 struct PushConstants
 {

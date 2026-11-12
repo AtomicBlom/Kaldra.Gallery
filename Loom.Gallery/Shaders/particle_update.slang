@@ -6,7 +6,7 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) RWStructuredBuffer<float4> particles;
+RWStructuredBuffer<float4> particles;
 
 struct PushConstants
 {

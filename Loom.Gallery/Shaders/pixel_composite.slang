@@ -7,9 +7,9 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D scene;     // the 2D pixel-art scene (low-res domain)
-LOOM_BINDING(1) Sampler2D bossColor; // the boss render (tiny domain)
-LOOM_BINDING(2) Sampler2D bossDepth; // the boss depth (its domain)
+Sampler2D scene;     // the 2D pixel-art scene (low-res domain)
+Sampler2D bossColor; // the boss render (tiny domain)
+Sampler2D bossDepth; // the boss depth (its domain)
 
 struct PushConstants
 {

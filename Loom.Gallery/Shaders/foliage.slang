@@ -7,20 +7,20 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D bladeTex; // blade colour + alpha cutout (alpha < cutoff → discard)
+Sampler2D bladeTex; // blade colour + alpha cutout (alpha < cutoff → discard)
 
-// The camera view-projection (clip-space-corrected) the pass .Reads — the first UBO after the sampler (binding 1,
-// register b1). The per-instance world transform is rebuilt from the instance stream below, so there is no
-// per-draw model block; the wind parameters ride the per-draw Uniforms slot that follows (binding 2, register b2).
+// The camera view-projection (clip-space-corrected) the pass .Reads — the first uniform slot. The per-instance world
+// transform is rebuilt from the instance stream below, so there is no per-draw model block; the wind parameters ride
+// the per-draw Uniforms slot that follows.
 struct ViewProj { float4x4 viewProj; };
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+ConstantBuffer<ViewProj> view;
 
 struct WindParams
 {
 	float4 dirTime;  // wind direction.xy, time (.z), _
 	float4 strength; // amplitude (.x), frequency (.y), _, _
 };
-LOOM_BINDING(2) ConstantBuffer<WindParams> wind LOOM_REGISTER(b2);
+ConstantBuffer<WindParams> wind;
 
 struct VsIn
 {

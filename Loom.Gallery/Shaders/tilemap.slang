@@ -13,17 +13,17 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D indexTex;  // per-cell tile id in .r (Rgba8Unorm, NOT sRGB — exact byte), nearest
-LOOM_BINDING(1) Sampler2D albedoTex; // tile atlas albedo (sRGB)
-LOOM_BINDING(2) Sampler2D normalTex; // tile atlas tangent-space normal map (linear)
+Sampler2D indexTex;  // per-cell tile id in .r (Rgba8Unorm, NOT sRGB — exact byte), nearest
+Sampler2D albedoTex; // tile atlas albedo (sRGB)
+Sampler2D normalTex; // tile atlas tangent-space normal map (linear)
 
 struct ViewProj
 {
 	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-// The view-proj UBO follows the three samplers (binding 3); register(b1) — b0 is the unused root-constant slot.
-LOOM_BINDING(3) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+// The view-proj UBO, the one uniform slot, after the three samplers.
+ConstantBuffer<ViewProj> view;
 
 struct VsIn
 {

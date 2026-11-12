@@ -8,14 +8,14 @@
 
 #include "transform.module.slang"
 
-LOOM_BINDING(0) Sampler2D albedoTex; // material slot 0 — base colour (sRGB)
+Sampler2D albedoTex; // material slot 0 — base colour (sRGB)
 
 struct ViewProj { float4x4 viewProj; };              // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
 
-// The sampler owns binding 0, so the UBOs follow at 1,2 (register b1/b2; b0 is the unused root-constant slot).
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(2) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
+// The sampler owns binding 0, so the UBOs follow at 1,2.
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw>  draw;
 
 struct VsIn
 {

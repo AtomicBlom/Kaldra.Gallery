@@ -21,7 +21,6 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 	return output;
 }
 
-LOOM_BINDING(0)
 Sampler2DShadow depthMap;
 
 [shader("fragment")]

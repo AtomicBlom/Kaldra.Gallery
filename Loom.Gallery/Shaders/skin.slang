@@ -8,15 +8,15 @@
 // 16) vs DXIL (tight C packing), which corrupted both the 80-byte input read and the 48-byte output write on
 // Vulkan while DX12 was correct. Raw byte Load/Store at fixed offsets reads/writes identically on both backends.
 //
-// Bindings (matching DispatchSkin's bind order): 0 = bind-pose verts (read), 1 = bone palette (read),
-// 2 = skinned output (write). On Vulkan all three are storage buffers; on DX12 they bind as root SRVs (t0/t1)
-// + a root UAV (u0) by GPU address — so the compute entry must be `computeMain` for the build's DXIL emit.
+// Declared in DispatchSkin's bind order: the bind-pose verts (read), the bone palette (read), the skinned output
+// (write). On Vulkan all three are storage buffers; on DX12 they bind as root SRVs + a root UAV by GPU address — so
+// the compute entry must be `computeMain` for the build's DXIL emit.
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) ByteAddressBuffer inVertices;     // SkinnedVertex, 80 bytes: pos@0 nrm@12 uv@24 tan@32 joints@48 weights@64
-LOOM_BINDING(1) ByteAddressBuffer bonePalette;    // row-major float4x4 per joint, 64 bytes: row r at joint*64 + r*16
-LOOM_BINDING(2) RWByteAddressBuffer outVertices;  // MeshStandard, 48 bytes: pos@0 nrm@12 uv@24 tan@32
+ByteAddressBuffer inVertices;     // SkinnedVertex, 80 bytes: pos@0 nrm@12 uv@24 tan@32 joints@48 weights@64
+ByteAddressBuffer bonePalette;    // row-major float4x4 per joint, 64 bytes: row r at joint*64 + r*16
+RWByteAddressBuffer outVertices;  // MeshStandard, 48 bytes: pos@0 nrm@12 uv@24 tan@32
 
 struct PushConstants
 {

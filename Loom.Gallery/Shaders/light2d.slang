@@ -8,16 +8,16 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D albedoTex; // 2D G-buffer albedo (slot 0)
-LOOM_BINDING(1) Sampler2D normalTex; // 2D G-buffer encoded world normal (slot 1)
+Sampler2D albedoTex; // 2D G-buffer albedo (slot 0)
+Sampler2D normalTex; // 2D G-buffer encoded world normal (slot 1)
 
 struct ViewProj
 {
 	float4x4 viewProj; // camera view-projection, clip-space-corrected — the app composes it; same view the sprite pass reads
 };
 
-// The view-proj UBO follows the two G-buffer samplers (binding 2); register(b1) — b0 is the unused root-constant slot.
-LOOM_BINDING(2) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+// The view-proj UBO, the one uniform slot, after the two G-buffer samplers.
+ConstantBuffer<ViewProj> view;
 
 struct VsIn
 {

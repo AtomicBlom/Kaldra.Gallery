@@ -5,7 +5,7 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D sceneTex;
+Sampler2D sceneTex;
 
 struct PushConstants
 {

@@ -12,11 +12,10 @@
 struct ViewProj { float4x4 viewProj; };           // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused here)
 
-// No samplers precede them, so the UBOs own Vulkan bindings 0,1; register(b1)/(b2) on DX12 (b0 is the unused
-// root-constant slot). The cbuffer packs the model's transpose, so it applies column-form and the normal by the
+// The view, then the draw, as their uniform slots are filled. The cbuffer packs the model's transpose, so it applies column-form and the normal by the
 // inverse of that 3x3 (correct under any scale).
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw>  draw;
 
 struct VsIn
 {

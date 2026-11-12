@@ -6,16 +6,16 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D ids; // the object_id buffer from the picking pass
+Sampler2D ids; // the object_id buffer from the picking pass
 
 struct OutlineParams
 {
 	float4 p; // x = hovered object id (0 = none)
 };
 
-// The hovered id rides a parameter buffer the seed pass .Reads — bound after the sampled input (Vulkan binding
-// 1 = SampleCount; the b1 root CBV on DirectX12), exactly as the reflected uniform seam places it.
-LOOM_BINDING(1) ConstantBuffer<OutlineParams> outline LOOM_REGISTER(b1);
+// The hovered id rides a parameter buffer the seed pass .Reads — its one uniform slot, after the sampled input,
+// exactly as the reflected uniform seam places it.
+ConstantBuffer<OutlineParams> outline;
 
 struct VsOut
 {

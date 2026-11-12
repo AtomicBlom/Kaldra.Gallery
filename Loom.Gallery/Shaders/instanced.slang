@@ -13,7 +13,7 @@ struct ViewProj
 	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+ConstantBuffer<ViewProj> view;
 
 struct VsIn
 {

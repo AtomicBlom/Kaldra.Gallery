@@ -7,8 +7,8 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D seed; // final flood: nearest-seed coordinates
-LOOM_BINDING(1) Sampler2D litTex;
+Sampler2D seed; // final flood: nearest-seed coordinates
+Sampler2D litTex;
 
 struct VsOut
 {

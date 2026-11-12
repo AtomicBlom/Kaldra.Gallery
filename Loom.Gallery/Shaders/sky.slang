@@ -6,7 +6,7 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D depthTex; // scene depth; == 1.0 (cleared far) = background (no geometry drawn)
+Sampler2D depthTex; // scene depth; == 1.0 (cleared far) = background (no geometry drawn)
 
 struct SkyParams
 {
@@ -17,7 +17,7 @@ struct SkyParams
 	float4 horizon;       // sky colour at the horizon (.rgb)
 	float4 sunColor;      // sun disc/glow colour (.rgb), glow sharpness (.w)
 };
-LOOM_BINDING(1) ConstantBuffer<SkyParams> sky LOOM_REGISTER(b1);
+ConstantBuffer<SkyParams> sky;
 
 struct VsOut
 {

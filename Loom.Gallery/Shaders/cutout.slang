@@ -10,8 +10,8 @@
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw  { float4x4 model; uint objectId; };
 
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw>  draw;
 
 static const float Bars = 24.0;    // across the card
 static const float Width = 0.18;   // of each bar's repeat

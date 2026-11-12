@@ -7,7 +7,7 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D seed; // previous flood (or the seed pass for the first step)
+Sampler2D seed; // previous flood (or the seed pass for the first step)
 
 struct PushConstants
 {

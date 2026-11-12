@@ -10,8 +10,8 @@ struct Tint
 	float4 color;
 };
 
-LOOM_BINDING(0) ConstantBuffer<Tint> base LOOM_REGISTER(b1); // the pass's .Reads Constants buffer (host-written)
-LOOM_BINDING(1) ConstantBuffer<Tint> mul LOOM_REGISTER(b2);  // the in-closure FullScreen push
+ConstantBuffer<Tint> base; // the pass's .Reads Constants buffer (host-written)
+ConstantBuffer<Tint> mul;  // the in-closure FullScreen push
 
 [shader("vertex")]
 float4 vertexMain(uint vertexId : SV_VertexID) : SV_Position

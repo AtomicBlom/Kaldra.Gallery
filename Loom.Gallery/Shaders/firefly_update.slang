@@ -8,7 +8,7 @@
 #include "loom_platform.module.slang"
 #include "hash.module.slang"
 
-LOOM_BINDING(0) RWStructuredBuffer<float4> fireflies;
+RWStructuredBuffer<float4> fireflies;
 
 struct PushConstants { float4 p; }; // x = elapsed time (seconds)
 LOOM_PUSH_CONSTANT PushConstants pc;

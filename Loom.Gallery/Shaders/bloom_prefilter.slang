@@ -8,7 +8,7 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D source;
+Sampler2D source;
 
 struct PushConstants
 {
