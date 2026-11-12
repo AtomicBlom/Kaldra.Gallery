@@ -12,8 +12,8 @@ struct ViewProj
 	float4x4 viewProj; // camera view-projection, clip-space-corrected — the app composes it; same view the lights read
 };
 
-// No samplers, so the view-proj UBO is the first binding (0); register(b1) — b0 is the unused root-constant slot.
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+// The view-proj UBO, the one uniform slot.
+ConstantBuffer<ViewProj> view;
 
 struct VsIn
 {

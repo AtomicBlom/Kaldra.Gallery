@@ -10,10 +10,9 @@
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw  { float4x4 model; uint objectId; }; // object id (unused here)
 
-// DX12 reserves b0 for the (still-firing, here-unused) root-constant MVP, so the CBVs start at b1; on Vulkan
-// there are no samplers ahead of them, so they own bindings 0,1. UniformBufferCount is reflection-derived.
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
+// The view, then the draw, as their uniform slots are filled. UniformBufferCount is reflection-derived.
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw>  draw;
 
 struct VsIn
 {

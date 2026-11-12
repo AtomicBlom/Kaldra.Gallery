@@ -1,13 +1,12 @@
 // The Storage Scatter demo's expansion: a grid of cells, each with at most one spark, kept where a hash of the cell's
 // own coordinates falls under the density the app wrote once into a read-only storage buffer (a g.Storage the compute
 // pass .Reads), and written into the spark stream a draw reads as instances. What a game does with grass: a map of the
-// world written once, expanded every frame around the eye. The map binds after the stream: binding 1 on Vulkan and
-// WebGPU, t0 on DirectX 12 (a read-only buffer is a shader resource, after any sampled textures; there are none).
+// world written once, expanded every frame around the eye. The map is declared after the stream, and binds after it.
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) RWStructuredBuffer<float4> sparks;
-LOOM_BINDING(1) StructuredBuffer<float> density LOOM_REGISTER(t0);
+RWStructuredBuffer<float4> sparks;
+StructuredBuffer<float> density;
 
 struct PushConstants
 {

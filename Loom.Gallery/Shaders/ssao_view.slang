@@ -5,8 +5,8 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D albedoTex;
-LOOM_BINDING(1) Sampler2D aoTex;
+Sampler2D albedoTex;
+Sampler2D aoTex;
 
 struct VsOut
 {

@@ -16,7 +16,7 @@ struct Particle
 	float4 velSeed; // xyz current velocity, w = per-particle seed (stable across the life)
 };
 
-LOOM_BINDING(0) RWStructuredBuffer<Particle> particles;
+RWStructuredBuffer<Particle> particles;
 
 struct PushConstants
 {

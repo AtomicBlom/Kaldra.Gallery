@@ -7,9 +7,9 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D albedoTex; // 2D G-buffer albedo
-LOOM_BINDING(1) Sampler2D normalTex; // 2D G-buffer encoded world normal
-LOOM_BINDING(2) Sampler2D litTex;    // the final lit result (+ gizmos)
+Sampler2D albedoTex; // 2D G-buffer albedo
+Sampler2D normalTex; // 2D G-buffer encoded world normal
+Sampler2D litTex;    // the final lit result (+ gizmos)
 
 struct VsOut
 {

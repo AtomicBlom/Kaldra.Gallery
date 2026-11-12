@@ -3,9 +3,9 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D albedoTex;
-LOOM_BINDING(1) Sampler2D normalTex;
-LOOM_BINDING(2) Sampler2D positionTex;
+Sampler2D albedoTex;
+Sampler2D normalTex;
+Sampler2D positionTex;
 
 struct VsOut
 {

@@ -11,9 +11,9 @@
 struct ViewProj { float4x4 viewProj; };           // the app's view-projection, clip-space-corrected
 struct PerDraw  { float4x4 model; uint objectId; };  // per-object model + picking id (id unused by emissive)
 
-// Bindings as in lit.slang: no samplers precede them, so Vulkan bindings 0,1; DX12 register(b1)/(b2).
-LOOM_BINDING(0) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(1) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
+// Bound as in lit.slang: the view, then the draw.
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw>  draw;
 
 struct VsIn
 {

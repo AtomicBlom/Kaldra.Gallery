@@ -1,7 +1,7 @@
 // Reads a colour array from an app-writable storage buffer (an SSBO / read-only StructuredBuffer) the pass .Reads,
 // and paints each screen quadrant with a different element. The output depends on the buffer's contents at distinct
-// indices, so a correct frame proves the host-written array reached the shader (Vulkan storage buffer at binding 0;
-// DirectX12 read-only root SRV at t0 — no samplers, so the SSBO is the first bound resource on each backend).
+// indices, so a correct frame proves the host-written array reached the shader (a Vulkan storage buffer; a DirectX12
+// read-only root SRV).
 
 #include "loom_platform.module.slang"
 
@@ -10,7 +10,7 @@ struct Color
 	float4 rgba;
 };
 
-LOOM_BINDING(0) StructuredBuffer<Color> palette LOOM_REGISTER(t0);
+StructuredBuffer<Color> palette;
 
 struct VsOut
 {

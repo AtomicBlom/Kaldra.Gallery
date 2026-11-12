@@ -8,12 +8,12 @@
 
 static const int CASCADE_COUNT = 3;
 
-LOOM_BINDING(0) Sampler2D albedoTex;
-LOOM_BINDING(1) Sampler2D normalTex;
-LOOM_BINDING(2) Sampler2D positionTex;
-LOOM_BINDING(3) Sampler2D cascade0;
-LOOM_BINDING(4) Sampler2D cascade1;
-LOOM_BINDING(5) Sampler2D cascade2;
+Sampler2D albedoTex;
+Sampler2D normalTex;
+Sampler2D positionTex;
+Sampler2D cascade0;
+Sampler2D cascade1;
+Sampler2D cascade2;
 
 // The cascade split far-depths (.xyz) + cascade-tint flag (.w) — an app-written parameter buffer the host fills
 // from its fitted cascades. Bound at uniform slot 0 (host data the pass .Reads), ahead of the in-closure matrix push.
@@ -21,7 +21,7 @@ struct CsmSplits
 {
 	float4 splits;
 };
-LOOM_BINDING(6) ConstantBuffer<CsmSplits> csmSplits LOOM_REGISTER(b1);
+ConstantBuffer<CsmSplits> csmSplits;
 
 struct CsmParams
 {
@@ -32,7 +32,7 @@ struct CsmParams
 	float4 sunColor;                         // sun light colour (.rgb) — warm at dawn/dusk, white at noon
 	float4 ambientColor;                     // sky-tinted ambient colour (.rgb), dynamic by time of day
 };
-LOOM_BINDING(7) ConstantBuffer<CsmParams> csm LOOM_REGISTER(b2);
+ConstantBuffer<CsmParams> csm;
 
 struct VsOut
 {

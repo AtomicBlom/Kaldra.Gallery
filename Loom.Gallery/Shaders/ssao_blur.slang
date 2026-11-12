@@ -12,7 +12,7 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D aoTex;
+Sampler2D aoTex;
 
 struct VsOut
 {

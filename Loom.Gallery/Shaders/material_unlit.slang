@@ -19,11 +19,10 @@ struct LoomMaterial { float4 tint; };
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw { float4x4 model; uint objectId; };
 
-// The material block first, so its uniform slot is 0. No samplers precede the cbuffers, so they own descriptors 0..2;
-// on DX12 they are register(b1..b3) regardless, since b0 is the reserved root-constant slot.
-LOOM_BINDING(0) ConstantBuffer<LoomMaterial> loomMaterial LOOM_REGISTER(b1);
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b2);
-LOOM_BINDING(2) ConstantBuffer<PerDraw> draw LOOM_REGISTER(b3);
+// The material block first, so its uniform slot is 0.
+ConstantBuffer<LoomMaterial> loomMaterial;
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw> draw;
 
 struct VsIn
 {

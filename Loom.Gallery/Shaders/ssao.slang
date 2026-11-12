@@ -12,8 +12,8 @@
 #include "loom_platform.module.slang"
 #include "hash.module.slang"
 
-LOOM_BINDING(0) Sampler2D positionTex;
-LOOM_BINDING(1) Sampler2D normalTex;
+Sampler2D positionTex;
+Sampler2D normalTex;
 
 struct PushConstants
 {

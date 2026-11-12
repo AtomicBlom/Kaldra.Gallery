@@ -26,14 +26,12 @@ struct LoomMaterial
 	float4 metallicRoughness; // metallic, roughness, normalScale (unused here), occlusionStrength (unused here)
 };
 
-// One sampler precedes the UBOs, so it owns descriptor 0 and the constant buffers start at 1. On DX12 the cbuffers
-// are register(b1..) regardless (b0 is the reserved root-constant slot) — the two numbering schemes are independent.
-// `loomMaterial` is declared last by convention, but nothing depends on that: the engine binds it at whatever slot
+// One sampler, then the UBOs. `loomMaterial` is declared last by convention, but nothing depends on that: the engine binds it at whatever slot
 // reflection reports, which is its ordinal among these three cbuffers.
-LOOM_BINDING(0) Sampler2D albedoTex;
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(2) ConstantBuffer<PerDraw> draw LOOM_REGISTER(b2);
-LOOM_BINDING(3) ConstantBuffer<LoomMaterial> loomMaterial LOOM_REGISTER(b3);
+Sampler2D albedoTex;
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw> draw;
+ConstantBuffer<LoomMaterial> loomMaterial;
 
 struct VsIn
 {

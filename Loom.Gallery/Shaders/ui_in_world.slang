@@ -6,13 +6,13 @@
 
 #include "transform.module.slang"
 
-LOOM_BINDING(0) Sampler2D panelTex;     // the composited UI panel texture (slot 0, linear filter)
+Sampler2D panelTex;     // the composited UI panel texture (slot 0, linear filter)
 
 struct ViewProj { float4x4 viewProj; };
 struct PerDraw  { float4x4 model; uint objectId; };
 
-LOOM_BINDING(1) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
-LOOM_BINDING(2) ConstantBuffer<PerDraw>  draw LOOM_REGISTER(b2);
+ConstantBuffer<ViewProj> view;
+ConstantBuffer<PerDraw>  draw;
 
 struct VsIn
 {

@@ -13,16 +13,16 @@
 
 #include "loom_platform.module.slang"
 
-LOOM_BINDING(0) Sampler2D albedoTex; // atlas albedo (sRGB)
-LOOM_BINDING(1) Sampler2D normalTex; // atlas tangent-space normal map (linear)
+Sampler2D albedoTex; // atlas albedo (sRGB)
+Sampler2D normalTex; // atlas tangent-space normal map (linear)
 
 struct ViewProj
 {
 	float4x4 viewProj; // the app's view-projection, clip-space-corrected
 };
 
-// The view-proj UBO follows the two samplers (binding 2); register(b1) — b0 is the unused root-constant slot.
-LOOM_BINDING(2) ConstantBuffer<ViewProj> view LOOM_REGISTER(b1);
+// The view-proj UBO, the one uniform slot, after the two samplers.
+ConstantBuffer<ViewProj> view;
 
 struct VsIn
 {

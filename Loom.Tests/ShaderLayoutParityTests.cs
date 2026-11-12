@@ -86,9 +86,11 @@ public class ShaderLayoutParityTests
 	private static string[] ShippedSidecars()
 	{
 		var dir = Path.Combine(AppContext.BaseDirectory, "shaders");
-		// The WGSL sidecars sit beside the SPIR-V ones under a .wgsl.json suffix and are a different index space.
+		// The WGSL and DXIL sidecars sit beside the SPIR-V ones under .wgsl.json and .dxil.json suffixes, and are other
+		// index spaces.
 		return Directory.Exists(dir)
-			? [.. Directory.GetFiles(dir, "*.json").Where(p => !p.EndsWith(".wgsl.json", StringComparison.OrdinalIgnoreCase)).Order()]
+			? [.. Directory.GetFiles(dir, "*.json").Where(p => !p.EndsWith(".wgsl.json", StringComparison.OrdinalIgnoreCase)
+				&& !p.EndsWith(".dxil.json", StringComparison.OrdinalIgnoreCase)).Order()]
 			: [];
 	}
 
