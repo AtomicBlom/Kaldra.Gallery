@@ -1,0 +1,58 @@
+<Project>
+
+  <!--
+    One project → two deployables, differentiated only by RID:
+        dotnet build                 → a native Vulkan desktop exe
+        dotnet publish -r browser-wasm → a WebGPU browser app (same source)
+    A bare <Project> (no outer Sdk= attribute): Loom.Sdk's own Sdk.props/Sdk.targets (imported below) choose and
+    import the real base SDK by RID — Microsoft.NET.Sdk for desktop, Microsoft.NET.Sdk.WebAssembly for browser.
+    They also pull in the matching backend AND application host (Loom.Hosting.Desktop / Loom.Hosting.Web), so the
+    app writes no window/canvas/interop plumbing — just a LoomApplication and one LoomApplication.Run line.
+  -->
+
+  <!--
+    Backend selection by RID: Vulkan for desktop, WebGPU for browser. MUST come before the Sdk.props import:
+    Loom.Shaders.props (imported at Sdk.props's tail) derives LoomEmitDxil/LoomEmitWgsl from these eagerly, so
+    setting them afterward would silently emit the wrong shader targets. (OS-aware desktop defaulting —
+    Vulkan+DirectX12 on Windows, Vulkan-only on Linux — is a later follow-up.)
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm'">
+    <UseVulkan>false</UseVulkan>
+    <UseDirectX12>false</UseDirectX12>
+    <UseWebGPU>true</UseWebGPU>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'browser-wasm'">
+    <UseVulkan>true</UseVulkan>
+    <UseDirectX12>false</UseDirectX12>
+    <UseWebGPU>false</UseWebGPU>
+  </PropertyGroup>
+
+  <Import Project="..\..\build\Loom.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Shader compile: loose Content files next to the desktop exe; embedded resources in the browser bundle.
+       LoomEmitWgsl/LoomEmitDxil already default from the Use* flags above. -->
+  <PropertyGroup>
+    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</LoomShaderSourceDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm'">
+    <LoomShaderOutputMode>Embed</LoomShaderOutputMode>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm' and '$(Configuration)' == 'Release'">
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'browser-wasm'">
+    <LoomShaderOutputMode>Content</LoomShaderOutputMode>
+  </PropertyGroup>
+
+  <Import Project="..\..\build\Loom.Sdk\Sdk\Sdk.targets" />
+
+</Project>

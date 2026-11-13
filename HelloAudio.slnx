@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="CLAUDE.md" />
+  </Folder>
+  <Project Path="samples/HelloAudio/HelloAudio.csproj" />
+  <Project Path="Loom.Audio/Loom.Audio.csproj" />
+  <Project Path="Loom.Core/Loom.Core.csproj" />
+  <Project Path="Loom.Graph/Loom.Graph.csproj" />
+  <Project Path="Loom.Backend.Vulkan/Loom.Backend.Vulkan.csproj" />
+  <Project Path="Loom.Backend.WebGPU/Loom.Backend.WebGPU.csproj" />
+  <Project Path="Loom.Hosting.Desktop/Loom.Hosting.Desktop.csproj" />
+  <Project Path="Loom.Hosting.Web/Loom.Hosting.Web.csproj" />
+</Solution>
