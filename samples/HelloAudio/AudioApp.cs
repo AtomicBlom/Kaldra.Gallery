@@ -1,3 +1,4 @@
+using System.Numerics;
 using Loom.Audio;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
@@ -10,7 +11,8 @@ namespace HelloAudio;
 /// Loom's audio, whole: a synthesizer you play from the keyboard, a procedural arpeggio running on the audio thread's
 /// sample clock, and a clip fired from the game, each on a bus of its own. The keys are laid out like a piano's: A W S E D
 /// F T G Y H U J K is an octave from C. Z and X shift the octave, Space starts and stops the arpeggio, Enter fires the
-/// clip, and moving the pointer across the window sweeps the filter. A click or a finger plays a note too, higher the
+/// clip from a random spot around the listener (a 3D voice, panned and quieter with distance), and moving the pointer
+/// across the window sweeps the filter. A click or a finger plays a note too, higher the
 /// nearer the top, on an A minor pentatonic so any two sound together. The same source runs on the desktop (SDL 3), on
 /// Android (AAudio, where with no keyboard to start it the arpeggio plays from the start), and, published for
 /// browser-wasm, in a browser (an AudioWorklet, after the page's first click or key).
@@ -87,7 +89,13 @@ internal sealed class AudioApp : LoomApplication
 		if (Input.Pressed(Key.Space))
 			_synth.Arpeggio.Value = _synth.Arpeggio.Value > 0.5f ? 0f : 1f;
 		if (Input.Pressed(Key.Enter))
-			Audio.Play(_blip, _sfx, volume: 0.7f, pitch: 0.75f + _random.NextSingle() * 0.75f, pan: _random.NextSingle() * 1.6f - 0.8f);
+		{
+			// Somewhere around the listener (at the origin, facing -Z), 1 to 6 units away: panned and quieter with distance
+			var angle = _random.NextSingle() * MathF.Tau;
+			var distance = 1f + _random.NextSingle() * 5f;
+			var at = new Vector3(MathF.Sin(angle) * distance, 0f, -MathF.Cos(angle) * distance);
+			Audio.PlayAt(_blip, at, _sfx, volume: 0.7f, pitch: 0.75f + _random.NextSingle() * 0.75f);
+		}
 
 		if (Input.Pressed(MouseButton.Left) && SurfaceSize.Y > 0)
 		{
