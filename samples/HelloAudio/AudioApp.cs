@@ -1,18 +1,19 @@
-using HelloAudio;
 using Loom.Audio;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Input;
 
-LoomApplication.Run(new AudioApp(), args);
+namespace HelloAudio;
 
 /// <summary>
 /// Loom's audio, whole: a synthesizer you play from the keyboard, a procedural arpeggio running on the audio thread's
 /// sample clock, and a clip fired from the game, each on a bus of its own. The keys are laid out like a piano's: A W S E D
 /// F T G Y H U J K is an octave from C. Z and X shift the octave, Space starts and stops the arpeggio, Enter fires the
-/// clip, and moving the pointer across the window sweeps the filter. The same source runs on the desktop (SDL 3) and,
-/// published for browser-wasm, in a browser (an AudioWorklet, after the page's first click or key).
+/// clip, and moving the pointer across the window sweeps the filter. A click or a finger plays a note too, higher the
+/// nearer the top, on an A minor pentatonic so any two sound together. The same source runs on the desktop (SDL 3), on
+/// Android (AAudio, where with no keyboard to start it the arpeggio plays from the start), and, published for
+/// browser-wasm, in a browser (an AudioWorklet, after the page's first click or key).
 /// </summary>
 internal sealed class AudioApp : LoomApplication
 {
@@ -22,12 +23,16 @@ internal sealed class AudioApp : LoomApplication
 		(Key.G, 7), (Key.Y, 8), (Key.H, 9), (Key.U, 10), (Key.J, 11), (Key.K, 12),
 	];
 
+	// Two octaves of A minor pentatonic up from A3, bottom of the window to top
+	private static readonly int[] Pentatonic = [57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81];
+
 	private readonly PolySynth _synth = new();
 	private readonly int[] _held = new int[Piano.Length]; // the note each key is sounding, so its release ends that note
 	private readonly Random _random = new(7);
 	private AudioBus _sfx;
 	private AudioClip _blip = null!;
 	private int _octave = 60;
+	private int _pointerNote = -1;
 	private double _sinceReport;
 
 	protected override void Configure(AppOptions options)
@@ -52,8 +57,8 @@ internal sealed class AudioApp : LoomApplication
 		_sfx = Audio.CreateBus("sfx");
 		_blip = Audio.CreateClip(Blip(Audio.SampleRate), 1, Audio.SampleRate);
 		Audio.Play(_synth, music, volume: 0.8f);
-		if (AppArgs.Contains("--arpeggio"))
-			_synth.Arpeggio.Value = 1f; // start playing straight away, for a run nobody is at the keyboard for
+		if (AppArgs.Contains("--arpeggio") || OperatingSystem.IsAndroid())
+			_synth.Arpeggio.Value = 1f; // start playing straight away, for a run nobody is at a keyboard for
 
 		var device = Audio.Device;
 		Console.WriteLine($"Hello Audio: {device.Backend} on '{device.Name}', {device.SampleRate} Hz, " +
@@ -83,6 +88,18 @@ internal sealed class AudioApp : LoomApplication
 			_synth.Arpeggio.Value = _synth.Arpeggio.Value > 0.5f ? 0f : 1f;
 		if (Input.Pressed(Key.Enter))
 			Audio.Play(_blip, _sfx, volume: 0.7f, pitch: 0.75f + _random.NextSingle() * 0.75f, pan: _random.NextSingle() * 1.6f - 0.8f);
+
+		if (Input.Pressed(MouseButton.Left) && SurfaceSize.Y > 0)
+		{
+			var height = 1f - Math.Clamp(Input.PointerPosition.Y / SurfaceSize.Y, 0f, 0.999f);
+			_pointerNote = Pentatonic[(int)(height * Pentatonic.Length)];
+			_synth.Notes.TryPost(new NoteEvent(_pointerNote, 0.9f, On: true));
+		}
+		if (Input.Released(MouseButton.Left) && _pointerNote >= 0)
+		{
+			_synth.Notes.TryPost(new NoteEvent(_pointerNote, 0f, On: false));
+			_pointerNote = -1;
+		}
 
 		// Across the window, 150 Hz to 9.6 kHz: an octave every sixth of the width
 		if (Input.PointerDelta != default && SurfaceSize.X > 0)
