@@ -38,10 +38,10 @@ jobs:
           git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"
           git submodule update --init --recursive
 
-      - name: Set up .NET 10
+      - name: Set up .NET 11
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       # Loom.Web builds through Microsoft.NET.Sdk.WebAssembly, which needs the browser-wasm runtime packs. Without
       # the workload the publish fails at restore, so install it before anything tries to build the web host.

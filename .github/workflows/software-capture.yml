@@ -43,10 +43,10 @@ jobs:
           git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"
           git submodule update --init --recursive
 
-      - name: Set up .NET 10
+      - name: Set up .NET 11
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Restore
         run: dotnet restore Loom.Tests/Loom.Tests.csproj

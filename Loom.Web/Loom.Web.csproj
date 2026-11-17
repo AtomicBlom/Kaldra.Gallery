@@ -8,7 +8,7 @@
   <Import Project="..\external\SUIsei\build\SUIsei.props" />
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <ImplicitUsings>enable</ImplicitUsings>

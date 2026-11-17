@@ -90,7 +90,7 @@ public class GalleryGoldenTests
 	// Committed baselines, copied beside the test assembly as Content — compared against here.
 	private static string OutputGoldensDir => Path.Combine(AppContext.BaseDirectory, "Goldens");
 
-	// The source-tree Goldens/ (bin/<config>/net10.0 → up three → the project dir), where UPDATE writes so a
+	// The source-tree Goldens/ (bin/<config>/net11.0 → up three → the project dir), where UPDATE writes so a
 	// regenerated baseline is what gets committed and re-copied to the output on the next build.
 	private static string SourceGoldensDir => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Goldens"));
 }
