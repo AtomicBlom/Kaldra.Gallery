@@ -83,14 +83,13 @@ public class DrawScaleTests
 			for (var frame = 0; frame < WarmupFrames; frame++)
 				engine.Render(inputs);
 
-			var before = GC.GetAllocatedBytesForCurrentThread();
-			for (var frame = 0; frame < MeasuredFrames; frame++)
-				engine.Render(inputs);
-			var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-			if (allocated != 0)
-				failures.Add($"{backend.Name}: {allocated} bytes over {MeasuredFrames} warm frames of {DrawCount} draws " +
-					$"({allocated / (double)MeasuredFrames:0.#} per frame, {allocated / (double)MeasuredFrames / DrawCount:0.##} per draw).");
+			var allocated = Allocations.Allocated(() =>
+			{
+				for (var frame = 0; frame < MeasuredFrames; frame++)
+					engine.Render(inputs);
+			});
+			if (allocated is not null)
+				failures.Add($"{backend.Name}, windows of {MeasuredFrames} warm frames of {DrawCount} draws: {allocated}");
 
 			Report(backend.Name, engine, inputs);
 
