@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Loom.Tests references the SUIsei submodule (via Loom.Gallery / Loom.UI.SUIsei) and, via the Vulkan backend,
+      # Loom.Gallery.Tests references the SUIsei submodule (via Loom.Gallery / Loom.UI.SUIsei) and, via the Vulkan backend,
       # VMASharp — both are needed to build the tests. SUIsei is private; fetch it with a PAT that has
       # contents:read on AtomicBlom/SUIsei.
       - name: Checkout submodules (PAT for private SUIsei)
@@ -57,7 +57,7 @@ jobs:
         run: pwsh tools/shader-cache.ps1 -Mode restore
 
       - name: Build (engine + backends + tests)
-        run: dotnet build Loom.Tests/Loom.Tests.csproj -c Release
+        run: dotnet build Loom.Gallery.Tests/Loom.Gallery.Tests.csproj -c Release
 
       - name: Save shader cache
         if: steps.shader-cache.outputs.hit != 'true'
@@ -65,7 +65,7 @@ jobs:
         run: pwsh tools/shader-cache.ps1 -Mode save
 
       # Publishes Loom.Web, then runs WebGpuParityTests against it. The wrapper owns the publish because the test
-      # deliberately does not: Loom.Tests must not reference Loom.Web, or the wasm SDK would follow it into every
+      # deliberately does not: Loom.Gallery.Tests must not reference Loom.Web, or the wasm SDK would follow it into every
       # desktop test run.
       - name: WebGPU vs Vulkan pixel parity
         shell: pwsh
