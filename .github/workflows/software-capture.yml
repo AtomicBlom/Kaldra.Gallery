@@ -40,8 +40,9 @@ jobs:
           GH_PAT: ${{ secrets.PAT }}
         shell: bash
         run: |
-          git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"
-          git submodule update --init --recursive
+          # The PAT for this one command (and the clones it starts), not written to the runner user's global config:
+          # jobs on one machine share that file, and two writing it at once fail to lock it
+          git -c url."https://${GH_PAT}@github.com/".insteadOf="https://github.com/" submodule update --init --recursive
 
       - name: Set up .NET 11
         uses: actions/setup-dotnet@v5
