@@ -33,7 +33,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Loom.Sandbox" />
     <InternalsVisibleTo Include="Loom.Sandbox.Android" />
-    <InternalsVisibleTo Include="Loom.Tests" />
+    <InternalsVisibleTo Include="Loom.Gallery.Tests" />
   </ItemGroup>
 
   <ItemGroup>

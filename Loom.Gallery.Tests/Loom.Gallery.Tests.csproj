@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The gallery's tests: its demos rendered offscreen (GPU-gated) and checked against committed goldens, across
+       the backends, and the engine behaviours they show (determinism, MSAA, uploads, instancing, UI prims). -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- TUnit runs on Microsoft.Testing.Platform, whose source generator emits the executable entry point. -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="TUnit.Core" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+  <!-- Golden-image baselines: committed reference PNGs, copied beside the test assembly so GalleryGoldenTests
+       can read them at runtime. LOOM_GOLDEN_UPDATE (or tools/golden.ps1 -Update) regenerates them in the source tree. -->
+  <ItemGroup>
+    <Content Include="Goldens\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The demo gallery: its scenes rendered offscreen, its compiled shaders (+ signed DXIL) beside the test assembly
+       under shaders\ through this reference -->
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Gallery\Loom.Gallery.csproj" />
+  </ItemGroup>
+
+  <!-- SUIsei's software rasterizer, the CPU oracle for every UI prim: the vector prim's GPU render is diffed against
+       it (VectorPrimRenderTests), which is what holds ui.slang to the same maths. -->
+  <ItemGroup>
+    <ProjectReference Include="..\external\SUIsei\SUIsei.Rasterizer\SUIsei.Rasterizer.csproj" />
+  </ItemGroup>
+
+  <!-- Referenced so their module initializers self-register into Backends.Available, each skipped where its backend
+       isn't present -->
+  <ItemGroup>
+    <ProjectReference Include="..\Loom.Backend.Vulkan\Loom.Backend.Vulkan.csproj" />
+    <ProjectReference Include="..\Loom.Backend.DirectX12\Loom.Backend.DirectX12.csproj" />
+  </ItemGroup>
+
+</Project>
