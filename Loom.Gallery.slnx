@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/HelloAudio/HelloAudio.csproj" />
+  </Folder>
+  <Project Path="Loom.Gallery.Tests/Loom.Gallery.Tests.csproj" />
+  <Project Path="Loom.Gallery/Loom.Gallery.csproj" />
+  <Project Path="Loom.Sandbox/Loom.Sandbox.csproj" />
+</Solution>
