@@ -5,7 +5,7 @@
 .DESCRIPTION
   WebGpuParityTests renders each checked demo twice — once on Vulkan in-process, once on WebGPU in a headless
   browser — and diffs them at the same tolerance the desktop parity test uses. It cannot publish Loom.Web itself:
-  that takes minutes, needs the `wasm-tools` workload, and Loom.Tests deliberately does not reference Loom.Web (the
+  that takes minutes, needs the `wasm-tools` workload, and Loom.Gallery.Tests deliberately does not reference Loom.Web (the
   wasm SDK would follow it into every desktop test run). So the test reads LOOM_WEB_PUBLISH and SKIPs without it,
   and this script is the wrapper that supplies one.
 
@@ -46,7 +46,7 @@ elseif (-not (Test-Path -LiteralPath $PublishDir)) {
 Write-Host "[web-parity] running WebGpuParityTests (skips cleanly without Vulkan or a browser) ..."
 $env:LOOM_WEB_PUBLISH = (Resolve-Path -LiteralPath $PublishDir).Path
 try {
-	dotnet run --project (Join-Path $repo "Loom.Tests") -c Debug -- --treenode-filter "/*/*/WebGpuParityTests/*"
+	dotnet run --project (Join-Path $repo "Loom.Gallery.Tests") -c Debug -- --treenode-filter "/*/*/WebGpuParityTests/*"
 	$code = $LASTEXITCODE
 	# The test platform exits 8 when no test actually executed, and a filtered run of one skipped test is exactly
 	# that. Skipping is the correct outcome on a box with no GPU or no browser, so it must not read as a red step.

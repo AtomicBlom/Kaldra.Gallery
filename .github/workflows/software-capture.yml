@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Loom.Tests references the SUIsei submodule (via Loom.Gallery / Loom.UI.SUIsei) and, via the Vulkan backend,
+      # Loom.Gallery.Tests references the SUIsei submodule (via Loom.Gallery / Loom.UI.SUIsei) and, via the Vulkan backend,
       # VMASharp — both submodules are needed to build the tests. SUIsei is private; fetch it with a PAT that has
       # contents:read on AtomicBlom/SUIsei.
       - name: Checkout submodules (PAT for private SUIsei)
@@ -50,7 +50,7 @@ jobs:
           dotnet-version: '11.0.x'
 
       - name: Restore
-        run: dotnet restore Loom.Tests/Loom.Tests.csproj
+        run: dotnet restore Loom.Gallery.Tests/Loom.Gallery.Tests.csproj
 
       # Same local shader cache the CI workflow uses — both jobs run on this runner and compile the same shaders, so
       # whichever lands first spares the other the compile. See tools/shader-cache.ps1 for why it is a local
@@ -61,7 +61,7 @@ jobs:
         run: pwsh tools/shader-cache.ps1 -Mode restore
 
       - name: Build (Release)
-        run: dotnet build Loom.Tests/Loom.Tests.csproj -c Release --no-restore
+        run: dotnet build Loom.Gallery.Tests/Loom.Gallery.Tests.csproj -c Release --no-restore
 
       - name: Save shader cache
         if: steps.shader-cache.outputs.hit != 'true'
@@ -72,4 +72,4 @@ jobs:
       # non-empty colorcount. The test SKIPs (green) if DirectX12 isn't available at all (a non-Windows box); on this
       # Windows runner WARP is always present, so it runs. A demo that crashes or renders black fails the job.
       - name: Software-rasterizer (WARP) smoke over the tracked demos
-        run: dotnet run --project Loom.Tests -c Release --no-build -- --treenode-filter "/*/*/GallerySoftwareAdapterTests/*"
+        run: dotnet run --project Loom.Gallery.Tests -c Release --no-build -- --treenode-filter "/*/*/GallerySoftwareAdapterTests/*"
