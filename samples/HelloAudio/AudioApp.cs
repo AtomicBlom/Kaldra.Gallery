@@ -47,14 +47,17 @@ internal sealed class AudioApp : LoomApplication
 	private VoiceHandle _orbit;
 	private float _orbitAngle;
 
-	protected override void Configure(AppOptions options)
-	{
-		options.Title = "Loom - Hello Audio";
-		options.Audio = new AudioOptions(); // the device's own rate and its smallest buffer
-	}
+	// The app's audio, over the output its platform's entry point registered (Platforms/): opened as the app loads,
+	// updated once a frame, paused while the app is off screen, quieter out of focus, closed as it unloads
+	private AudioEngine Audio { get; set; } = null!;
+
+	protected override void Configure(AppOptions options) => options.Title = "Loom - Hello Audio";
 
 	protected override void LoadContent()
 	{
+		var options = new AudioOptions(); // the device's own rate and its smallest buffer
+		Audio = new AudioEngine(AudioOutput.Open(options), options);
+
 		Engine.DefineTechnique("triangle", new TechniqueDescriptor("triangle"));
 		SetGraph(RenderGraph.Define(g =>
 		{
@@ -153,6 +156,17 @@ internal sealed class AudioApp : LoomApplication
 				$"(peak {stats.MaxRenderLoad:P1}), {stats.ActiveVoices} voices, level {stats.Peak:0.00}");
 		}
 	}
+
+	// After the frame has started what it plays: frees the voices that ended, and in the browser sends the frame's mix
+	protected override void BeforeRender(FrameTime time) => Audio.Update();
+
+	protected override void OnFocusChanged(bool focused) => Audio.SetFocused(focused);
+
+	protected override void OnSuspending() => Audio.Pause();
+
+	protected override void OnResumed() => Audio.Resume();
+
+	protected override void UnloadContent() => Audio.Dispose();
 
 	// A short falling ping: a sine swept down an octave under a fast decay
 	private static float[] Blip(int sampleRate)
