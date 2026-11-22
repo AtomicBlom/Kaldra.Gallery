@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content.PM;
 
+using Loom.Audio.Android;
 using Loom.Core.Hosting;
 using Loom.Hosting.Android;
 
@@ -15,5 +16,9 @@ namespace HelloAudio;
 	ScreenOrientation = ScreenOrientation.FullUser)]
 public sealed class MainActivity : LoomActivity
 {
-	protected override LoomApplication CreateApplication() => new AudioApp();
+	protected override LoomApplication CreateApplication()
+	{
+		AndroidAudio.Register(); // the output the app opens as it loads (AudioOutput.Open)
+		return new AudioApp();
+	}
 }

@@ -64,6 +64,17 @@
     <None Remove="Platforms\Android\**" />
   </ItemGroup>
 
+  <!-- The audio: Loom.Audio is apart from the engine, so the app takes the output for each of its platforms itself, and
+       its entry points register the one they run on. The desktop's and the browser's share an entry point, so both
+       come with every target but Android's. -->
+  <ItemGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'android'">
+    <ProjectReference Include="..\..\Loom.Audio.Android\Loom.Audio.Android.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' != 'android'">
+    <ProjectReference Include="..\..\Loom.Audio.Sdl\Loom.Audio.Sdl.csproj" />
+    <ProjectReference Include="..\..\Loom.Audio.Web\Loom.Audio.Web.csproj" />
+  </ItemGroup>
+
   <Import Project="..\..\build\Loom.Sdk\Sdk\Sdk.targets" />
 
 </Project>
