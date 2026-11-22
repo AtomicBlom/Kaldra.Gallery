@@ -4,7 +4,7 @@
        host, and generates the module-initializer bootstrap that registers them — so this exe is just a
        LoomApplication + one LoomApplication.Run line. The engine feature flags live in the repo-root
        Directory.Build.props. -->
-  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.props" />
+  <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.props" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -35,11 +35,11 @@
     <!-- The engine-tier libraries the host itself names: the neutral asset loaders (brick material), the app-side
          camera/frustum helpers, the SUIsei UI runtime + its neutral engine bridge, and the ImGui HUD bridge. The
          desktop host + backend(s) come from the Loom SDK above. -->
-    <ProjectReference Include="..\Loom.Assets\Loom.Assets.csproj" />
-    <ProjectReference Include="..\Loom.Concepts\Loom.Concepts.csproj" />
-    <ProjectReference Include="..\external\SUIsei\SUIsei\SUIsei.csproj" />
+    <ProjectReference Include="$(LoomSource)Loom.Assets\Loom.Assets.csproj" />
+    <ProjectReference Include="$(LoomSource)Loom.Concepts\Loom.Concepts.csproj" />
+    <ProjectReference Include="$(SUIseiSource)SUIsei\SUIsei.csproj" />
   </ItemGroup>
 
-  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
+  <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.targets" />
 
 </Project>

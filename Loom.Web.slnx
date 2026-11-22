@@ -1,13 +1,3 @@
 <Solution>
-  <!-- The browser (WASM) half of Loom: the WebGPU backend, the WASM host, and the neutral engine layers they
-       reference. Kept separate from Loom.slnx so the wasm-tools workload (pulled in by Loom.Web's WebAssembly SDK)
-       stays off the desktop build — but present here so Roslyn tooling can load and analyse the web projects. -->
-  <Project Path="Loom.Assets/Loom.Assets.csproj" />
-  <Project Path="Loom.Audio.Web/Loom.Audio.Web.csproj" />
-  <Project Path="Loom.Audio/Loom.Audio.csproj" />
-  <Project Path="Loom.Backend.WebGPU/Loom.Backend.WebGPU.csproj" />
-  <Project Path="Loom.Concepts/Loom.Concepts.csproj" />
-  <Project Path="Loom.Core/Loom.Core.csproj" />
-  <Project Path="Loom.Graph/Loom.Graph.csproj" />
   <Project Path="Loom.Web/Loom.Web.csproj" />
 </Solution>

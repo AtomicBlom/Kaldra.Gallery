@@ -17,7 +17,9 @@
     <UseImGui>false</UseImGui>
   </PropertyGroup>
 
-  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.props" />
+  <!-- Where the engine comes from (build/Sources.props), before Loom's SDK, which is the engine's -->
+  <Import Project="..\build\Sources.props" />
+  <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.props" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -42,6 +44,6 @@
     <AndroidAsset Include="..\Loom.Gallery\Assets\**" Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <Import Project="..\build\Loom.Sdk\Sdk\Sdk.targets" />
+  <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.targets" />
 
 </Project>

@@ -1,0 +1,43 @@
+<Project>
+
+  <!--
+    Where the repositories the gallery shows off come from: a checkout of each, built from source. The gallery is the
+    engine's showcase and its GPU test bed, built against the engine as it stands, so there is no packages mode: its
+    tests take SUIsei's software rasterizer, which no package carries, and it compiles shaders with the engine's own
+    build files. Directory.Build.props imports this (Loom.Web's own, which shields it from the root's, too); the apps
+    with no outer SDK (the sandboxes, HelloAudio) import it themselves, before Loom's SDK.
+
+      LoomSource     The engine (Kaldra, still Loom's repository): a checkout, its folder ending in a slash. By default
+                     ..\Kaldra\ beside this repository.
+      SirrowSource   The audio, for HelloAudio: by default ..\Sirrow\.
+      SUIseiSource   The UI library: by default the SUIsei submodule in the engine's checkout.
+
+    A machine's own choices go in dev.local.props at this repository's root (untracked, as every *.local.props is).
+  -->
+  <PropertyGroup Condition="'$(_GallerySourcesProps)' == ''">
+    <_GallerySourcesProps>true</_GallerySourcesProps>
+    <_GalleryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</_GalleryRoot>
+    <_GallerySiblings>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</_GallerySiblings>
+  </PropertyGroup>
+
+  <Import Project="$(_GalleryRoot)dev.local.props" Condition="Exists('$(_GalleryRoot)dev.local.props') and '$(_GalleryDevLocal)' == ''" />
+
+  <PropertyGroup>
+    <_GalleryDevLocal>true</_GalleryDevLocal>
+    <LoomSource Condition="'$(LoomSource)' == ''">$(_GallerySiblings)Kaldra\</LoomSource>
+    <LoomSource Condition="!HasTrailingSlash('$(LoomSource)')">$(LoomSource)\</LoomSource>
+    <SirrowSource Condition="'$(SirrowSource)' == ''">$(_GallerySiblings)Sirrow\</SirrowSource>
+    <SirrowSource Condition="!HasTrailingSlash('$(SirrowSource)')">$(SirrowSource)\</SirrowSource>
+    <SUIseiSource Condition="'$(SUIseiSource)' == ''">$(LoomSource)external\SUIsei\</SUIseiSource>
+    <SUIseiSource Condition="!HasTrailingSlash('$(SUIseiSource)')">$(SUIseiSource)\</SUIseiSource>
+  </PropertyGroup>
+
+  <!-- Missing checkouts said plainly, rather than as a reference that can't be found -->
+  <Target Name="_GalleryCheckSources" BeforeTargets="CollectPackageReferences;ResolveProjectReferences">
+    <Error Condition="!Exists('$(LoomSource)Loom.Core\Loom.Core.csproj')"
+           Text="The gallery builds on the engine from a checkout, and there is none at LoomSource '$(LoomSource)': clone github.com/AtomicBlom/Loom there (recursively), or set LoomSource in dev.local.props." />
+    <Error Condition="!Exists('$(SUIseiSource)SUIsei\SUIsei.csproj')"
+           Text="The gallery builds on SUIsei from a checkout, and there is none at SUIseiSource '$(SUIseiSource)': the engine's checkout carries it as a submodule (git submodule update --init --recursive)." />
+  </Target>
+
+</Project>
