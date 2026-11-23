@@ -1,7 +1,7 @@
 name: WebGPU pixel parity
 
 # The browser backend's parity leg: render a demo on Vulkan in-process and on WebGPU in a headless browser, and diff
-# the two at the same 4/255 + 0.5% bar the desktop Vulkan-DirectX12 pairing uses. See the engine's docs/webgpu-parity.md.
+# the two at the same 4/255 + 0.5% bar the desktop Vulkan-DirectX12 pairing uses. See docs/webgpu-parity.md.
 #
 # Nightly and on manual dispatch only: publishing the wasm app is minutes of AOT compilation on top of the usual build,
 # and the job needs a GPU AND a browser on the runner.
