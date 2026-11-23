@@ -13,9 +13,10 @@ name: Software rasterizer (WARP) capture
 # not reliably support and can crash the process outright. (GallerySoftwareAdapterTests also forces it off.)
 #
 # A GitHub-hosted Windows runner, so a pull request runs nothing on a machine of ours. The gallery builds on the engine
-# and Sirrow from checkouts beside it (build/Sources.props), which this lays out as siblings. The engine's repository is
-# private: its checkout, and its SUIsei submodule's, take the PAT secret (contents:read on AtomicBlom/Loom and
-# AtomicBlom/SUIsei), which a pull request from a fork doesn't get.
+# and Sirrow from checkouts beside it (build/Sources.props), which this lays out as siblings. While the engine's
+# repository is private, its checkout and its SUIsei submodule's take the PAT secret (contents:read on AtomicBlom/Loom
+# and AtomicBlom/SUIsei), which a pull request from a fork doesn't get; without the secret they take the workflow's own
+# token, which reads public repositories.
 
 on:
   push:
@@ -40,7 +41,7 @@ jobs:
         with:
           repository: AtomicBlom/Loom
           path: Kaldra
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.PAT || github.token }}
           submodules: recursive
 
       - name: Check out Sirrow

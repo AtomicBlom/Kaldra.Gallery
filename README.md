@@ -40,4 +40,4 @@ or android workloads; `Loom.Web.slnx` and `HelloAudio.slnx` build those on their
 
 ## Licence
 
-MIT (`LICENSE`).
+MIT (`LICENSE`). The Kenney assets the demos use are CC0 (`Loom.Gallery/Assets/kenney/LICENSE.md`).
