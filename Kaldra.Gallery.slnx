@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/HelloAudio/HelloAudio.csproj" />
+  </Folder>
+  <Project Path="Kaldra.Gallery.Tests/Kaldra.Gallery.Tests.csproj" />
+  <Project Path="Kaldra.Gallery/Kaldra.Gallery.csproj" />
+  <Project Path="Kaldra.Sandbox/Kaldra.Sandbox.csproj" />
+</Solution>

@@ -1,14 +1,14 @@
 using System.Numerics;
-using Loom.Audio;
-using Loom.Core.Graph;
-using Loom.Core.Hosting;
-using Loom.Core.Materials;
-using Loom.Input;
+using BinaryVibrance.Sirrow;
+using BinaryVibrance.Kaldra.Core.Graph;
+using BinaryVibrance.Kaldra.Core.Hosting;
+using BinaryVibrance.Kaldra.Core.Materials;
+using BinaryVibrance.Kaldra.Input;
 
 namespace HelloAudio;
 
 /// <summary>
-/// Loom's audio, whole: a synthesizer you play from the keyboard, a procedural arpeggio running on the audio thread's
+/// Kaldra's audio, whole: a synthesizer you play from the keyboard, a procedural arpeggio running on the audio thread's
 /// sample clock, and a clip fired from the game, each on a bus of its own. The keys are laid out like a piano's: A W S E D
 /// F T G Y H U J K is an octave from C. Z and X shift the octave, Space starts and stops the arpeggio, Enter fires the
 /// clip from a random spot around the listener (a 3D voice, panned and quieter with distance), O starts and stops a hum
@@ -18,7 +18,7 @@ namespace HelloAudio;
 /// Android (AAudio, where with no keyboard to start it the arpeggio plays from the start), and, published for
 /// browser-wasm, in a browser (an AudioWorklet, after the page's first click or key).
 /// </summary>
-internal sealed class AudioApp : LoomApplication
+internal sealed class AudioApp : KaldraApplication
 {
 	private static readonly (Key Key, int Semitone)[] Piano =
 	[
@@ -51,7 +51,7 @@ internal sealed class AudioApp : LoomApplication
 	// updated once a frame, paused while the app is off screen, quieter out of focus, closed as it unloads
 	private AudioEngine Audio { get; set; } = null!;
 
-	protected override void Configure(AppOptions options) => options.Title = "Loom - Hello Audio";
+	protected override void Configure(AppOptions options) => options.Title = "Kaldra - Hello Audio";
 
 	protected override void LoadContent()
 	{

@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-  Publish Loom.Web and run the WebGPU↔Vulkan pixel-parity leg (WebGpuParityTests).
+  Publish Kaldra.Web and run the WebGPU↔Vulkan pixel-parity leg (WebGpuParityTests).
 
 .DESCRIPTION
   WebGpuParityTests renders each checked demo twice — once on Vulkan in-process, once on WebGPU in a headless
-  browser — and diffs them at the same tolerance the desktop parity test uses. It cannot publish Loom.Web itself:
-  that takes minutes, needs the `wasm-tools` workload, and Loom.Gallery.Tests deliberately does not reference Loom.Web (the
-  wasm SDK would follow it into every desktop test run). So the test reads LOOM_WEB_PUBLISH and SKIPs without it,
+  browser — and diffs them at the same tolerance the desktop parity test uses. It cannot publish Kaldra.Web itself:
+  that takes minutes, needs the `wasm-tools` workload, and Kaldra.Gallery.Tests deliberately does not reference Kaldra.Web (the
+  wasm SDK would follow it into every desktop test run). So the test reads KALDRA_WEB_PUBLISH and SKIPs without it,
   and this script is the wrapper that supplies one.
 
   Requires: the `wasm-tools` workload (`dotnet workload install wasm-tools`, from an ELEVATED terminal — the MSI's
@@ -29,10 +29,10 @@ $repo = Split-Path -Parent $PSScriptRoot
 if (-not $PublishDir) { $PublishDir = Join-Path $repo "artifacts/web-parity" }
 
 if (-not $SkipPublish) {
-	Write-Host "[web-parity] publishing Loom.Web (Release) to $PublishDir ..."
-	# Loom.Web is deliberately outside Loom.slnx (its wasm SDK would pull the browser toolchain into the desktop
+	Write-Host "[web-parity] publishing Kaldra.Web (Release) to $PublishDir ..."
+	# Kaldra.Web is deliberately outside BinaryVibrance.Kaldra.slnx (its wasm SDK would pull the browser toolchain into the desktop
 	# build), so it is published by project path rather than as part of the solution.
-	dotnet publish (Join-Path $repo "Loom.Web") -c Release -o $PublishDir
+	dotnet publish (Join-Path $repo "Kaldra.Web") -c Release -o $PublishDir
 	if ($LASTEXITCODE -ne 0) {
 		Write-Host "[web-parity] publish failed. If it could not find a browser-wasm runtime pack, install the" -ForegroundColor Yellow
 		Write-Host "[web-parity] workload from an ELEVATED terminal:  dotnet workload install wasm-tools" -ForegroundColor Yellow
@@ -44,9 +44,9 @@ elseif (-not (Test-Path -LiteralPath $PublishDir)) {
 }
 
 Write-Host "[web-parity] running WebGpuParityTests (skips cleanly without Vulkan or a browser) ..."
-$env:LOOM_WEB_PUBLISH = (Resolve-Path -LiteralPath $PublishDir).Path
+$env:KALDRA_WEB_PUBLISH = (Resolve-Path -LiteralPath $PublishDir).Path
 try {
-	dotnet run --project (Join-Path $repo "Loom.Gallery.Tests") -c Debug -- --treenode-filter "/*/*/WebGpuParityTests/*"
+	dotnet run --project (Join-Path $repo "Kaldra.Gallery.Tests") -c Debug -- --treenode-filter "/*/*/WebGpuParityTests/*"
 	$code = $LASTEXITCODE
 	# The test platform exits 8 when no test actually executed, and a filtered run of one skipped test is exactly
 	# that. Skipping is the correct outcome on a box with no GPU or no browser, so it must not read as a red step.
@@ -57,5 +57,5 @@ try {
 	exit $code
 }
 finally {
-	$env:LOOM_WEB_PUBLISH = $null
+	$env:KALDRA_WEB_PUBLISH = $null
 }

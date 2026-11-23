@@ -1,8 +1,8 @@
-# Loom Effect Cookbook
+# Kaldra Effect Cookbook
 
 Reference patterns for the shipped rendering effects. Each entry shows the resource topology and the key graph structure in current API. These are *application-side* recipes: they add ordinary passes that name app-supplied shaders, declare their reads and writes, and let the engine derive the ordering, every barrier and layout transition, and transient-memory aliasing. Nothing here is privileged engine vocabulary.
 
-The shapes below are taken from the live demos in [`Loom.Gallery/Demos/`](../Loom.Gallery/Demos) — read those for the complete implementations (shader bodies, per-frame data, ImGui knobs).
+The shapes below are taken from the live demos in [`Kaldra.Gallery/Demos/`](../Kaldra.Gallery/Demos) — read those for the complete implementations (shader bodies, per-frame data, ImGui knobs).
 
 A few conventions used throughout:
 
@@ -421,4 +421,4 @@ g.Pass("upscale")
 g.Present(screen);
 ```
 
-`ctx.FullScreen` with a single input is the blit/upscale path — a fullscreen *sample* of the source at the output resolution, not a copy. The `blit` shader ships in Loom's shared shader library; you still register it as a technique (`engine.DefineTechnique("blit", new TechniqueDescriptor("blit"))`) — define it without `LinearFilter` for the nearest-neighbour, pixel-art-clean look. A full pixel-art scene typically inserts a `g.Bloom(lit, …)` between the world and the upscale so the lights and sparks glow before they're enlarged.
+`ctx.FullScreen` with a single input is the blit/upscale path — a fullscreen *sample* of the source at the output resolution, not a copy. The `blit` shader ships in Kaldra's shared shader library; you still register it as a technique (`engine.DefineTechnique("blit", new TechniqueDescriptor("blit"))`) — define it without `LinearFilter` for the nearest-neighbour, pixel-art-clean look. A full pixel-art scene typically inserts a `g.Bloom(lit, …)` between the world and the upscale so the lights and sparks glow before they're enlarged.

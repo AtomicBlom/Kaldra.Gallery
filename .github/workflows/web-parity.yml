@@ -1,72 +1,71 @@
 name: WebGPU pixel parity
 
-# The browser backend's parity leg: render a demo on Vulkan in-process and on WebGPU in a headless browser, and
-# diff the two at the same 4/255 + 0.5% bar the desktop Vulkan↔DirectX12 pairing uses. Until this existed, WebGPU
-# pixel drift was caught by eye, if at all. See docs/webgpu-parity.md.
+# The browser backend's parity leg: render a demo on Vulkan in-process and on WebGPU in a headless browser, and diff
+# the two at the same 4/255 + 0.5% bar the desktop Vulkan-DirectX12 pairing uses. See docs/webgpu-parity.md.
 #
-# NOT on every pull request, unlike the other GPU workflow: publishing the wasm app is minutes of AOT compilation
-# on top of the usual build, and the job needs a GPU AND a browser on the runner. Nightly plus manual dispatch
-# keeps drift bounded to a day without taxing every push.
+# Nightly and on manual dispatch only: publishing the wasm app is minutes of AOT compilation on top of the usual build,
+# and the job needs a GPU AND a browser on the runner.
 #
-# WebGpuParityTests SKIPs — and tools/web-parity.ps1 reports success — when the runner has no Vulkan device, no
-# Chromium, or no publish. So a runner that cannot do this reports honestly instead of failing.
+# WebGpuParityTests SKIPs (and tools/web-parity.ps1 reports success) when the runner has no Vulkan device, no Chromium,
+# or no publish, so a runner that cannot do this reports honestly instead of failing.
 
 on:
   schedule:
     - cron: '0 14 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   web-parity:
-    # Self-hosted Windows runner: the leg needs a real GPU for the Vulkan reference and a Chromium for the WebGPU
-    # subject, and the shader build needs the Windows-only Slang/DXC toolchain (see ci.yml).
-    # SECURITY: safe only while this repo is PRIVATE. Before making it public, remove the self-hosted runner (a
-    # fork's PR could otherwise run arbitrary code on it) and switch back to a hosted runner.
+    # A self-hosted Windows runner, registered to this repository: the leg needs a real GPU for the Vulkan reference and
+    # a Chromium for the WebGPU subject. SECURITY: this repository is public, so this workflow must never run on
+    # pull_request (a fork's would run its own code on the runner). The schedule and a dispatch run master, and only
+    # someone with write access can dispatch.
     runs-on: [self-hosted, windows]
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
+        with:
+          path: Kaldra.Gallery
 
-      # Loom.Gallery.Tests references the SUIsei submodule (via Loom.Gallery / Loom.UI.SUIsei) and, via the Vulkan backend,
-      # VMASharp — both are needed to build the tests. SUIsei is private; fetch it with a PAT that has
-      # contents:read on AtomicBlom/SUIsei.
-      - name: Checkout submodules (PAT for private SUIsei)
-        env:
-          GH_PAT: ${{ secrets.PAT }}
-        shell: bash
-        run: |
-          # The PAT for this one command (and the clones it starts), not written to the runner user's global config:
-          # jobs on one machine share that file, and two writing it at once fail to lock it
-          git -c url."https://${GH_PAT}@github.com/".insteadOf="https://github.com/" submodule update --init --recursive
+      # The gallery builds on the engine, Vysara and Sirrow from checkouts beside it (build/Sources.props), all public.
+      - name: Check out the engine (its VMASharp submodule too)
+        uses: actions/checkout@v4
+        with:
+          repository: AtomicBlom/Kaldra
+          path: Kaldra
+          submodules: recursive
+
+      - name: Check out Vysara
+        uses: actions/checkout@v4
+        with:
+          repository: AtomicBlom/Vysara
+          path: Vysara
+
+      - name: Check out Sirrow
+        uses: actions/checkout@v4
+        with:
+          repository: AtomicBlom/Sirrow
+          path: Sirrow
 
       - name: Set up .NET 11
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '11.0.x'
 
-      # Loom.Web builds through Microsoft.NET.Sdk.WebAssembly, which needs the browser-wasm runtime packs. Without
-      # the workload the publish fails at restore, so install it before anything tries to build the web host.
+      # Kaldra.Web builds through Microsoft.NET.Sdk.WebAssembly, which needs the browser-wasm runtime packs
       - name: Install the wasm-tools workload
         run: dotnet workload install wasm-tools
 
-      # The same local shader cache the other workflows use — all jobs run on this runner and compile the same
-      # shaders, so whichever lands first spares the others the compile. See tools/shader-cache.ps1.
-      - name: Restore shader cache
-        id: shader-cache
-        shell: pwsh
-        run: pwsh tools/shader-cache.ps1 -Mode restore
-
       - name: Build (engine + backends + tests)
-        run: dotnet build Loom.Gallery.Tests/Loom.Gallery.Tests.csproj -c Release
+        working-directory: Kaldra.Gallery
+        run: dotnet build Kaldra.Gallery.Tests/Kaldra.Gallery.Tests.csproj -c Release
 
-      - name: Save shader cache
-        if: steps.shader-cache.outputs.hit != 'true'
-        shell: pwsh
-        run: pwsh tools/shader-cache.ps1 -Mode save
-
-      # Publishes Loom.Web, then runs WebGpuParityTests against it. The wrapper owns the publish because the test
-      # deliberately does not: Loom.Gallery.Tests must not reference Loom.Web, or the wasm SDK would follow it into every
-      # desktop test run.
+      # Publishes Kaldra.Web, then runs WebGpuParityTests against it. The wrapper owns the publish because the test does
+      # not: Kaldra.Gallery.Tests must not reference Kaldra.Web, or the wasm SDK would follow it into every desktop test run.
       - name: WebGPU vs Vulkan pixel parity
+        working-directory: Kaldra.Gallery
         shell: pwsh
         run: pwsh tools/web-parity.ps1

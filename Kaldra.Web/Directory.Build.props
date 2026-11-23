@@ -1,0 +1,16 @@
+<Project>
+
+	<!--
+		Isolate this browser MVP from the engine repo's build conventions. MSBuild stops walking up at the
+		first Directory.Build.props it finds, so this empty file shields Kaldra.Web from the repo-root props
+		(SourceLink, package metadata, backend feature-flag constants) that target the engine assemblies.
+		Disabling Central Package Management lets the WebAssembly SDK manage its own implicit versions.
+	-->
+	<PropertyGroup>
+		<ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+	</PropertyGroup>
+
+	<!-- Where the engine and Vysara come from, as for the rest of the repository (build/Sources.props) -->
+	<Import Project="..\build\Sources.props" />
+
+</Project>
