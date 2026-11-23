@@ -4,10 +4,10 @@
     Where the repositories the gallery shows off come from: a checkout of each, built from source. The gallery is the
     engine's showcase and its GPU test bed, built against the engine as it stands, so there is no packages mode: its
     tests take Vysara's software rasterizer, which no package carries, and it compiles shaders with the engine's own
-    build files. Directory.Build.props imports this (Loom.Web's own, which shields it from the root's, too); the apps
-    with no outer SDK (the sandboxes, HelloAudio) import it themselves, before Loom's SDK.
+    build files. Directory.Build.props imports this (Kaldra.Web's own, which shields it from the root's, too); the apps
+    with no outer SDK (the sandboxes, HelloAudio) import it themselves, before Kaldra's SDK.
 
-      LoomSource     The engine (Kaldra, still Loom's repository): a checkout, its folder ending in a slash. By default
+      KaldraSource     The engine: a checkout, its folder ending in a slash. By default
                      ..\Kaldra\ beside this repository.
       SirrowSource   The audio, for HelloAudio: by default ..\Sirrow\.
       VysaraSource   The UI library: by default ..\Vysara\.
@@ -24,8 +24,8 @@
 
   <PropertyGroup>
     <_GalleryDevLocal>true</_GalleryDevLocal>
-    <LoomSource Condition="'$(LoomSource)' == ''">$(_GallerySiblings)Kaldra\</LoomSource>
-    <LoomSource Condition="!HasTrailingSlash('$(LoomSource)')">$(LoomSource)\</LoomSource>
+    <KaldraSource Condition="'$(KaldraSource)' == ''">$(_GallerySiblings)Kaldra\</KaldraSource>
+    <KaldraSource Condition="!HasTrailingSlash('$(KaldraSource)')">$(KaldraSource)\</KaldraSource>
     <SirrowSource Condition="'$(SirrowSource)' == ''">$(_GallerySiblings)Sirrow\</SirrowSource>
     <SirrowSource Condition="!HasTrailingSlash('$(SirrowSource)')">$(SirrowSource)\</SirrowSource>
     <VysaraSource Condition="'$(VysaraSource)' == ''">$(_GallerySiblings)Vysara\</VysaraSource>
@@ -34,9 +34,9 @@
 
   <!-- Missing checkouts said plainly, rather than as a reference that can't be found -->
   <Target Name="_GalleryCheckSources" BeforeTargets="CollectPackageReferences;ResolveProjectReferences">
-    <Error Condition="!Exists('$(LoomSource)Loom.Core\Loom.Core.csproj')"
-           Text="The gallery builds on the engine from a checkout, and there is none at LoomSource '$(LoomSource)': clone github.com/AtomicBlom/Loom there (recursively), or set LoomSource in dev.local.props." />
-    <Error Condition="!Exists('$(VysaraSource)Vysara\Vysara.csproj')"
+    <Error Condition="!Exists('$(KaldraSource)BinaryVibrance.Kaldra.Core\BinaryVibrance.Kaldra.Core.csproj')"
+           Text="The gallery builds on the engine from a checkout, and there is none at KaldraSource '$(KaldraSource)': clone github.com/AtomicBlom/Kaldra there (recursively), or set KaldraSource in dev.local.props." />
+    <Error Condition="!Exists('$(VysaraSource)BinaryVibrance.Vysara\BinaryVibrance.Vysara.csproj')"
            Text="The gallery builds on Vysara from a checkout, and there is none at VysaraSource '$(VysaraSource)': clone github.com/AtomicBlom/Vysara there, or set VysaraSource in dev.local.props." />
   </Target>
 

@@ -1,7 +1,7 @@
 <Project>
 
   <!--
-    Central Package Management for the Loom solution. Package versions live here as <PackageVersion>; the
+    Central Package Management for the Kaldra solution. Package versions live here as <PackageVersion>; the
     individual projects carry version-less <PackageReference> items. MSBuild imports the nearest
     Directory.Packages.props walking up from each project — the vendored submodule under external/ opts out via
     its own external/Directory.Packages.props (it pins its own Silk.NET versions and must not be governed here).
@@ -27,16 +27,16 @@
   </ItemGroup>
 
   <ItemGroup Label="Shader toolchain + UI">
-    <!-- Also pinned as LoomSlangVersion in build/Loom.Sdk/Sdk/Sdk.targets, for consumers outside this file; the build
+    <!-- Also pinned as KaldraSlangVersion in build/BinaryVibrance.Kaldra.Sdk/Sdk/Sdk.targets, for consumers outside this file; the build
          fails if the two differ. -->
     <PackageVersion Include="Slang.Sdk" Version="0.5.1" />
     <!-- Hermetic DXC for DXIL signing (replaces non-hermetic Windows-SDK DXC glob). Add a
          Microsoft.Direct3D.DXC PackageReference with GeneratePathProperty=true to any project
-         that compiles shaders with LoomEmitDxil=true; Loom.Shaders.targets picks it up via
+         that compiles shaders with KaldraEmitDxil=true; Kaldra.Shaders.targets picks it up via
          $(PkgMicrosoft_Direct3D_DXC). Build-machine only — the shipped app carries signed .dxil. -->
     <PackageVersion Include="Microsoft.Direct3D.DXC" Version="1.9.2609.5" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
-    <!-- Roslyn for the Vysara.SourceGen XAML incremental generator (build-time analyzer, PrivateAssets=all). -->
+    <!-- Roslyn for the BinaryVibrance.Vysara.SourceGen XAML incremental generator (build-time analyzer, PrivateAssets=all). -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <!-- Source-generator-based MVVM ([ObservableProperty]/[RelayCommand]) — no reflection, so it stays AOT/trim-safe
@@ -44,7 +44,7 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
-  <ItemGroup Label="Assets (Loom.Assets image + glTF loaders)">
+  <ItemGroup Label="Assets (BinaryVibrance.Kaldra.Assets image + glTF loaders)">
     <PackageVersion Include="StbImageSharp" Version="2.30.16" />
     <PackageVersion Include="SharpGLTF.Toolkit" Version="1.0.7" />
   </ItemGroup>

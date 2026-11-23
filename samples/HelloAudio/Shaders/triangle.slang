@@ -1,8 +1,8 @@
 // HelloTriangle spike: a hardcoded, vertex-ID-fabricated triangle — no vertex buffer, no camera, no material.
 // The smallest possible technique that still exercises the real render-graph + backend pipeline end to end.
-// Modeled on Loom.Shaders/Shaders/fullscreen.slang's SV_VertexID fabrication trick.
+// Modeled on BinaryVibrance.Kaldra.Shaders/Shaders/fullscreen.slang's SV_VertexID fabrication trick.
 
-#include "loom_platform.module.slang"
+#include "kaldra_platform.module.slang"
 
 struct VsOut
 {
@@ -21,8 +21,8 @@ VsOut vertexMain(uint vertexId : SV_VertexID)
 	VsOut output;
 	output.color = colors[vertexId];
 	// Fabricated directly in clip space, so there is no camera carrying the backend's clip-space correction —
-	// LOOM_CLIP_POS applies the NDC-Y convention this target needs.
-	output.position = LOOM_CLIP_POS(pos);
+	// KALDRA_CLIP_POS applies the NDC-Y convention this target needs.
+	output.position = KALDRA_CLIP_POS(pos);
 	return output;
 }
 

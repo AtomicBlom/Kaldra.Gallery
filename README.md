@@ -1,15 +1,15 @@
 # Kaldra.Gallery
 
-The engine's showcase and GPU test bed: demos of what the [Loom engine](https://github.com/AtomicBlom/Loom) (to become
+The engine's showcase and GPU test bed: demos of what the [Kaldra engine](https://github.com/AtomicBlom/Kaldra) (to become
 Kaldra) draws, rendered offscreen by its tests and checked against committed golden images and across its backends.
-It was split out of the engine's repository, and its projects keep their `Loom.Gallery` names for now.
+It was split out of the engine's repository, and its projects keep their `Kaldra.Gallery` names for now.
 
 | Project | What it is |
 |---|---|
-| `Loom.Gallery` | The demos (lighting, shadows, particles, skinning, SSAO, Vysara UI and more) and their shaders and assets. |
-| `Loom.Gallery.Tests` | The demos rendered offscreen and diffed against `Goldens/`, Vulkan against DirectX 12, WebGPU against Vulkan, and on WARP; and checks against every shader the gallery ships. GPU-gated: a test without a GPU skips. |
-| `Loom.Sandbox`, `Loom.Sandbox.Android` | The demos in a window, on the desktop and on Android. |
-| `Loom.Web` | The demos in a browser, on WebGPU. |
+| `Kaldra.Gallery` | The demos (lighting, shadows, particles, skinning, SSAO, Vysara UI and more) and their shaders and assets. |
+| `Kaldra.Gallery.Tests` | The demos rendered offscreen and diffed against `Goldens/`, Vulkan against DirectX 12, WebGPU against Vulkan, and on WARP; and checks against every shader the gallery ships. GPU-gated: a test without a GPU skips. |
+| `Kaldra.Sandbox`, `Kaldra.Sandbox.Android` | The demos in a window, on the desktop and on Android. |
+| `Kaldra.Web` | The demos in a browser, on WebGPU. |
 | `samples/HelloAudio` | A synthesizer played from the keyboard: the engine and [Sirrow](https://github.com/AtomicBlom/Sirrow) together. |
 | `Scripts/Verification` | The browser half of the WebGPU parity leg. |
 | `docs` | The effect cookbook, [WebGPU pixel parity](docs/webgpu-parity.md) and [CI with a software rasterizer](docs/ci-software-rasterizer.md). |
@@ -21,7 +21,7 @@ The gallery builds on the engine, Sirrow and Vysara from checkouts beside this o
 
 | Property | Default | Is |
 |---|---|---|
-| `LoomSource` | `..\Kaldra\` | the engine's checkout (cloned recursively: VMASharp is its submodule) |
+| `KaldraSource` | `..\Kaldra\` | the engine's checkout (cloned recursively: VMASharp is its submodule) |
 | `SirrowSource` | `..\Sirrow\` | the audio's checkout, for HelloAudio |
 | `VysaraSource` | `..\Vysara\` | the UI library's checkout |
 
@@ -30,16 +30,16 @@ no package carries, and it compiles shaders with the engine's own build files. A
 untracked `dev.local.props` at the top level.
 
 ```
-dotnet build Loom.Gallery.slnx
-dotnet run --project Loom.Gallery.Tests
-dotnet run --project Loom.Sandbox
+dotnet build Kaldra.Gallery.slnx
+dotnet run --project Kaldra.Gallery.Tests
+dotnet run --project Kaldra.Sandbox
 pwsh tools/golden.ps1 -Update     # regenerate the golden images, then review and commit them
-pwsh tools/web-parity.ps1         # publish Loom.Web and run the WebGPU parity test
+pwsh tools/web-parity.ps1         # publish Kaldra.Web and run the WebGPU parity test
 ```
 
-`Loom.Web` and `Loom.Sandbox.Android` are outside `Loom.Gallery.slnx`, so the desktop build never needs the wasm-tools
-or android workloads; `Loom.Web.slnx` and `HelloAudio.slnx` build those on their own.
+`Kaldra.Web` and `Kaldra.Sandbox.Android` are outside `Kaldra.Gallery.slnx`, so the desktop build never needs the wasm-tools
+or android workloads; `Kaldra.Web.slnx` and `HelloAudio.slnx` build those on their own.
 
 ## Licence
 
-MIT (`LICENSE`). The Kenney assets the demos use are CC0 (`Loom.Gallery/Assets/kenney/LICENSE.md`).
+MIT (`LICENSE`). The Kenney assets the demos use are CC0 (`Kaldra.Gallery/Assets/kenney/LICENSE.md`).

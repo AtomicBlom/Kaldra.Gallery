@@ -1,18 +1,18 @@
 <#
 .SYNOPSIS
-  Capture one or more Loom.Web demo frames in a headless browser — the capture half of the WebGPU parity leg.
+  Capture one or more Kaldra.Web demo frames in a headless browser — the capture half of the WebGPU parity leg.
 
 .DESCRIPTION
-  Serves a published Loom.Web app from a local HttpListener (static files + a POST /capture endpoint), launches
+  Serves a published Kaldra.Web app from a local HttpListener (static files + a POST /capture endpoint), launches
   the browser headless at `?capture=<name>&post`, and waits for the page to POST back the PNG it grabs at frame
   60. The capture is read off the swapchain texture in C# (compositor-independent), so — unlike a CDP screenshot
   — it is reliable in headless mode.
 
-  This script only captures; it does not diff. `Loom.Tests`' WebGpuParityTests drives it and compares with the
+  This script only captures; it does not diff. `BinaryVibrance.Kaldra.Tests`' WebGpuParityTests drives it and compares with the
   same ImageComparison the desktop parity test uses, so both legs share one tolerance rule. For an eyeball diff
   of two PNGs by hand, run diff.ps1 afterwards.
 
-  Publish first:  dotnet publish Loom.Web -c Release -o <dir>
+  Publish first:  dotnet publish Kaldra.Web -c Release -o <dir>
   Pass either the publish root or its wwwroot as -PublishDir; both are accepted.
 
 .OUTPUTS
@@ -44,7 +44,7 @@ $Names = @($Names | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 # The served root is the folder holding index.html. Accept the publish root or the wwwroot inside it, so a caller
 # does not have to know which shape `dotnet publish -o` produced.
 if (-not (Test-Path -LiteralPath $PublishDir -PathType Container)) {
-	Write-Host "NO-PUBLISH: '$PublishDir' does not exist. Run: dotnet publish Loom.Web -c Release -o <dir>"
+	Write-Host "NO-PUBLISH: '$PublishDir' does not exist. Run: dotnet publish Kaldra.Web -c Release -o <dir>"
 	exit 3
 }
 $publishRoot = (Resolve-Path -LiteralPath $PublishDir).Path
@@ -52,23 +52,23 @@ $root = @($publishRoot, (Join-Path $publishRoot "wwwroot")) |
 	Where-Object { Test-Path -LiteralPath (Join-Path $_ "index.html") -PathType Leaf } |
 	Select-Object -First 1
 if (-not $root) {
-	Write-Host "NO-PUBLISH: no index.html under '$publishRoot' (nor its wwwroot) — publish Loom.Web first."
+	Write-Host "NO-PUBLISH: no index.html under '$publishRoot' (nor its wwwroot) — publish Kaldra.Web first."
 	exit 3
 }
 
 # ── Browser ────────────────────────────────────────────────────────────────────────────────────────────────────
 # WebGPU in headless needs --enable-unsafe-webgpu, so it has to be a Chromium; Edge is the one present by default
-# on a Windows box. LOOM_WEB_BROWSER lets CI point at whatever it has without editing the script.
+# on a Windows box. KALDRA_WEB_BROWSER lets CI point at whatever it has without editing the script.
 $browser = @(
 	$BrowserPath
-	$env:LOOM_WEB_BROWSER
+	$env:KALDRA_WEB_BROWSER
 	"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 	"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
 	"C:\Program Files\Google\Chrome\Application\chrome.exe"
 	"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
 if (-not $browser) {
-	Write-Host "NO-BROWSER: found no Chromium (checked -BrowserPath, LOOM_WEB_BROWSER, the default Edge/Chrome paths)."
+	Write-Host "NO-BROWSER: found no Chromium (checked -BrowserPath, KALDRA_WEB_BROWSER, the default Edge/Chrome paths)."
 	exit 2
 }
 
@@ -77,7 +77,7 @@ $OutDir = (Resolve-Path -LiteralPath $OutDir).Path
 
 # The profile directory doubles as this harness's ownership marker: it is unique to the port, every child process
 # the browser spawns inherits it on the command line, and nothing else on the box mentions it.
-$profileToken = "loom-web-capture-$Port"
+$profileToken = "kaldra-web-capture-$Port"
 $profileDir = Join-Path ([IO.Path]::GetTempPath()) $profileToken
 
 # Kill ONLY the browsers this harness launched, matched by that marker. Never match on the executable name: the

@@ -5,16 +5,16 @@
         dotnet build -f net10.0                                 → a native Vulkan desktop exe (SDL 3 audio)
         dotnet build -f net11.0-android                         → an Android APK (Vulkan, AAudio, touch)
         dotnet publish -f net10.0 -r browser-wasm               → a WebGPU browser app (an AudioWorklet)
-    A bare <Project> (no outer Sdk= attribute): Loom.Sdk's own Sdk.props/Sdk.targets (imported below) choose and
+    A bare <Project> (no outer Sdk= attribute): BinaryVibrance.Kaldra.Sdk's own Sdk.props/Sdk.targets (imported below) choose and
     import the real base SDK by target, pull in the matching backend and application host, and pick how the shaders
     ship (loose beside the desktop exe, embedded for the browser and the APK). The app itself (AudioApp, PolySynth) is
     the same source on all three; only the entry point differs: Platforms/Desktop/Program.cs (the desktop and the
     browser), or the activity in Platforms/Android.
-    Kept out of Loom.slnx (in HelloAudio.slnx and Loom.Android.slnx) so the desktop build never needs the android
+    Kept out of BinaryVibrance.Kaldra.slnx (in HelloAudio.slnx and BinaryVibrance.Kaldra.Android.slnx) so the desktop build never needs the android
     workload.
   -->
 
-  <!-- Before the SDK props: Loom.Shaders.props derives which shader targets to emit from these. -->
+  <!-- Before the SDK props: Kaldra.Shaders.props derives which shader targets to emit from these. -->
   <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'browser-wasm'">
     <UseVulkan>false</UseVulkan>
     <UseDirectX12>false</UseDirectX12>
@@ -26,9 +26,9 @@
     <UseWebGPU>false</UseWebGPU>
   </PropertyGroup>
 
-  <!-- Where the engine and the audio come from (build/Sources.props), before Loom's SDK, which is the engine's -->
+  <!-- Where the engine and the audio come from (build/Sources.props), before Kaldra's SDK, which is the engine's -->
   <Import Project="..\..\build\Sources.props" />
-  <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.props" />
+  <Import Project="$(KaldraSource)build\BinaryVibrance.Kaldra.Sdk\Sdk\Sdk.props" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -36,12 +36,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>HelloAudio</RootNamespace>
-    <LoomShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</LoomShaderSourceDir>
+    <KaldraShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</KaldraShaderSourceDir>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'android'">
     <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
-    <ApplicationId>com.atomicblom.loom.helloaudio</ApplicationId>
+    <ApplicationId>com.atomicblom.kaldra.helloaudio</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <!-- arm64 for phones; x64 for an emulator on an x64 machine. -->
@@ -66,17 +66,17 @@
     <None Remove="Platforms\Android\**" />
   </ItemGroup>
 
-  <!-- The audio: Loom.Audio is apart from the engine, so the app takes the output for each of its platforms itself, and
+  <!-- The audio: Sirrow is apart from the engine, so the app takes the output for each of its platforms itself, and
        its entry points register the one they run on. The desktop's and the browser's share an entry point, so both
        come with every target but Android's. -->
   <ItemGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'android'">
-    <ProjectReference Include="$(SirrowSource)Loom.Audio.Android\Loom.Audio.Android.csproj" />
+    <ProjectReference Include="$(SirrowSource)BinaryVibrance.Sirrow.Android\BinaryVibrance.Sirrow.Android.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' != 'android'">
-    <ProjectReference Include="$(SirrowSource)Loom.Audio.Sdl\Loom.Audio.Sdl.csproj" />
-    <ProjectReference Include="$(SirrowSource)Loom.Audio.Web\Loom.Audio.Web.csproj" />
+    <ProjectReference Include="$(SirrowSource)BinaryVibrance.Sirrow.Sdl\BinaryVibrance.Sirrow.Sdl.csproj" />
+    <ProjectReference Include="$(SirrowSource)BinaryVibrance.Sirrow.Web\BinaryVibrance.Sirrow.Web.csproj" />
   </ItemGroup>
 
-  <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.targets" />
+  <Import Project="$(KaldraSource)build\BinaryVibrance.Kaldra.Sdk\Sdk\Sdk.targets" />
 
 </Project>

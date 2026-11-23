@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shader-compile machinery ONLY (not the full Kaldra SDK): a library must not pull in backend references
+       or the host/backend bootstrap — those belong to the exe. Content mode emits loose .spv/.json (+ signed
+       DXIL) under shaders\ that flow via ProjectReference to the consuming app's (and the test project's)
+       output. DXIL is emitted because the repo-wide UseDirectX12 is on, so the DX12 backend runs every demo —
+       this needs no backend *reference*, only the compile flag. -->
+  <Import Project="$(KaldraSource)build\BinaryVibrance.Kaldra.Sdk\Kaldra.Shaders.props" />
+
+  <!-- XAML → typed control-tree generator: registers UI/*.xaml as AdditionalFiles + the BinaryVibrance.Vysara.SourceGen
+       analyzer, so the interactive/in-world demo views compile to typed trees + x:Bind/event glue. -->
+  <Import Project="$(VysaraSource)build\Vysara.props" />
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Internal demo/test-support library, never shipped as a package. -->
+    <IsPackable>false</IsPackable>
+    <!-- The in-world-UI panel hands the executor a native pointer; the ImGui HUD bridge casts ImDrawData*. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- The demo shaders, compiled to loose content under shaders\ that flows to the consuming output. -->
+    <KaldraShaderSourceDir>$(MSBuildProjectDirectory)\Shaders</KaldraShaderSourceDir>
+    <KaldraShaderOutputMode>Content</KaldraShaderOutputMode>
+    <!-- The SPIR-V is also embedded in the assembly, for a host with no folder beside the app to hold the loose
+         copies (an Android APK), whose engine finds shaders through EmbeddedShaders. -->
+    <KaldraEmbedSpirv>true</KaldraEmbedSpirv>
+  </PropertyGroup>
+
+  <!-- The gallery is internal shared infrastructure, not a public API: the slimmed sandbox exe and the test
+       project reach its internals directly rather than through a maintained public surface. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kaldra.Sandbox" />
+    <InternalsVisibleTo Include="Kaldra.Sandbox.Android" />
+    <InternalsVisibleTo Include="Kaldra.Gallery.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hermetic slangc + hermetic DXC (for signing the DXIL): the two packages the shader machinery needs,
+         both build-machine only (the shipped output carries just the compiled blobs). -->
+    <PackageReference Include="Slang.Sdk" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
+    <PackageReference Include="Microsoft.Direct3D.DXC" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="compile;runtime" />
+    <!-- Dear ImGui bindings for the desktop HUD overlay bridge (DemoGraph.Overlay); source-gen MVVM for the
+         per-demo debug panels (CascadedShadows/Skinning back their controls with [ObservableProperty]). -->
+    <PackageReference Include="ImGui.NET" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <!-- App-tier dependencies the demos author against: the Describe layer, the neutral asset loaders, the
+       app-side camera/scene helpers, the Vysara UI runtime + its neutral engine bridge, and the ImGui HUD
+       bridge. NO backend reference — backend isolation is preserved (Sandbox → Gallery → {these}). -->
+  <ItemGroup>
+    <ProjectReference Include="$(KaldraSource)BinaryVibrance.Kaldra.Core\BinaryVibrance.Kaldra.Core.csproj" />
+    <ProjectReference Include="$(KaldraSource)BinaryVibrance.Kaldra.Assets\BinaryVibrance.Kaldra.Assets.csproj" />
+    <ProjectReference Include="$(KaldraSource)BinaryVibrance.Kaldra.Concepts\BinaryVibrance.Kaldra.Concepts.csproj" />
+    <!-- The demos name the app-side helpers as Concepts.Camera, Concepts.Scene, apart from the engine's own -->
+    <Using Include="BinaryVibrance.Kaldra.Concepts" Alias="Concepts" />
+    <ProjectReference Include="$(VysaraSource)BinaryVibrance.Vysara\BinaryVibrance.Vysara.csproj" />
+    <ProjectReference Include="$(KaldraSource)BinaryVibrance.Kaldra.UI.Vysara\BinaryVibrance.Kaldra.UI.Vysara.csproj" />
+    <ProjectReference Include="$(KaldraSource)BinaryVibrance.Kaldra.UI.ImGui\BinaryVibrance.Kaldra.UI.ImGui.csproj" />
+  </ItemGroup>
+
+  <!-- Committed demo assets (brick textures + the glTF models), copied into an assets\ folder next to the
+       consuming output (where the demos resolve them via DemoScene.Asset), flowing through the reference. -->
+  <ItemGroup>
+    <Content Include="Assets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+  <Import Project="$(KaldraSource)build\BinaryVibrance.Kaldra.Sdk\Kaldra.Shaders.targets" />
+  <Import Project="$(VysaraSource)build\Vysara.targets" />
+
+</Project>

@@ -7,19 +7,19 @@ process, and what currently diverges.
 
 `GalleryParityTests` renders each demo on Vulkan and on DirectX 12 in the same process and diffs the two frames.
 WebGPU cannot join it. The backend only exists inside a browser, and driving it means the wasm SDK — which
-`Loom.Tests` deliberately does not reference, because the browser toolchain would then be restored for every
-desktop test run. (`Loom.Web` is kept out of `Loom.slnx` for the same reason.)
+`BinaryVibrance.Kaldra.Tests` deliberately does not reference, because the browser toolchain would then be restored for every
+desktop test run. (`Kaldra.Web` is kept out of `BinaryVibrance.Kaldra.slnx` for the same reason.)
 
 So the WebGPU leg is out-of-process, and it is asymmetric on purpose: **Vulkan is the reference**, rendered
 in-process through the same `GalleryCapture` the desktop parity test uses, and WebGPU is the subject, rendered by
 a real headless browser. Both halves render 1280×720 and grab frame 60 on a frozen clock — that agreement is what
-makes the two images comparable at all, and it is why `App.CaptureWidth`/`CaptureHeight` in `Loom.Web` must keep
+makes the two images comparable at all, and it is why `App.CaptureWidth`/`CaptureHeight` in `Kaldra.Web` must keep
 matching `GalleryCapture.Width`/`Height`.
 
 ## Running it
 
 ```powershell
-pwsh tools/web-parity.ps1              # publish Loom.Web, then run the leg
+pwsh tools/web-parity.ps1              # publish Kaldra.Web, then run the leg
 pwsh tools/web-parity.ps1 -SkipPublish # reuse the last publish
 ```
 
@@ -27,16 +27,16 @@ Needs the `wasm-tools` workload (`dotnet workload install wasm-tools`, from an *
 UAC prompt is silently cancelled in a non-interactive shell), a Vulkan-capable GPU, and Edge or Chrome. Missing
 any of those, `WebGpuParityTests` SKIPs rather than fails, so it is safe to run anywhere.
 
-The test never publishes: publishing takes minutes, so it reads `LOOM_WEB_PUBLISH` and skips without it.
+The test never publishes: publishing takes minutes, so it reads `KALDRA_WEB_PUBLISH` and skips without it.
 `tools/web-parity.ps1` is the wrapper that supplies one.
 
 ## The pieces
 
 | Piece | Job |
 |---|---|
-| `Scripts/Verification/web-capture.ps1` | Serves a published `Loom.Web`, drives the browser once per demo, saves each posted PNG |
-| `Loom.Gallery.Tests/WebGpuParityTests.cs` | Renders the Vulkan reference, diffs, decides skip-vs-fail |
-| `tools/web-parity.ps1` | Publishes, sets `LOOM_WEB_PUBLISH`, runs the test |
+| `Scripts/Verification/web-capture.ps1` | Serves a published `Kaldra.Web`, drives the browser once per demo, saves each posted PNG |
+| `Kaldra.Gallery.Tests/WebGpuParityTests.cs` | Renders the Vulkan reference, diffs, decides skip-vs-fail |
+| `tools/web-parity.ps1` | Publishes, sets `KALDRA_WEB_PUBLISH`, runs the test |
 
 The tolerance is the same `ImageComparison.Compare` bar the desktop leg uses — a pixel fails if **any** channel
 differs by more than 4/255, and the frame fails if more than **0.5%** of pixels are flagged. Note that this is

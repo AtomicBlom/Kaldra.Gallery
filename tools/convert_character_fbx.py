@@ -1,5 +1,5 @@
 # Headless Blender script: combine the Kenney "Animated Characters - Survivors" FBX mesh/armature with its
-# separate per-clip animation FBXs into a single GLB with named animation clips (idle/run/jump), for the Loom
+# separate per-clip animation FBXs into a single GLB with named animation clips (idle/run/jump), for the Kaldra
 # glTF loader (SharpGLTF → model.Skeleton + model.Clips).
 #
 #   blender --background --python tools/convert_character_fbx.py
@@ -12,14 +12,14 @@ import bpy
 import os
 import sys
 
-SRC = r"C:/Dev/Personal/Loom.worktrees/AssetsTemp/kenney_animated-characters-survivors"
+SRC = r"C:/Dev/Personal/Kaldra.worktrees/AssetsTemp/kenney_animated-characters-survivors"
 MODEL = os.path.join(SRC, "Model", "characterMedium.fbx")
 CLIPS = [
 	("idle", os.path.join(SRC, "Animations", "idle.fbx")),
 	("run", os.path.join(SRC, "Animations", "run.fbx")),
 	("jump", os.path.join(SRC, "Animations", "jump.fbx")),
 ]
-OUT = r"C:/Dev/Personal/Loom.worktrees/Review/Loom.Sandbox/assets/kenney/characters/character_animated.glb"
+OUT = r"C:/Dev/Personal/Kaldra.worktrees/Review/Kaldra.Sandbox/assets/kenney/characters/character_animated.glb"
 
 
 def import_fbx(path):

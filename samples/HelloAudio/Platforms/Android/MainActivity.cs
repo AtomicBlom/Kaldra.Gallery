@@ -1,22 +1,22 @@
 using Android.App;
 using Android.Content.PM;
 
-using Loom.Audio.Android;
-using Loom.Core.Hosting;
-using Loom.Hosting.Android;
+using BinaryVibrance.Sirrow.Android;
+using BinaryVibrance.Kaldra.Core.Hosting;
+using BinaryVibrance.Kaldra.Hosting.Android;
 
 namespace HelloAudio;
 
 /// <summary>The Android entry point: Android starts the app by creating this activity, which runs <see cref="AudioApp"/>.</summary>
 [Activity(
-	Label = "Loom Hello Audio",
+	Label = "Kaldra Hello Audio",
 	MainLauncher = true,
-	ConfigurationChanges = LoomActivity.HandledConfigChanges,
-	Theme = LoomActivity.FullscreenTheme,
+	ConfigurationChanges = KaldraActivity.HandledConfigChanges,
+	Theme = KaldraActivity.FullscreenTheme,
 	ScreenOrientation = ScreenOrientation.FullUser)]
-public sealed class MainActivity : LoomActivity
+public sealed class MainActivity : KaldraActivity
 {
-	protected override LoomApplication CreateApplication()
+	protected override KaldraApplication CreateApplication()
 	{
 		AndroidAudio.Register(); // the output the app opens as it loads (AudioOutput.Open)
 		return new AudioApp();

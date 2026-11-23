@@ -2,7 +2,7 @@
 
 // One-time generator: builds a small deterministic rigged glTF — a 2-bone vertical bar (8 ring vertices ×
 // 3 height levels) skinned so the lower ring follows bone0 and the upper rings follow bone1, with a "bend"
-// rotation clip on bone1. Committed as Loom.Gallery/Assets/rigged_bar.glb for the skinning demo + loader test.
+// rotation clip on bone1. Committed as Kaldra.Gallery/Assets/rigged_bar.glb for the skinning demo + loader test.
 
 using System.Numerics;
 using SharpGLTF.Geometry;

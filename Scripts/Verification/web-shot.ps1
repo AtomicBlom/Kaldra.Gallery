@@ -16,7 +16,7 @@
 
 .EXAMPLE
   pwsh Scripts/Verification/web-shot.ps1 -Url http://localhost:8093/ -Out shot.png
-  pwsh Scripts/Verification/web-shot.ps1 -Url http://localhost:8093/ -Out s.png -Eval "globalThis.__loomDebug()"
+  pwsh Scripts/Verification/web-shot.ps1 -Url http://localhost:8093/ -Out s.png -Eval "globalThis.__kaldraDebug()"
 #>
 param(
 	[Parameter(Mandatory)][string]$Url,
