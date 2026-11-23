@@ -31,8 +31,7 @@ jobs:
           path: Kaldra.Gallery
 
       # The gallery builds on the engine, Vysara and Sirrow from checkouts beside it (build/Sources.props). While the engine's
-      # and Vysara's repositories are private, their checkouts take the PAT secret (contents:read on
-      # AtomicBlom/Loom and AtomicBlom/Vysara); without it, the workflow's own token, which reads public repositories.
+      # repository is private, its checkout takes the PAT secret (contents:read on AtomicBlom/Loom); without it, the workflow's own token, which reads public repositories.
       - name: Check out the engine (its VMASharp submodule too)
         uses: actions/checkout@v4
         with:
@@ -46,7 +45,6 @@ jobs:
         with:
           repository: AtomicBlom/Vysara
           path: Vysara
-          token: ${{ secrets.PAT || github.token }}
 
       - name: Check out Sirrow
         uses: actions/checkout@v4
