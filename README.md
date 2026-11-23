@@ -11,6 +11,8 @@ It was split out of the engine's repository, and its projects keep their `Loom.G
 | `Loom.Sandbox`, `Loom.Sandbox.Android` | The demos in a window, on the desktop and on Android. |
 | `Loom.Web` | The demos in a browser, on WebGPU. |
 | `samples/HelloAudio` | A synthesizer played from the keyboard: the engine and [Sirrow](https://github.com/AtomicBlom/Sirrow) together. |
+| `Scripts/Verification` | The browser half of the WebGPU parity leg. |
+| `docs` | The effect cookbook, [WebGPU pixel parity](docs/webgpu-parity.md) and [CI with a software rasterizer](docs/ci-software-rasterizer.md). |
 
 ## Building
 
