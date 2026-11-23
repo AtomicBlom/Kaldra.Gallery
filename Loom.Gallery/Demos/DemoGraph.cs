@@ -4,7 +4,7 @@ using Loom.Core.Graph;
 #if !LOOM_WEB
 using Loom.UI.ImGui;
 #endif
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 
 namespace Loom.Gallery.Demos;
 
@@ -14,7 +14,7 @@ internal static class DemoGraph
 #if !LOOM_WEB
 	/// <summary>
 	/// The Dear ImGui overlay painter (the optional <c>Loom.UI.ImGui</c> bridge), set once by the host. The ImGui
-	/// context is process-global, so a static handle mirrors that — unlike the per-host SUIsei painter. Null leaves
+	/// context is process-global, so a static handle mirrors that — unlike the per-host Vysara painter. Null leaves
 	/// the HUD pass a no-op (ImGui not in use), so every demo still renders.
 	/// </summary>
 	public static ImGuiPainter? Overlay { get; set; }
@@ -22,14 +22,14 @@ internal static class DemoGraph
 
 	/// <summary>
 	/// Append the shell overlay: a pass that <c>.Blends</c> the backbuffer (so the engine orders it after the present
-	/// write and derives the barrier) and submits the shared SUIsei demo shell (<see cref="DemoScene.UI"/>'s
-	/// <see cref="SUIsei.UISurface.Hud"/> draw list — the menu bar, debug panel, status bar, and, when the active demo
+	/// write and derives the barrier) and submits the shared Vysara demo shell (<see cref="DemoScene.UI"/>'s
+	/// <see cref="Vysara.UISurface.Hud"/> draw list — the menu bar, debug panel, status bar, and, when the active demo
 	/// hosts one, its own centred UI content) through the public draw-list API, then — desktop-only — this frame's
 	/// Dear ImGui draw data on top for the dev-tools window. Every demo ends with this so the shell renders on all of
 	/// them identically; entirely ImGui-free on the browser build, which has no Dear ImGui bridge.
 	/// <para>
 	/// <paramref name="uiSamples"/> are the graph textures the demo's own UI shows (host images bound with
-	/// <see cref="Loom.UI.SUIsei.UIPainter.SetExternalTexture"/>): the pass declares them with <c>.Samples</c>, which orders
+	/// <see cref="Loom.UI.Vysara.UIPainter.SetExternalTexture"/>): the pass declares them with <c>.Samples</c>, which orders
 	/// it after the passes that render them.
 	/// </para>
 	/// </summary>
@@ -40,7 +40,7 @@ internal static class DemoGraph
 			hud.Samples(uiSamples);
 		hud.Blends(screen).Draw(ctx =>
 		{
-			scene.UI.Draw(ctx, SUIsei.UISurface.Hud);
+			scene.UI.Draw(ctx, Vysara.UISurface.Hud);
 #if !LOOM_WEB
 			Overlay?.Draw(ctx);
 #endif

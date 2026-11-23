@@ -12,9 +12,9 @@ using Loom.Core.Materials;
 using Loom.Gallery;
 using Loom.Gallery.Demos;
 using Loom.Gallery.Hosting;
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 
-using SUIsei;
+using Vysara;
 
 // Alias the painter + input-layer types only — importing the Loom.UI.ImGui namespace would shadow ImGuiNET's bare
 // `ImGui`. Kept in sorted order so the usings sort leaves this comment attached to the group it describes.
@@ -75,7 +75,7 @@ internal sealed class SandboxApp : LoomApplication
 	private bool _showDemoWindow;
 	private bool _showInspect;
 
-	// The shared SUIsei demo shell (switcher, debug panel, status bar) every demo's `hud` pass composites.
+	// The shared Vysara demo shell (switcher, debug panel, status bar) every demo's `hud` pass composites.
 	private DemoShell _shell = null!;
 
 	// The screen-space view the shell is the root of: its layout scale follows the display's each frame.
@@ -164,7 +164,7 @@ internal sealed class SandboxApp : LoomApplication
 		_orbit = new Loom.Concepts.Camera(engine);
 		_debugCam = _opts.Frustum;
 
-		// The shared SUIsei shell — the switcher (in its MenuBar), host toggles, and status bar. Renders identically
+		// The shared Vysara shell — the switcher (in its MenuBar), host toggles, and status bar. Renders identically
 		// on desktop and browser; ImGui narrows to the desktop dev tools the shell's checkboxes/buttons open.
 		_shell = new DemoShell([.. _demos.Select(d => d.Name)], SelectDemo);
 		_shell.AddHostToggle("Pause camera", () => _pauseCamera, v => _pauseCamera = v);
@@ -186,12 +186,12 @@ internal sealed class SandboxApp : LoomApplication
 		if (_dumpGraphPrefix is not null)
 			DumpGraph(_currentDemo, _dumpGraphPrefix);
 
-		// Neutral input, bottom → top: the demo pointer forwarder (drives an in-world panel's OnPointer), the SUIsei
+		// Neutral input, bottom → top: the demo pointer forwarder (drives an in-world panel's OnPointer), the Vysara
 		// overlay, the ImGui HUD, and the sandbox dev hotkeys on top — so demo-switch / debug-camera keep working
 		// even while the UI has captured input. The host pumps its window's devices into QueueInput; LoomApplication
 		// resolves this stack each tick.
 		PushInputLayer(new DemoPointerLayer(e => _demos[_currentDemo].OnPointer(e)));
-		PushInputLayer(new SUIseiInputLayer(_uiHost));
+		PushInputLayer(new VysaraInputLayer(_uiHost));
 		PushInputLayer(new ImGuiInputLayer());
 		PushInputLayer(new SandboxControlLayer(
 			_demos.Count,

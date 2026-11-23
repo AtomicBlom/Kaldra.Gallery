@@ -1,6 +1,6 @@
 using Loom.Core.Geometry;
 using Loom.Core.Materials;
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 
 namespace Loom.Gallery.Demos;
 

@@ -1,18 +1,18 @@
-using SUIsei;
-using SUIsei.Controls;
-using SUIsei.Media;
+using Vysara;
+using Vysara.Controls;
+using Vysara.Media;
 
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// The chrome every demo renders under: a demo switcher, a debug panel, and a status bar, all SUIsei — so it
+/// The chrome every demo renders under: a demo switcher, a debug panel, and a status bar, all Vysara — so it
 /// renders identically on desktop and in the browser (unlike the old per-host Dear ImGui menu bar, which the
 /// browser build can't reference at all). A full-area 3-row <see cref="Grid"/>:
 /// <list type="bullet">
 /// <item>top — a <see cref="MenuBar"/> ("Demos" switcher) + the active demo's name + the engine name + FPS;</item>
 /// <item>middle — a top-left debug panel (host toggles + the active demo's own <see cref="IDemo.DebugPanel"/>,
 /// collapsible via a pin button) and, centred, the active demo's own UI content when it hosts one (the UI-track
-/// demos, whose SUIsei tree <em>is</em> the subject of the demo — always visible, HUD or not);</item>
+/// demos, whose Vysara tree <em>is</em> the subject of the demo — always visible, HUD or not);</item>
 /// <item>bottom — a status line + an optional right-aligned region a demo writes into (<see cref="IDemo.HudStatus"/>).</item>
 /// </list>
 /// <see cref="SetHudVisible"/> hides the top bar and the debug panel (the <c>--no-hud</c> chrome-free capture) but

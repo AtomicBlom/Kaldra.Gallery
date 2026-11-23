@@ -10,7 +10,7 @@
 		<ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 	</PropertyGroup>
 
-	<!-- Where the engine and SUIsei come from, as for the rest of the repository (build/Sources.props) -->
+	<!-- Where the engine and Vysara come from, as for the rest of the repository (build/Sources.props) -->
 	<Import Project="..\build\Sources.props" />
 
 </Project>

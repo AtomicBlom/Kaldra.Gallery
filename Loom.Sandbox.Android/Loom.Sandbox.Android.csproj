@@ -13,7 +13,7 @@
     <UseVulkan>true</UseVulkan>
     <UseDirectX12>false</UseDirectX12>
     <UseWebGPU>false</UseWebGPU>
-    <UseSUIsei>true</UseSUIsei>
+    <UseVysara>true</UseVysara>
     <UseImGui>false</UseImGui>
   </PropertyGroup>
 

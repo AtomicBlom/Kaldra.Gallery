@@ -36,7 +36,7 @@
          $(PkgMicrosoft_Direct3D_DXC). Build-machine only — the shipped app carries signed .dxil. -->
     <PackageVersion Include="Microsoft.Direct3D.DXC" Version="1.9.2609.5" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
-    <!-- Roslyn for the SUIsei.SourceGen XAML incremental generator (build-time analyzer, PrivateAssets=all). -->
+    <!-- Roslyn for the Vysara.SourceGen XAML incremental generator (build-time analyzer, PrivateAssets=all). -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <!-- Source-generator-based MVVM ([ObservableProperty]/[RelayCommand]) — no reflection, so it stays AOT/trim-safe

@@ -19,7 +19,7 @@
     <!-- Both UI bridges, through the SDK flags rather than by hand — which also keeps them honest: they are
          documented in the SDK README and getting-started, so the sandbox building on them is the test that they
          do something. -->
-    <UseSUIsei>true</UseSUIsei>
+    <UseVysara>true</UseVysara>
     <UseImGui>true</UseImGui>
   </PropertyGroup>
 
@@ -33,11 +33,11 @@
     <!-- The demo gallery (demos + their shaders/assets/UI views); the sandbox is its interactive host. -->
     <ProjectReference Include="..\Loom.Gallery\Loom.Gallery.csproj" />
     <!-- The engine-tier libraries the host itself names: the neutral asset loaders (brick material), the app-side
-         camera/frustum helpers, the SUIsei UI runtime + its neutral engine bridge, and the ImGui HUD bridge. The
+         camera/frustum helpers, the Vysara UI runtime + its neutral engine bridge, and the ImGui HUD bridge. The
          desktop host + backend(s) come from the Loom SDK above. -->
     <ProjectReference Include="$(LoomSource)Loom.Assets\Loom.Assets.csproj" />
     <ProjectReference Include="$(LoomSource)Loom.Concepts\Loom.Concepts.csproj" />
-    <ProjectReference Include="$(SUIseiSource)SUIsei\SUIsei.csproj" />
+    <ProjectReference Include="$(VysaraSource)Vysara\Vysara.csproj" />
   </ItemGroup>
 
   <Import Project="$(LoomSource)build\Loom.Sdk\Sdk\Sdk.targets" />

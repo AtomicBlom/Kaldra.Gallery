@@ -3,9 +3,9 @@ using System.Numerics;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using SUIsei;
-using SUIsei.Controls;
-using SUIsei.Media;
+using Vysara;
+using Vysara.Controls;
+using Vysara.Media;
 
 namespace Loom.Gallery.Demos;
 

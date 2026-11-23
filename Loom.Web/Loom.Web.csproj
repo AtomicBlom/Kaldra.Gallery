@@ -3,9 +3,9 @@
   <!-- Shared shader-build props (defines LoomShaderIncludeDir = Loom.Shaders/Shaders for the platform module). -->
   <Import Project="$(LoomSource)build\Loom.Sdk\Loom.Shaders.props" />
 
-  <!-- XAML → typed control-tree generator: registers UI/*.xaml as AdditionalFiles + the SUIsei.SourceGen analyzer,
+  <!-- XAML → typed control-tree generator: registers UI/*.xaml as AdditionalFiles + the Vysara.SourceGen analyzer,
        so the interactive UI demo's page compiles to a typed tree + x:Bind/event glue (same wiring as the sandbox). -->
-  <Import Project="$(SUIseiSource)build\SUIsei.props" />
+  <Import Project="$(VysaraSource)build\Vysara.props" />
 
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
@@ -16,7 +16,7 @@
     <!-- Marks the browser build so demo source shared (linked) from the sandbox can compile out the few desktop-only
          bits — chiefly the Dear ImGui debug panels, whose native library the browser build doesn't reference. -->
     <DefineConstants>$(DefineConstants);LOOM_WEB</DefineConstants>
-    <!-- Drop the ICU database: the demos and SUIsei text do no culture-sensitive formatting, so invariant mode is
+    <!-- Drop the ICU database: the demos and Vysara text do no culture-sensitive formatting, so invariant mode is
          behaviourally identical here and saves the multi-hundred-KB ICU payload. Set unconditionally so a debug run
          behaves the same as the shipped build. -->
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -52,18 +52,18 @@
     <ProjectReference Include="$(LoomSource)Loom.Graph\Loom.Graph.csproj" />
     <ProjectReference Include="$(LoomSource)Loom.Assets\Loom.Assets.csproj" />
     <ProjectReference Include="$(LoomSource)Loom.Concepts\Loom.Concepts.csproj" />
-    <!-- The SUIsei UI runtime (retained control tree + compositor, NativeAOT-clean, pure managed) and its
+    <!-- The Vysara UI runtime (retained control tree + compositor, NativeAOT-clean, pure managed) and its
          backend-neutral engine bridge (UIPainter, public-API-only). Both link into the WASM app unchanged, so the
          browser drives a real UIHost exactly as the desktop sandbox does. -->
-    <ProjectReference Include="$(LoomSource)Loom.UI.SUIsei\Loom.UI.SUIsei.csproj" />
-    <ProjectReference Include="$(SUIseiSource)SUIsei\SUIsei.csproj" />
+    <ProjectReference Include="$(LoomSource)Loom.UI.Vysara\Loom.UI.Vysara.csproj" />
+    <ProjectReference Include="$(VysaraSource)Vysara\Vysara.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The game-UI shader lives with its integration (Loom.UI.SUIsei/Shaders); pull it into this app's WGSL
+    <!-- The game-UI shader lives with its integration (Loom.UI.Vysara/Shaders); pull it into this app's WGSL
          emission so it embeds as "Loom.Web.Shaders.ui.wgsl" beside the demo shaders. It resolves the same
          loom_platform.module.slang include the sandbox shaders do (LoomShaderIncludeDir is already set). -->
-    <LoomSlangEntry Include="$(LoomSource)Loom.UI.SUIsei\Shaders\ui.slang" />
+    <LoomSlangEntry Include="$(LoomSource)Loom.UI.Vysara\Shaders\ui.slang" />
   </ItemGroup>
 
   <ItemGroup>
@@ -98,7 +98,7 @@
 
   <ItemGroup>
     <!-- A XAML page shared verbatim with the sandbox: its code-behind linked like the demos, and its markup handed to
-         the SUIsei.SourceGen generator as one more AdditionalFile (SUIsei.targets only globs this project's own folder),
+         the Vysara.SourceGen generator as one more AdditionalFile (Vysara.targets only globs this project's own folder),
          so both hosts compile the same Loom.Gallery.UI.VectorUIView. -->
     <Compile Include="..\Loom.Gallery\UI\VectorUIView.cs" Link="UI\Shared\VectorUIView.cs" />
     <AdditionalFiles Include="..\Loom.Gallery\UI\VectorUIView.xaml" Link="UI\Shared\VectorUIView.xaml" />
@@ -163,8 +163,8 @@
 
   <Import Project="$(LoomSource)build\Loom.Sdk\Loom.Shaders.targets" />
 
-  <!-- Registers UI/*.xaml as AdditionalFiles for the SUIsei.SourceGen analyzer (imported after the body so the
+  <!-- Registers UI/*.xaml as AdditionalFiles for the Vysara.SourceGen analyzer (imported after the body so the
        source dir is set). -->
-  <Import Project="$(SUIseiSource)build\SUIsei.targets" />
+  <Import Project="$(VysaraSource)build\Vysara.targets" />
 
 </Project>

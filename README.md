@@ -6,7 +6,7 @@ It was split out of the engine's repository, and its projects keep their `Loom.G
 
 | Project | What it is |
 |---|---|
-| `Loom.Gallery` | The demos (lighting, shadows, particles, skinning, SSAO, SUIsei UI and more) and their shaders and assets. |
+| `Loom.Gallery` | The demos (lighting, shadows, particles, skinning, SSAO, Vysara UI and more) and their shaders and assets. |
 | `Loom.Gallery.Tests` | The demos rendered offscreen and diffed against `Goldens/`, Vulkan against DirectX 12, WebGPU against Vulkan, and on WARP; and checks against every shader the gallery ships. GPU-gated: a test without a GPU skips. |
 | `Loom.Sandbox`, `Loom.Sandbox.Android` | The demos in a window, on the desktop and on Android. |
 | `Loom.Web` | The demos in a browser, on WebGPU. |
@@ -16,16 +16,16 @@ It was split out of the engine's repository, and its projects keep their `Loom.G
 
 ## Building
 
-The gallery builds on the engine, Sirrow and SUIsei from checkouts beside this one, built from source
+The gallery builds on the engine, Sirrow and Vysara from checkouts beside this one, built from source
 (`build/Sources.props`):
 
 | Property | Default | Is |
 |---|---|---|
-| `LoomSource` | `..\Kaldra\` | the engine's checkout (cloned recursively: SUIsei and VMASharp are its submodules) |
+| `LoomSource` | `..\Kaldra\` | the engine's checkout (cloned recursively: VMASharp is its submodule) |
 | `SirrowSource` | `..\Sirrow\` | the audio's checkout, for HelloAudio |
-| `SUIseiSource` | the SUIsei submodule in the engine's checkout | the UI library's checkout |
+| `VysaraSource` | `..\Vysara\` | the UI library's checkout |
 
-There is no packages mode: the gallery tests the engine as it stands, its tests take SUIsei's software rasterizer, which
+There is no packages mode: the gallery tests the engine as it stands, its tests take Vysara's software rasterizer, which
 no package carries, and it compiles shaders with the engine's own build files. A machine's own choices go in an
 untracked `dev.local.props` at the top level.
 

@@ -10,17 +10,17 @@ using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Core.Primitives;
 using Loom.Gallery.Demos;
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 
-using SUIsei;
-using SUIsei.Controls;
-using SUIsei.Extensions;
-using SUIsei.Media;
+using Vysara;
+using Vysara.Controls;
+using Vysara.Extensions;
+using Vysara.Media;
 
-using Polygon = SUIsei.Shapes.Polygon;
-using Polyline = SUIsei.Shapes.Polyline;
-using Rectangle = SUIsei.Shapes.Rectangle;
-using VectorVertex = SUIsei.Drawing.VectorVertex;
+using Polygon = Vysara.Shapes.Polygon;
+using Polyline = Vysara.Shapes.Polyline;
+using Rectangle = Vysara.Shapes.Rectangle;
+using VectorVertex = Vysara.Drawing.VectorVertex;
 
 namespace Loom.Tests;
 
@@ -551,7 +551,7 @@ public class RenderPropertyTests
 	{
 		using var engine = backend.Create(Surface.Offscreen(W, H), W, H, new EngineSettings());
 
-		// InWorldPanel renders a SUIsei tree to a target through the standard "ui" draw-list path — including the
+		// InWorldPanel renders a Vysara tree to a target through the standard "ui" draw-list path — including the
 		// offscreen-layer composite a group-opacity subtree triggers. A flat identity transform, no billboard.
 		var panel = InWorldPanel.Create(engine, W, H, Matrix4x4.Identity, billboard: false);
 		panel.View.Root.Content = content();
@@ -673,7 +673,7 @@ public class RenderPropertyTests
 	/// <para>
 	/// Both arms that take edge coverage from a distance are checked: a rounded rect, whose distance is its own SDF in
 	/// local rect space, and a vector triangle, whose distance arrives interpolated in <c>Custom</c>, with its three other
-	/// half-plane slots unused. A third case draws the same edge as a SUIsei <c>Polygon</c> through the compositor, so
+	/// half-plane slots unused. A third case draws the same edge as a Vysara <c>Polygon</c> through the compositor, so
 	/// the tessellator's fill — an interior inset by half a pixel inside a one-pixel fringe straddling each edge — is held
 	/// to the same ramp as a hand-built triangle. Each draws one straight edge through the middle of the target, at 0° and
 	/// at 45°. The edge is known exactly, so every pixel's signed distance <c>s</c> from it is too, and its coverage is the
@@ -834,7 +834,7 @@ public class RenderPropertyTests
 		return new Ramp(sc > 0 ? ss / sc : double.PositiveInfinity, partial, insideSolid, outsideClear);
 	}
 
-	// RenderEdge's square as a white SUIsei Polygon on a canvas at the target's origin, so the compositor tessellates its
+	// RenderEdge's square as a white Vysara Polygon on a canvas at the target's origin, so the compositor tessellates its
 	// fill and the panel draws the list through the ui technique.
 	private static void RenderShapeEdge(IRenderBackend backend, string outPath, Vector2 edge, Vector2 inward)
 	{
@@ -856,7 +856,7 @@ public class RenderPropertyTests
 	}
 
 	/// <summary>
-	/// A translucent stroke that crosses itself is no more opaque where it crosses than anywhere else. SUIsei draws a
+	/// A translucent stroke that crosses itself is no more opaque where it crosses than anywhere else. Vysara draws a
 	/// stroke whose brush has one alpha below 1 opaque inside a group layer and composites the layer once at that alpha,
 	/// so the two passes over a crossing cannot blend twice. This draws a half-transparent <c>Polyline</c> whose two
 	/// diagonals cross in the middle of the target, through the compositor and the <c>ui</c> technique, and compares the
@@ -916,7 +916,7 @@ public class RenderPropertyTests
 	}
 
 	/// <summary>
-	/// A gradient is exact at its stops. SUIsei splits the painted geometry at every stop, so each stop's colour is a
+	/// A gradient is exact at its stops. Vysara splits the painted geometry at every stop, so each stop's colour is a
 	/// vertex colour rather than a sample of a ramp, and a pixel whose centre lies on a stop shows that stop's colour.
 	/// Both prims a gradient reaches are checked — a <c>Rectangle</c>, which draws through the vector prim, and a
 	/// <c>Border</c> background, which draws as rect bands — in both of WinUI's interpolation modes: linear
@@ -1015,7 +1015,7 @@ public class RenderPropertyTests
 	}
 
 	/// <summary>
-	/// An outline grows a glyph's ink by its thickness and keeps a one-pixel edge. <c>suisei:TextEffects</c> draws an
+	/// An outline grows a glyph's ink by its thickness and keeps a one-pixel edge. <c>vysara:TextEffects</c> draws an
 	/// outline as the glyphs again, under them, read from the atlas's true distance with the edge moved out by the
 	/// thickness, so in the glyphs' own colour the two together are the glyph grown by that much on every side. This draws
 	/// a row of <c>|</c> bars, whose sides are straight, at the sub-pixel phases the font's advance puts them at: once plain
@@ -1220,7 +1220,7 @@ public class RenderPropertyTests
 
 	/// <summary>
 	/// The <c>ui</c> shader's glyph arm reads a fill from the median of the atlas's RGB distances, exactly as it did before
-	/// text had effects, and an outline or a shadow from the true distance in A, as SUIsei's contract and its rasterizer
+	/// text had effects, and an outline or a shadow from the true distance in A, as Vysara's contract and its rasterizer
 	/// do. Each quad here samples one uniform texel colour, so filtering leaves its distances as written, and that colour's
 	/// RGB median and its alpha are different distances: a fill read from A would come out clear. Quads with no effect, an
 	/// outline's bias, a shadow's softness, both, and a softness narrower than a pixel are each held to the contract's
@@ -1285,7 +1285,7 @@ public class RenderPropertyTests
 
 	private static Vector2 GlyphQuadOrigin(int i) => new(32f + i * 80f, 32f);
 
-	// SUIsei's glyph contract, as its rasterizer computes it.
+	// Vysara's glyph contract, as its rasterizer computes it.
 	private static float GlyphCoverage(Vector4 p)
 	{
 		float r = GlyphTexel[0] / 255f, g = GlyphTexel[1] / 255f, b = GlyphTexel[2] / 255f, a = GlyphTexel[3] / 255f;

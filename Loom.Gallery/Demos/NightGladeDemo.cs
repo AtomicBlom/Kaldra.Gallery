@@ -7,8 +7,8 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 
-using SUIsei;
-using SUIsei.Controls;
+using Vysara;
+using Vysara.Controls;
 
 namespace Loom.Gallery.Demos;
 

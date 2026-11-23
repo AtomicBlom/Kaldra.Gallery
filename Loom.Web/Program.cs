@@ -12,11 +12,11 @@ using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Gallery.Demos;
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 using Loom.Web.Demos;
 
-using SUIsei;
-using SUIsei.Input;
+using Vysara;
+using Vysara.Input;
 
 // The "loom-webgpu" module (its exports) is registered by main.js via setModuleImports before Main runs, so
 // the backend's and this host's [JSImport]s resolve without an ImportAsync round-trip. Any startup failure is
@@ -93,7 +93,7 @@ async Task BootAsync()
 	var graph = demo.Build(scene);
 	engine.SetGraph(graph);
 
-	// The shared SUIsei demo shell — the same switcher/debug-panel/status chrome the desktop sandbox renders,
+	// The shared Vysara demo shell — the same switcher/debug-panel/status chrome the desktop sandbox renders,
 	// giving the browser a real demo switcher for the first time (App.SwitchDemo drives it: define techniques,
 	// rebuild the graph, swap the shell's active-demo state). Capture mode hides the chrome (matching the desktop
 	// --no-hud convention the Vulkan references were captured with) but never a UI demo's own centred content —

@@ -4,10 +4,10 @@ using System.Runtime.InteropServices;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using SUIsei;
-using SUIsei.Composition;
-using SUIsei.Drawing;
-using SUIsei.Media;
+using Vysara;
+using Vysara.Composition;
+using Vysara.Drawing;
+using Vysara.Media;
 
 using LoomDrawCommand = Loom.Core.Hosting.DrawCommand;
 using LoomOverlayVertex = Loom.Core.Geometry.OverlayVertex;
@@ -15,9 +15,9 @@ using LoomOverlayVertex = Loom.Core.Geometry.OverlayVertex;
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// SUIsei's vector prim on its own: a stroke in each of WinUI's joins with each kind of cap, a dashed curve, a concave
+/// Vysara's vector prim on its own: a stroke in each of WinUI's joins with each kind of cap, a dashed curve, a concave
 /// fill and a curved one, the same shapes rotated, a fan of hairlines, and a translucent self-crossing stroke drawn as
-/// one group. SUIsei's <see cref="Tessellator"/> turns each path into triangles whose corners carry signed distances to
+/// one group. Vysara's <see cref="Tessellator"/> turns each path into triangles whose corners carry signed distances to
 /// the edges they antialias, a <see cref="DrawListBuilder"/> collects them, and the demo's own pass draws the list
 /// through the <c>ui</c> technique — no elements and no compositor, so nothing stands between the frame and the prim.
 /// Every edge should ramp across one pixel whatever its angle, and every backend should draw the same pixels.
@@ -189,12 +189,12 @@ internal sealed class VectorPrimsDemo : IDemo
 	}
 
 	// Copy the list into the engine's shapes once, upload its slot table, and mint the stream it is drawn under. The
-	// SUIsei and Loom vertex and command structs are byte-identical, so the copies are reinterpretations.
+	// Vysara and Loom vertex and command structs are byte-identical, so the copies are reinterpretations.
 	private void Upload(DrawListData list)
 	{
-		_vertices = MemoryMarshal.Cast<SUIsei.Drawing.OverlayVertex, LoomOverlayVertex>(list.Vertices.Span).ToArray();
+		_vertices = MemoryMarshal.Cast<Vysara.Drawing.OverlayVertex, LoomOverlayVertex>(list.Vertices.Span).ToArray();
 		_indices = list.Indices.ToArray();
-		_commands = MemoryMarshal.Cast<SUIsei.Drawing.DrawCommand, LoomDrawCommand>(list.Commands.Span).ToArray();
+		_commands = MemoryMarshal.Cast<Vysara.Drawing.DrawCommand, LoomDrawCommand>(list.Commands.Span).ToArray();
 		var slots = list.TextureSlots;
 		_textures = new TextureRef[slots.Count];
 		for (var i = 0; i < slots.Count; i++)

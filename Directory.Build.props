@@ -19,7 +19,7 @@
 
   <!--
     Warnings are errors across the Loom repo's own projects — the engine, samples, and tests build
-    warning-clean, so CI enforces it. Scoped naturally: external/ (vendored VMASharp + the SUIsei submodule)
+    warning-clean, so CI enforces it. Scoped naturally: external/ (vendored VMASharp)
     and Loom.Web (the isolated browser MVP) each have their own Directory.Build.props that stop MSBuild's
     upward walk, so this never reaches vendored or web-MVP code.
 
@@ -34,7 +34,7 @@
     <NoWarn>$(NoWarn);IL2104;IL3000;IL3002</NoWarn>
   </PropertyGroup>
 
-  <!-- Where the engine, the audio and SUIsei come from: their checkouts (build/Sources.props) -->
+  <!-- Where the engine, the audio and Vysara come from: their checkouts (build/Sources.props) -->
   <Import Project="$(MSBuildThisFileDirectory)build\Sources.props" Condition="'$(_GallerySourcesProps)' == ''" />
 
   <!-- A project referenced from outside the solution being built (the engine's, the audio's) builds in the configuration
@@ -64,9 +64,8 @@
 
   <!-- Include each project's own README.md in its package. PackageReadmeFile alone does NOT auto-include the
        file — the SDK still requires an explicit Pack=true item, confirmed by a dry-run publish failing NU5039
-       ("readme file does not exist") on every packed project without this. Submodule projects (external/SUIsei)
-       that reach this file but have their readme elsewhere include it explicitly in their own csproj and will
-       not match this condition (no README.md beside SUIsei.csproj). -->
+       ("readme file does not exist") on every packed project without this. A project whose readme
+       is elsewhere includes it explicitly in its own csproj and does not match this condition. -->
   <ItemGroup Condition="Exists('$(MSBuildProjectDirectory)/README.md')">
     <None Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>

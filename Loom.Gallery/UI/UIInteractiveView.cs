@@ -1,6 +1,6 @@
-using SUIsei;
-using SUIsei.Media;
-using SUIsei.RoutedEvents;
+using Vysara;
+using Vysara.Media;
+using Vysara.RoutedEvents;
 
 namespace Loom.Gallery.UI;
 

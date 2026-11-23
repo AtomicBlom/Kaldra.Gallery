@@ -33,10 +33,10 @@
     <ProjectReference Include="..\Loom.Gallery\Loom.Gallery.csproj" />
   </ItemGroup>
 
-  <!-- SUIsei's software rasterizer, the CPU oracle for every UI prim: the vector prim's GPU render is diffed against
+  <!-- Vysara's software rasterizer, the CPU oracle for every UI prim: the vector prim's GPU render is diffed against
        it (VectorPrimRenderTests), which is what holds ui.slang to the same maths. -->
   <ItemGroup>
-    <ProjectReference Include="$(SUIseiSource)SUIsei.Rasterizer\SUIsei.Rasterizer.csproj" />
+    <ProjectReference Include="$(VysaraSource)Vysara.Rasterizer\Vysara.Rasterizer.csproj" />
   </ItemGroup>
 
   <!-- Referenced so their module initializers self-register into Backends.Available, each skipped where its backend

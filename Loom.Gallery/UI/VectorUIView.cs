@@ -1,7 +1,7 @@
-using SUIsei.Animation;
-using SUIsei.Drawing;
-using SUIsei.Media;
-using SUIsei.Media.Imaging;
+using Vysara.Animation;
+using Vysara.Drawing;
+using Vysara.Media;
+using Vysara.Media.Imaging;
 
 namespace Loom.Gallery.UI;
 

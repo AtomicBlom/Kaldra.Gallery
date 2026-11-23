@@ -7,16 +7,16 @@ using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Gallery.Demos;
 using Loom.Input;
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 
-using SUIsei;
-using SUIsei.Extensions;
+using Vysara;
+using Vysara.Extensions;
 
 namespace Loom.Gallery.Hosting;
 
 /// <summary>
 /// The demo gallery as a <see cref="LoomApplication"/> with nothing desktop-only in it: the shared geometry and brick
-/// material, the <see cref="DemoGallery"/> roster with each demo loaded the first time it is shown, and the SUIsei
+/// material, the <see cref="DemoGallery"/> roster with each demo loaded the first time it is shown, and the Vysara
 /// <see cref="DemoShell"/> to switch between them by pointer or touch. The desktop sandbox adds its ImGui dev tools,
 /// hotkeys and free-fly camera on top of the same gallery; this is what a host without those runs, such as a phone.
 /// </summary>
@@ -103,7 +103,7 @@ internal sealed class GalleryApp(Func<string, byte[]> readAsset) : LoomApplicati
 		// Bottom to top: the active demo's in-world panel, the shell and the demos' own pages, then Escape to leave.
 		PushInputLayer(new DemoPointerLayer(e => _demos[_currentDemo].OnPointer(e)));
 		// No demo plays with a controller, so it drives the shell: the d-pad and stick move between its controls.
-		PushInputLayer(new SUIseiInputLayer(_uiHost) { PadNavigation = true });
+		PushInputLayer(new VysaraInputLayer(_uiHost) { PadNavigation = true });
 		PushInputLayer(new ExitOnEscapeLayer(Exit));
 		_ready = true;
 	}

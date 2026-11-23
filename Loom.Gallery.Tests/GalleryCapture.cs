@@ -4,10 +4,10 @@ using Loom.Assets;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Gallery.Demos;
-using Loom.UI.SUIsei;
+using Loom.UI.Vysara;
 
-using SUIsei;
-using SUIsei.Input;
+using Vysara;
+using Vysara.Input;
 
 namespace Loom.Tests;
 

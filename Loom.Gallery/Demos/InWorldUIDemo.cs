@@ -10,17 +10,17 @@ using Loom.Web.UI;
 #else
 using Loom.Gallery.UI;
 #endif
-using Loom.UI.SUIsei;
-using SUIsei;
-using SUIsei.Controls;
-using SUIsei.Input;
-using SUIsei.Media;
-using SUIsei.Shapes;
+using Loom.UI.Vysara;
+using Vysara;
+using Vysara.Controls;
+using Vysara.Input;
+using Vysara.Media;
+using Vysara.Shapes;
 
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// Demonstrates in-world UI placement: a SUIsei panel rendered into an offscreen texture and mapped onto a
+/// Demonstrates in-world UI placement: a Vysara panel rendered into an offscreen texture and mapped onto a
 /// world-space quad, with screen-space pointer events projected onto the quad's surface so clicks reach the
 /// in-world buttons. The panel is an independent <see cref="InWorldPanel"/> whose dedicated <c>UIHost</c>
 /// never sees the 3D world — all projection logic lives in the bridge.
@@ -56,7 +56,7 @@ internal sealed class InWorldUIDemo : IDemo
 
 		// A centered unit quad in the XY plane (±0.5), facing +Z. Vertices span [-0.5, 0.5]² so the
 		// WorldTransform's scale directly sets the panel's physical world dimensions. UV covers [0,1]²
-		// mapping (0,0)=top-left, (1,1)=bottom-right to match SUIsei's compositor output.
+		// mapping (0,0)=top-left, (1,1)=bottom-right to match Vysara's compositor output.
 		var n = new Vector3(0, 0, 1);
 		var tan = new Vector4(1, 0, 0, 1);
 		Vertex[] verts =
@@ -114,7 +114,7 @@ internal sealed class InWorldUIDemo : IDemo
 		var panelTex = g.Domain("ui_panel", _panel.PixelWidth, _panel.PixelHeight)
 						.Color("ui_panel_color", Format.Rgba8Srgb);
 
-		// 1. Composite the SUIsei tree into the offscreen panel texture.
+		// 1. Composite the Vysara tree into the offscreen panel texture.
 		g.Pass("ui.panel")
 			.Writes(panelTex)
 			.Draw(ctx => _panel?.Draw(ctx));

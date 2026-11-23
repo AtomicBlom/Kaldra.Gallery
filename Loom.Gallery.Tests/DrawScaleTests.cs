@@ -6,7 +6,7 @@ using Loom.Backend.Vulkan;
 using Loom.Core.Hosting;
 using Loom.Gallery.Demos;
 
-using SUIsei;
+using Vysara;
 
 namespace Loom.Tests;
 

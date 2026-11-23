@@ -4,20 +4,20 @@ using Loom.Concepts;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
 using Loom.Core.Materials;
-using SUIsei;
-using SUIsei.Controls;
-using SUIsei.Extensions;
-using SUIsei.Media;
-using SUIsei.Media.Imaging;
-using TextureAlphaMode = SUIsei.Drawing.TextureAlphaMode;
-using TextureColorSpace = SUIsei.Drawing.TextureColorSpace;
+using Vysara;
+using Vysara.Controls;
+using Vysara.Extensions;
+using Vysara.Media;
+using Vysara.Media.Imaging;
+using TextureAlphaMode = Vysara.Drawing.TextureAlphaMode;
+using TextureColorSpace = Vysara.Drawing.TextureColorSpace;
 
 namespace Loom.Gallery.Demos;
 
 /// <summary>
-/// Live images in a SUIsei page, of the two kinds an app supplies. A minimap: an orthographic pass renders the scene from
+/// Live images in a Vysara page, of the two kinds an app supplies. A minimap: an orthographic pass renders the scene from
 /// straight above into a small target every frame, and the page shows it through a <see cref="HostImageSource"/> that
-/// <see cref="Loom.UI.SUIsei.UIPainter.SetExternalTexture"/> binds to that target — a texture the GPU drew this frame,
+/// <see cref="Loom.UI.Vysara.UIPainter.SetExternalTexture"/> binds to that target — a texture the GPU drew this frame,
 /// never copied to the CPU. And a trace the app draws on the CPU into a <see cref="WriteableBitmap"/> every frame, which
 /// the painter writes into the bitmap's one texture in place (<see cref="IEngine.UpdateTexture"/>), allocating nothing.
 /// <para>

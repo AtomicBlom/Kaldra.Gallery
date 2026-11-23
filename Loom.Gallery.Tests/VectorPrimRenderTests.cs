@@ -8,20 +8,20 @@ using Loom.Core.Hosting;
 using Loom.Core.Materials;
 using Loom.Gallery.Demos;
 using Loom.Gallery.UI;
-using Loom.UI.SUIsei;
-using SUIsei;
-using SUIsei.Controls;
-using SUIsei.Drawing;
-using SUIsei.Extensions;
-using SUIsei.Media;
+using Loom.UI.Vysara;
+using Vysara;
+using Vysara.Controls;
+using Vysara.Drawing;
+using Vysara.Extensions;
+using Vysara.Media;
 using LoomDrawCommand = Loom.Core.Hosting.DrawCommand;
 using LoomOverlayVertex = Loom.Core.Geometry.OverlayVertex;
-using SoftwareRasterizer = SUIsei.Rasterizer.SoftwareRasterizer;
+using SoftwareRasterizer = Vysara.Rasterizer.SoftwareRasterizer;
 
 namespace Loom.Tests;
 
 /// <summary>
-/// The GPU draws SUIsei's vector prim as SUIsei's software rasterizer does. The rasterizer is the CPU oracle for every
+/// The GPU draws Vysara's vector prim as Vysara's software rasterizer does. The rasterizer is the CPU oracle for every
 /// UI prim, and <c>ui.slang</c>'s vector arm is written to its maths: four interpolated half-plane distances, each
 /// divided by the length of its screen-space gradient. So this draws <see cref="VectorPrimsDemo.BuildList"/> —
 /// tessellated strokes in every join and cap, a dashed curve, a concave fill and a curved one, rotated shapes,
@@ -30,11 +30,11 @@ namespace Loom.Tests;
 /// at the cross-backend parity bar. The driver's debug layer must stay silent while it draws. The browser's half is
 /// the VectorPrims leg of <see cref="WebGpuParityTests"/>, which holds WebGPU to Vulkan on the same list.
 /// <para>
-/// The same comparison runs over a list SUIsei's compositor made rather than one built by hand: the page of
+/// The same comparison runs over a list Vysara's compositor made rather than one built by hand: the page of
 /// <see cref="VectorUIDemo"/>, composed from its XAML — shapes and their strokes, dashes, a trimmed stroke whose gradient
 /// runs along its length, gradient fills, a translucent stroke in a group layer, a clip, an image on rounded corners,
 /// glyph runs and their outlines and shadows — so the GPU is held to the oracle on what a compositor emits for shapes,
-/// not only on hand-built triangles. A third list is text alone with every effect <c>suisei:TextEffects</c> draws (solid
+/// not only on hand-built triangles. A third list is text alone with every effect <c>vysara:TextEffects</c> draws (solid
 /// and gradient outlines, soft and hard shadows, an outline over a glow, a translucent outline on a faded run, and small
 /// text whose outline the atlas's field clamps), at layout scales 1 and 1.5, so the glyph arm's true-distance branch and
 /// the run's screenPxRange under scale are held to the oracle too. All three lists are held to the same bar.
@@ -58,7 +58,7 @@ public class VectorPrimRenderTests
 	private const double MaxFailedFraction = 0.005;
 
 	[Test]
-	public void The_GPU_draws_the_vector_prims_as_SUIsei_s_rasterizer_does()
+	public void The_GPU_draws_the_vector_prims_as_Vysara_s_rasterizer_does()
 	{
 		var width = (int)VectorPrimsDemo.Canvas.X;
 		var height = (int)VectorPrimsDemo.Canvas.Y;
@@ -66,15 +66,15 @@ public class VectorPrimRenderTests
 	}
 
 	[Test]
-	public void The_GPU_draws_the_vector_UI_page_as_SUIsei_s_rasterizer_does()
+	public void The_GPU_draws_the_vector_UI_page_as_Vysara_s_rasterizer_does()
 	{
 		var size = new System.Numerics.Vector2(GalleryCapture.Width, GalleryCapture.Height);
 		var view = new VectorUIView();
 		// Part-way through its draw-on, so the list holds a trim with both ends inside the stroke.
 		StrokeTrim.SetStart(view.Trail, 0.15f);
 		StrokeTrim.SetEnd(view.Trail, 0.8f);
-		var host = new global::SUIsei.UIHost();
-		var root = host.CreateRoot(global::SUIsei.UILayer.Default).Root;
+		var host = new global::Vysara.UIHost();
+		var root = host.CreateRoot(global::Vysara.UILayer.Default).Root;
 		root.Content = view;
 		host.Tick(0, 0f, size);
 		AssertGpuMatchesRasterizer("vectorui", root.Render(), GalleryCapture.Width, GalleryCapture.Height, VectorUIDemo.Background);
@@ -83,7 +83,7 @@ public class VectorPrimRenderTests
 	[Test]
 	[Arguments(1f)]
 	[Arguments(1.5f)]
-	public void The_GPU_draws_text_effects_as_SUIsei_s_rasterizer_does(float layoutScale)
+	public void The_GPU_draws_text_effects_as_Vysara_s_rasterizer_does(float layoutScale)
 	{
 		const int Width = 960, Height = 540;
 		var host = new UIHost();
@@ -281,7 +281,7 @@ public class VectorPrimRenderTests
 			}
 		}
 
-		failures.ShouldBeEmpty($"The GPU's {name} list differs from SUIsei's rasterizer:\n  " + string.Join("\n  ", failures));
+		failures.ShouldBeEmpty($"The GPU's {name} list differs from Vysara's rasterizer:\n  " + string.Join("\n  ", failures));
 	}
 
 	// Draw `list` alone through the ui technique onto an offscreen target cleared to `background`, and capture it: its slot
@@ -290,13 +290,13 @@ public class VectorPrimRenderTests
 	private static void RenderList(IRenderBackend backend, DrawListData list, int width, int height, Vector4 background, string outPath)
 	{
 		using var engine = backend.Create(Surface.Offscreen(width, height), width, height, new EngineSettings());
-		UIPainter.Create(engine, new global::SUIsei.UIHost()); // defines the ui technique; this draws no host
+		UIPainter.Create(engine, new global::Vysara.UIHost()); // defines the ui technique; this draws no host
 
 		var slots = list.TextureSlots;
 		var textures = new TextureRef[slots.Count];
 		for (var i = 0; i < slots.Count; i++)
 			textures[i] = engine.CreateTexture(UIPainter.UploadData(slots[i]));
-		var vertices = MemoryMarshal.Cast<SUIsei.Drawing.OverlayVertex, LoomOverlayVertex>(list.Vertices.Span).ToArray();
+		var vertices = MemoryMarshal.Cast<Vysara.Drawing.OverlayVertex, LoomOverlayVertex>(list.Vertices.Span).ToArray();
 		var indices = list.Indices.ToArray();
 		var commands = new LoomDrawCommand[list.Commands.Length];
 		UIPainter.CopyCommands(list.Commands.Span, slots, commands);

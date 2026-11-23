@@ -3,8 +3,8 @@ using System.Numerics;
 using Loom.Concepts;
 using Loom.Core.Graph;
 using Loom.Core.Hosting;
-using SUIsei;
-using SUIsei.Input;
+using Vysara;
+using Vysara.Input;
 
 namespace Loom.Gallery.Demos;
 
@@ -61,7 +61,7 @@ internal interface IDemo
 
 	/// <summary>
 	/// Optional debug controls for this demo (cascade-tint, time-of-day scrubber, skeleton overlay,
-	/// bind-vs-animated) — a SUIsei element the shared demo shell hosts in its debug panel while this demo is
+	/// bind-vs-animated) — a Vysara element the shared demo shell hosts in its debug panel while this demo is
 	/// active. Built once and reused across frames; a demo backing it with an observable view-model (e.g.
 	/// <c>CommunityToolkit.Mvvm</c>'s <c>[ObservableProperty]</c>) keeps the panel's controls and the demo's own
 	/// state in sync without any host-side wiring. Default none.
@@ -69,7 +69,7 @@ internal interface IDemo
 	UIElement? DebugPanel => null;
 
 	/// <summary>
-	/// Optional UI of the demo's own — for a UI-track demo, the SUIsei page that is its subject. A host centres it over
+	/// Optional UI of the demo's own — for a UI-track demo, the Vysara page that is its subject. A host centres it over
 	/// the scene in the shared <see cref="DemoShell"/>, and an offscreen capture shows it with the shell's chrome hidden,
 	/// so a capture of a UI demo has the UI in it. Built once per demo instance and reused. Default none.
 	/// </summary>

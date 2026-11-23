@@ -8,7 +8,7 @@ using Loom.Web.UI;
 #else
 using Loom.Gallery.UI;
 #endif
-using SUIsei;
+using Vysara;
 
 namespace Loom.Gallery.Demos;
 

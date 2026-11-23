@@ -2,12 +2,12 @@ using System.Numerics;
 
 using Loom.Input;
 
-using Sui = SUIsei.Input;
+using Sui = Vysara.Input;
 
 namespace Loom.Gallery.Hosting;
 
 /// <summary>
-/// The bottom input layer: forwards the frame's surviving pointer stream to the active demo as SUIsei
+/// The bottom input layer: forwards the frame's surviving pointer stream to the active demo as Vysara
 /// <see cref="Sui.PointerInput"/> events — the channel a demo that owns an in-world panel projects onto its
 /// world-space quad. Neutral button events carry no position of their own, so a press or release reuses the latest
 /// move's position. A finger stands in for the mouse: the first one down presses where it lands, drags and releases as
